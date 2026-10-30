@@ -99,6 +99,18 @@ check_quota() {
     fi
 }
 
+# Subscriptions can be barred from PostgreSQL Flexible Server in single regions; the reason
+# is empty where provisioning is allowed.
+if pg_reason="$(az postgres flexible-server list-skus --location "$LOCATION" --query '[0].reason' -o tsv 2>/dev/null)"; then
+    if [[ -z "$pg_reason" || "$pg_reason" == "None" ]]; then
+        pass "PostgreSQL Flexible Server can be provisioned in $LOCATION"
+    else
+        fail "PostgreSQL Flexible Server in $LOCATION ($pg_reason)"
+    fi
+else
+    fail "PostgreSQL Flexible Server in $LOCATION (az postgres flexible-server list-skus failed)"
+fi
+
 if [[ -n "${NODE_VM_SIZE:-}" ]]; then
     NODE_COUNT="${NODE_COUNT:-1}"
     [[ "$NODE_COUNT" =~ ^[1-9][0-9]*$ ]] || die "NODE_COUNT must be a positive integer."

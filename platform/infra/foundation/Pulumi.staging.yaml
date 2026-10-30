@@ -1,13 +1,14 @@
-# Stack organization/foundation/staging. `pulumi stack init` adds encryptionsalt here;
-# commit it. The required values are chosen at bootstrap for the actual subscription
-# (operations/foundation/bootstrap.md, step 4) and set with `pulumi config set`;
-# secrets only through scripts/bootstrap/foundation.sh secrets (stored encrypted here).
-#
-# Required: location, kubernetesVersion, nodeVmSize, nodeCount, humansEmail,
-#   budgetAmount, budgetStartDate,
-#   modelApiKeys (secret object, e.g. modelApiKeys.azure-openai), githubWebhookSecret (secret),
-#   opsGithubToken (secret)
-# Optional: acmeEmail, acmeServer, httpFallback, containerInsights, postgresVersion,
-#   postgresSkuName, postgresSkuTier, postgresStorageGb, traefikChartVersion,
-#   certManagerChartVersion, catalogDir
-config: {}
+encryptionsalt: v1:B5cL/W3/KhI=:v1:6XgFhoSbJvDKpUAS:pHyighmSOLyKlSeWQ3Q+UaP1g2KiRQ==
+config:
+  foundation:githubWebhookSecret:
+    secure: v1:RcIAyJmKh/FQdaDl:OmjfZkwElPTYGAWZvnD3z3oWrGQwXK2OrpUkvm0C1Dn1Z75+WgxmyjYDX90cn/52NBnge4mvpTAK+ytCxisagC2kuZgMYvPjG7BsrhMU2uo=
+  foundation:modelApiKeys:
+    azure-openai:
+      secure: v1:R+8n4o05kcHHWdAM:WL7czREEPCwkyEDWRakcmdIVMSb9rBlN4zvsAu5tkwjnuRyEY+I4Y+Cwtsq8hfoeCCQes2+c5nxrZVwt+oskBspYcXe886HvJrOF/NlPrOebVAVaiGVNqXLELDfRTtrAs8opZw==
+  foundation:location: swedencentral
+  foundation:kubernetesVersion: 1.35.9
+  foundation:nodeVmSize: Standard_D2als_v6
+  foundation:nodeCount: "1"
+  foundation:humansEmail: cornelius.hoefig@mmkdigital.io, erik.kaufmann@mmkdigital.io, efstratios.baxivanelis@mmkdigital.io, constantin.silberhorn@mmkdigital.io
+  foundation:budgetAmount: "150"
+  foundation:budgetStartDate: "2026-10-01"

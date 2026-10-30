@@ -18,6 +18,7 @@ case "$*" in
   "aks get-versions"*) echo 1.34.0 ;;
   "vm list-skus --location germanywestcentral --size "*) printf '%s' "\${SKUS_JSON:-[]}" ;;
   "vm list-usage --location germanywestcentral -o json") printf '%s' "\${USAGE_JSON:-[]}" ;;
+  "postgres flexible-server list-skus --location germanywestcentral --query [0].reason -o tsv") printf '%s\n' "\${PG_REASON:-}" ;;
   "provider show"*) echo Registered ;;
   "group exists"*) [[ -f "$s/rg" ]] && echo true || echo false ;;
   "group create"*) touch "$s/rg" ;;
@@ -162,6 +163,18 @@ test("DEFER_PAT=1 skips the PAT checks with a notice instead of stopping", { ski
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stderr, /INFO +PAT checks skipped \(DEFER_PAT=1\)/);
     assert.ok(!result.calls.some((call) => call.startsWith("curl")), "no PAT probe");
+});
+
+test("a region where PostgreSQL Flexible Server is restricted fails the preflight", { skip }, () => {
+    const box = newSandbox();
+    const ok = box.run("preflight.sh", [box.config], { OPS_GITHUB_TOKEN: pat });
+    assert.match(ok.stderr, /OK +PostgreSQL Flexible Server can be provisioned in germanywestcentral/);
+    const result = box.run("preflight.sh", [box.config], {
+        OPS_GITHUB_TOKEN: pat,
+        PG_REASON: "Provisioning is restricted in this region. Please choose a different region.",
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /- PostgreSQL Flexible Server in germanywestcentral \(Provisioning is restricted in this region/);
 });
 
 test("an invalid env file is rejected", { skip }, () => {
