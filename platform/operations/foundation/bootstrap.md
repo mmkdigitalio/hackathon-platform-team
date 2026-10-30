@@ -128,8 +128,9 @@ items, exits non-zero and has created nothing. It checks:
 - `gh` login and admin on `GITHUB_REPO`.
 - The GitHub App, if `GITHUB_APP_PRIVATE_KEY_FILE` is set: it signs an app JWT (RS256,
   `openssl`) with `GITHUB_APP_ID` and calls `GET /repos/{repo}/installation` for each
-  repository in `AGENT_REPOS`. The installation must exist and grant `issues`,
-  `pull_requests`, `contents` and `actions` with `write`; each gap is one line, for
+  repository in `AGENT_REPOS`. The installation must exist, have the ID
+  `GITHUB_APP_INSTALLATION_ID` and grant `issues`, `pull_requests`, `contents` and
+  `actions` with `write`; each gap is one line, for
   example `GitHub App permission actions (write) on <repo> (granted: read)`. Without the
   key file these checks are skipped with an `INFO` line.
 - `INFO` with the supported non-preview AKS versions in `LOCATION` (you pick
@@ -261,7 +262,7 @@ platform/scripts/bootstrap/foundation.sh platform/scripts/bootstrap/staging.env 
 `secrets` needs `GITHUB_WEBHOOK_SECRET`, `GITHUB_APP_PRIVATE_KEY_FILE` and at least one
 of `MODEL_KEY_ANTHROPIC` and `MODEL_KEY_AZURE_OPENAI`. It stores them through stdin as
 encrypted settings `githubWebhookSecret`, `githubAppPrivateKey` (the content of the key
-file), `modelApiKeys["anthropic"]` and `modelApiKeys["azure-openai"]`. `OPS_GITHUB_TOKEN`
+file, which `openssl` must read as an unencrypted private key), `modelApiKeys["anthropic"]` and `modelApiKeys["azure-openai"]`. `OPS_GITHUB_TOKEN`
 is optional: only if it is exported, it is stored as `opsGithubToken`; the output
 `opsGithubToken` is empty when no PAT is stored. Only exported model keys are written; a
 key stored earlier for the other provider stays.
@@ -371,8 +372,8 @@ gh workflow run foundation-access-check.yml --repo mmkdigitalio/hackathon-platfo
 ```
 
 Expected: the run fails, the summary shows only `postgres` as failed and names the
-deliberately broken category. Any other category can be chosen (`github` gets an invalid
-private key); with `foundation-state` all categories fail because the others are skipped. Keep the URLs of both runs as
+deliberately broken category. Any other category can be chosen (`github` gets a freshly
+generated key that belongs to no app, so GitHub rejects the token request); with `foundation-state` all categories fail because the others are skipped. Keep the URLs of both runs as
 evidence for task 5.1.
 
 ## Step 8: Manual steps

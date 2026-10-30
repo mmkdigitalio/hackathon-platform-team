@@ -2,6 +2,9 @@
 // from the bootstrap names, stack secrets go through stdin, and the run summary shows
 // versions and URLs without secret values.
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { test } from "node:test";
 import { renderSummary } from "../scripts/bootstrap/summary.mjs";
 import { appKeys, sandbox, skipWithoutBash as skip } from "./helpers/script-stubs.mjs";
@@ -88,9 +91,23 @@ test("secrets stores the GitHub App key without a PAT; a missing or invalid key 
     assert.equal(box.read("config-githubAppPrivateKey"), app.privateKey.trimEnd());
     assert.ok(!result.calls.some((call) => call.includes("opsGithubToken")));
     const { GITHUB_APP_PRIVATE_KEY_FILE, ...withoutKey } = secretEnv;
+    // A PEM header alone is not enough: the agent cannot sign with an encrypted or broken key.
+    const encrypted = join(box.dir, "encrypted.pem");
+    writeFileSync(
+        encrypted,
+        generateKeyPairSync("rsa", {
+            modulusLength: 2048,
+            publicKeyEncoding: { type: "spki", format: "pem" },
+            privateKeyEncoding: { type: "pkcs8", format: "pem", cipher: "aes-256-cbc", passphrase: "secret" },
+        }).privateKey,
+    );
+    const broken = join(box.dir, "broken.pem");
+    writeFileSync(broken, "-----BEGIN RSA PRIVATE KEY-----\nbm90LWEta2V5\n-----END RSA PRIVATE KEY-----\n");
     for (const [env, message] of [
         [withoutKey, /GITHUB_APP_PRIVATE_KEY_FILE is not set/],
-        [{ ...withoutKey, GITHUB_APP_PRIVATE_KEY_FILE: box.config }, /is not a readable PEM private key/],
+        [{ ...withoutKey, GITHUB_APP_PRIVATE_KEY_FILE: box.config }, /is not an unencrypted PEM private key/],
+        [{ ...withoutKey, GITHUB_APP_PRIVATE_KEY_FILE: encrypted }, /is not an unencrypted PEM private key/],
+        [{ ...withoutKey, GITHUB_APP_PRIVATE_KEY_FILE: broken }, /is not an unencrypted PEM private key/],
     ]) {
         const strict = sandbox(stubs);
         const stopped = strict.run("foundation.sh", [strict.config, "secrets"], { ...env, MODEL_KEY_AZURE_OPENAI: "aoai-model-key" });

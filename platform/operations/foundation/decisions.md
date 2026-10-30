@@ -230,9 +230,9 @@ to them where they build on them.
   manuelle Voraussetzungen", task 2.1).
 - Decision: with `GITHUB_APP_PRIVATE_KEY_FILE` set, the preflight signs an app JWT
   (RS256, `openssl`) with `GITHUB_APP_ID` and calls `GET /repos/{repo}/installation` for
-  every repository in `AGENT_REPOS`. The installation must exist and grant `issues`,
-  `pull_requests`, `contents` and `actions` with `write`; each gap is reported with the
-  granted level. Without the key file it skips these checks with an `INFO` line.
+  every repository in `AGENT_REPOS`. The installation must exist, have the ID
+  `GITHUB_APP_INSTALLATION_ID` and grant `issues`, `pull_requests`, `contents` and
+  `actions` with `write`; each gap is reported with the granted level. Without the key file it skips these checks with an `INFO` line.
 - Consequences: the check reads the granted permissions instead of inferring them from
   error codes, so the former assumption about GitHub's validation order no longer
   applies, and it creates nothing. A preflight without the key file does not check

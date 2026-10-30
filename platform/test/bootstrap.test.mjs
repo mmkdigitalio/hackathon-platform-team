@@ -130,6 +130,20 @@ const usage = (entries) =>
 const zoneRestriction = { type: "Zone", reasonCode: "NotAvailableForSubscription", restrictionInfo: { zones: ["1"] } };
 const locationRestriction = { type: "Location", reasonCode: "NotAvailableForSubscription", restrictionInfo: {} };
 
+test("a missing installation ID and one GitHub does not report are both named", { skip }, () => {
+    const missing = sandbox({ az: azStub, gh: ghStub, curl: curlStub }, { envFile: defaultEnvLines.join("\n") });
+    const withoutId = missing.run("preflight.sh", [missing.config], withApp);
+    assert.equal(withoutId.status, 1);
+    assert.match(withoutId.stderr, /- GitHub App: GITHUB_APP_ID and GITHUB_APP_INSTALLATION_ID must be set/);
+    const wrong = sandbox(
+        { az: azStub, gh: ghStub, curl: curlStub },
+        { envFile: [...defaultEnvLines, "GITHUB_APP_INSTALLATION_ID=999"].join("\n") },
+    );
+    const result = wrong.run("preflight.sh", [wrong.config], withApp);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /- GitHub App installation ID 999 on mmkdigitalio\/hackathon-platform-affine \(GitHub reports 176901698\)/);
+});
+
 test("a VM size restricted only in single zones passes and its vCPU quota is checked", { skip }, () => {
     const box = sandbox(
         { az: azStub, gh: ghStub, curl: curlStub },

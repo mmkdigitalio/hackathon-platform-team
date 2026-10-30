@@ -41,7 +41,8 @@ if [[ "$break_category" != none ]]; then
         acr) ACR_PASSWORD="invalid-access-check-password" ;;
         postgres) POSTGRES_PASSWORD="invalid-access-check-password" ;;
         diagnostics-storage) DIAGNOSTICS_KEY="aW52YWxpZC1hY2Nlc3MtY2hlY2sta2V5" ;;
-        github) GITHUB_APP_PRIVATE_KEY=$'-----BEGIN PRIVATE KEY-----\ninvalid-access-check-key\n-----END PRIVATE KEY-----' ;;
+        # A fresh key of no app, so GitHub rejects it like a deleted app key.
+        github) GITHUB_APP_PRIVATE_KEY="$(openssl genrsa 2048 2>/dev/null)" ;;
         github-workflow-token) WORKFLOW_GITHUB_TOKEN="github_pat_invalid_access_check" ;;
         foundation-state) ;; # broken by the workflow: the composite action gets an invalid backend key
     esac

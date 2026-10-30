@@ -100,6 +100,10 @@ for (const category of ["kubernetes", "acr", "postgres", "diagnostics-storage", 
         }
         assert.match(result.summary, new RegExp(`Deliberately broken category: \`${category}\``));
         assert.match(result.stderr, /the bootstrap is not fully functional/);
+        if (category === "github") {
+            // A valid key of no app: GitHub, not openssl, rejects it, like a deleted app key.
+            assert.match(result.box.read("curl-requests"), /POST https:\/\/api.github.com\/app\/installations\/176901698\/access_tokens/);
+        }
     });
 }
 

@@ -93,9 +93,11 @@ export function appKeys() {
 
 // GitHub REST stub for curl: status per "<METHOD> <path>"; $CURL_DENY lists
 // "<METHOD> <repo-relative path prefix>@<repo>" entries answered with 403. GitHub App
-// calls need a JWT that verifies against $APP_PUBLIC_KEY; repositories in $APP_MISSING have
-// no installation and "<permission>@<repo>" entries in $APP_READ_ONLY are granted read only.
-// Calls with -w '\n%{http_code}' get the body, a newline and the status.
+// calls need a JWT of app 5542094 that verifies against $APP_PUBLIC_KEY, is already valid
+// and expires within 10 minutes; like GitHub, other repository calls reject a JWT.
+// Repositories in $APP_MISSING have no installation and "<permission>@<repo>" entries in
+// $APP_READ_ONLY are granted read only. Calls with -w '\n%{http_code}' get the body, a
+// newline and the status.
 export const curlStub = `
 method=GET; url=""; prev=""; with_body=0
 for a in "$@"; do
@@ -114,6 +116,10 @@ if [[ "$token" == eyJ* ]]; then
   printf '%s' "\${token##*.}" | b64 >"$STUB_STATE/jwt-signature"
   printf '%s' "\${token%.*}" | openssl dgst -sha256 -verify "\${APP_PUBLIC_KEY:-/nonexistent}" \\
     -signature "$STUB_STATE/jwt-signature" >/dev/null 2>&1 || reply 401 '{}'
+  claims="\${token#*.}"; claims="$(printf '%s' "\${claims%%.*}" | b64)"
+  now="$(date +%s)"
+  jq -e --argjson now "$now" '.iss == "5542094" and .iat <= $now and .exp > $now and .exp - $now <= 600' \\
+    <<<"$claims" >/dev/null 2>&1 || reply 401 '{"message":"bad JWT claims"}'
   jwt=1
 fi
 if [[ "$method:$url" == POST:https://api.github.com/app/installations/176901698/access_tokens ]]; then
@@ -133,6 +139,7 @@ if [[ "$sub" == /installation ]]; then
   done
   reply 200 "{\\"id\\":176901698,\\"permissions\\":{\${permissions%,}}}"
 fi
+(( jwt )) && reply 401 '{"message":"A JSON web token could not be decoded"}'
 for deny in \${CURL_DENY:-}; do
   [[ "$deny" == "$method:$sub@$repo" || "$deny" == "$method:*@$repo" ]] && reply 403 '{}'
 done

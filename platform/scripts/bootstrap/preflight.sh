@@ -48,8 +48,8 @@ fi
 # repository carries the permissions the organization granted to the app.
 if [[ -z "${GITHUB_APP_PRIVATE_KEY_FILE:-}" ]]; then
     info "GitHub App checks skipped: set GITHUB_APP_PRIVATE_KEY_FILE to the app's private key (bootstrap.md, step 1)."
-elif [[ -z "${GITHUB_APP_ID:-}" ]]; then
-    fail "GitHub App: GITHUB_APP_ID is empty in the bootstrap config"
+elif [[ -z "${GITHUB_APP_ID:-}" || -z "${GITHUB_APP_INSTALLATION_ID:-}" ]]; then
+    fail "GitHub App: GITHUB_APP_ID and GITHUB_APP_INSTALLATION_ID must be set in the bootstrap config"
 elif ! jwt="$(github_app_jwt "$GITHUB_APP_ID" "$(cat "$GITHUB_APP_PRIVATE_KEY_FILE" 2>/dev/null)")"; then
     fail "GitHub App private key $GITHUB_APP_PRIVATE_KEY_FILE (no readable PEM private key)"
 else
@@ -57,6 +57,11 @@ else
         if ! installation="$(github_json "$jwt" GET "repos/$repo/installation")"; then
             fail "GitHub App $GITHUB_APP_ID installed on $repo (or the key belongs to another app)"
             continue
+        fi
+        # Workflows and the agent request tokens for this ID; a wrong one fails only later.
+        id="$(jq -r '.id // empty' <<<"$installation")"
+        if [[ "$id" != "$GITHUB_APP_INSTALLATION_ID" ]]; then
+            fail "GitHub App installation ID $GITHUB_APP_INSTALLATION_ID on $repo (GitHub reports ${id:-none})"
         fi
         for permission in issues pull_requests contents actions; do
             access="$(jq -r --arg p "$permission" '.permissions[$p] // "none"' <<<"$installation")"

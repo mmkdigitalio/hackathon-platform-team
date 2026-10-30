@@ -117,8 +117,10 @@ case "$command" in
         [[ -n "${GITHUB_WEBHOOK_SECRET:-}" ]] || die "GITHUB_WEBHOOK_SECRET is not set."
         [[ -n "${GITHUB_APP_PRIVATE_KEY_FILE:-}" ]] ||
             die "GITHUB_APP_PRIVATE_KEY_FILE is not set: path to the private key (.pem) of the agent's GitHub App."
-        grep -q -- '-----BEGIN .*PRIVATE KEY-----' "$GITHUB_APP_PRIVATE_KEY_FILE" 2>/dev/null ||
-            die "$GITHUB_APP_PRIVATE_KEY_FILE is not a readable PEM private key."
+        require_tools openssl
+        # The agent signs without a passphrase; an encrypted or broken key would fail only there.
+        openssl pkey -in "$GITHUB_APP_PRIVATE_KEY_FILE" -noout -passin pass: >/dev/null 2>&1 ||
+            die "$GITHUB_APP_PRIVATE_KEY_FILE is not an unencrypted PEM private key."
         [[ -n "${MODEL_KEY_ANTHROPIC:-}${MODEL_KEY_AZURE_OPENAI:-}" ]] ||
             die "Set MODEL_KEY_ANTHROPIC and/or MODEL_KEY_AZURE_OPENAI; the agent needs at least one model key."
         set_secret_config githubWebhookSecret "$GITHUB_WEBHOOK_SECRET"
