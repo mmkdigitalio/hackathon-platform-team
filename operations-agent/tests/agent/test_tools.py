@@ -130,7 +130,9 @@ def test_github_timeout(world: World) -> None:
 
 
 def dispatcher(world: World) -> WorkflowDispatcher:
-    return WorkflowDispatcher(world.github.client(), world.services, frozenset({"app-deploy.yml"}), sleep=world.clock.sleep, clock=world.clock)
+    return WorkflowDispatcher(
+        world.github.client(), world.services, frozenset({"app-deploy.yml"}), sleep=world.clock.sleep, clock=world.clock
+    )
 
 
 def test_unlisted_workflow_rejected_without_github_call(world: World) -> None:
@@ -255,7 +257,52 @@ def test_smoke_hanging_job_times_out(world: World) -> None:
     assert world.cluster.jobs[("affine-staging", ev.job_name)]["deleted"]
 
 
+def test_smoke_job_passes_static_env_and_secret_refs(world: World) -> None:
+    ev = smoke(world).run(AFFINE, "affine", SMOKE_IMAGE, {"SMOKE_USER_PASSWORD": "app:pw"}, "op-1", 120, {"CHECK_PATH": "/info"})
+    env = world.cluster.jobs[("affine-staging", ev.job_name)]["body"].spec.template.spec.containers[0].env
+    by_name = {e.name: e for e in env}
+    assert by_name["CHECK_PATH"].value == "/info" and by_name["TARGET_URL"].value == "https://affine.1-2-3-4.sslip.io"
+    ref = by_name["SMOKE_USER_PASSWORD"].value_from.secret_key_ref
+    assert (ref.name, ref.key) == ("affine-platform", "SMOKE_USER_PASSWORD") and by_name["SMOKE_USER_PASSWORD"].value is None
+
+
+def test_smoke_resolves_acr_image(world: World) -> None:
+    acr = SmokeTest(
+        world.k8s(),
+        world.policy(),
+        world.services,
+        "acr-pull",
+        sleep=world.clock.sleep,
+        clock=world.clock,
+        acr_login_server="mmk.azurecr.io",
+    )
+    ev = acr.run(AFFINE, "affine", "acr:platform/smoke-http@sha256:" + "b" * 64, {}, "op-1", 120)
+    image = world.cluster.jobs[("affine-staging", ev.job_name)]["body"].spec.template.spec.containers[0].image
+    assert image == "mmk.azurecr.io/platform/smoke-http@sha256:" + "b" * 64
+    assert ev.check_ref == "sha256:" + "b" * 64
+
+
+def test_smoke_acr_image_without_login_server_is_rejected(world: World) -> None:
+    with pytest.raises(ValueError, match="OPS_ACR_LOGIN_SERVER"):
+        smoke(world).run(AFFINE, "affine", "acr:platform/smoke-http@sha256:" + "b" * 64, {}, "op-1", 120)
+
+
 def test_parse_result_and_job_name() -> None:
     assert parse_result('log line\n{"success": true}\n') == {"success": True}
     assert parse_result("kein json") is None
     assert job_name("ACT_0001") == "smoke-act-0001"
+
+
+def test_kubeconfig_path_is_read_at_call_time(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    from tools import kubernetes as k
+
+    seen = {}
+    monkeypatch.delenv("KUBERNETES_SERVICE_HOST", raising=False)
+    monkeypatch.setenv("OPS_KUBECONFIG", "/tmp/sa.kubeconfig")
+    monkeypatch.setenv("OPS_KUBE_CONTEXT", "kind-ops-agent-sa")
+    monkeypatch.setattr(k.config, "load_kube_config", lambda **kw: seen.update(kw))
+    k.KubernetesAdapter.from_environment(world.policy())
+    assert seen == {"config_file": "/tmp/sa.kubeconfig", "context": "kind-ops-agent-sa"}
+    monkeypatch.delenv("OPS_KUBE_CONTEXT")
+    with pytest.raises(ValidationFailed):
+        k.KubernetesAdapter.from_environment(world.policy())

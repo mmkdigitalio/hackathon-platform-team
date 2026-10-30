@@ -139,7 +139,7 @@ Jeder ändernde Adapter SHALL einen Abgleich für unklare Ergebnisse unterstütz
 - **AND** endet der Auftrag mit `needs_attention` und den Lauf-IDs
 
 ### Requirement: Smoke-Test als Kubernetes-Job
-Das Verifikationswerkzeug SHALL das Smoke-Test-Image aus dem Katalog als Kubernetes-Job im App-Namespace mit `TARGET_URL` starten. Es SHALL Exit-Code und JSON-Ergebnis auf stdout auswerten und Testergebnisse nicht durch Modellbewertungen ersetzen.
+Das Verifikationswerkzeug SHALL das Smoke-Test-Image aus dem Katalog als Kubernetes-Job im App-Namespace mit `TARGET_URL`, den Werten aus `smokeTest.env` und den Test-Secrets aus `smokeTest.secrets` (per `secretKeyRef` auf `<app-id>-platform`) starten. Referenzen der Form `acr:<repo>@sha256:…` SHALL es mit dem ACR-Login-Server der Foundation auflösen. Es SHALL Exit-Code und JSON-Ergebnis auf stdout auswerten und Testergebnisse nicht durch Modellbewertungen ersetzen.
 
 #### Scenario: AFFiNE nach Reparatur prüfen
 - **WHEN** AFFiNE repariert wurde

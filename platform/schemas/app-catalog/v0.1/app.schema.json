@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mmkdigital.io/schemas/app-catalog/v0.1/app.schema.json",
+  "title": "App-Katalogeintrag v0.1 (platform/catalog/<app-id>/app.yaml)",
+  "description": "Umgebungsunabhängiger Eintrag. Namespace, Host und Domain werden nach Konvention abgeleitet und sind deshalb keine Felder.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "appId",
+    "source",
+    "chart",
+    "ingress",
+    "dataBlocks",
+    "secrets",
+    "availability",
+    "smokeTest",
+    "runbook",
+    "allowedActions",
+    "dataProcedures"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "0.1" },
+    "appId": { "type": "string" },
+    "description": { "type": "string" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository"],
+      "properties": {
+        "repository": { "$ref": "#/$defs/githubRepository" },
+        "upstream": { "$ref": "#/$defs/githubRepository" }
+      }
+    },
+    "chart": {
+      "description": "Genau eine Chart-Quelle. Die Chart-Version steht im Sollzustand.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "x-error": "chart braucht genau eine Quelle: acr, oci oder repository",
+      "properties": {
+        "acr": {
+          "description": "OCI-Chart in der ACR der Foundation; der Login-Server kommt aus den Foundation-Ausgaben.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository"],
+          "properties": { "repository": { "$ref": "#/$defs/ociRepository" } }
+        },
+        "oci": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url"],
+          "properties": {
+            "url": { "type": "string", "pattern": "^oci://[a-z0-9.-]+(:[0-9]+)?/[a-z0-9]+([._/-][a-z0-9]+)*$" }
+          }
+        },
+        "repository": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["url", "name"],
+          "properties": {
+            "url": { "type": "string", "pattern": "^https://" },
+            "name": { "$ref": "#/$defs/k8sName" }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["service", "port"],
+      "properties": {
+        "service": { "$ref": "#/$defs/k8sName" },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 }
+      }
+    },
+    "dataBlocks": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["postgres-database", "redis", "persistent-volume"],
+        "x-error": "nicht unterstützter Datenbaustein; v0.1 kennt postgres-database, redis, persistent-volume"
+      }
+    },
+    "generatedSecrets": {
+      "description": "Namen zufällig generierter, stabiler Werte, referenzierbar als app:<name>.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,62}$" }
+    },
+    "secrets": {
+      "description": "Schlüssel im Kubernetes-Secret <app-id>-platform und ihre Referenz.",
+      "$ref": "#/$defs/secretMap"
+    },
+    "availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^/[A-Za-z0-9._~/-]*$" }
+      }
+    },
+    "smokeTest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image"],
+      "properties": {
+        "image": { "$ref": "#/$defs/imageRef" },
+        "env": {
+          "description": "Nicht geheime Umgebungsvariablen des Smoke-Test-Jobs.",
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/envName" },
+          "additionalProperties": { "type": "string" }
+        },
+        "secrets": {
+          "description": "Test-Secrets; landen im Kubernetes-Secret <app-id>-smoke.",
+          "$ref": "#/$defs/secretMap"
+        }
+      }
+    },
+    "runbook": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "path", "commit"],
+      "properties": {
+        "repository": { "$ref": "#/$defs/githubRepository" },
+        "path": { "type": "string", "minLength": 1 },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$",
+          "x-error": "Runbook braucht einen vollständigen Commit-SHA (40 Hex-Zeichen)"
+        }
+      }
+    },
+    "allowedActions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["restart", "redeploy"],
+        "x-error": "nicht erlaubte Aktion; v0.1 kennt restart, redeploy"
+      }
+    },
+    "dataProcedures": {
+      "description": "Nicht benötigte Verfahren als not-applicable kennzeichnen.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["migration", "backup", "restore"],
+      "properties": {
+        "migration": { "type": "string", "minLength": 1 },
+        "backup": { "type": "string", "minLength": 1 },
+        "restore": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "$defs": {
+    "githubRepository": { "type": "string", "pattern": "^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$" },
+    "k8sName": { "type": "string", "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$" },
+    "ociRepository": { "type": "string", "pattern": "^[a-z0-9]+([._/-][a-z0-9]+)*$" },
+    "envName": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+    "imageRef": {
+      "type": "string",
+      "pattern": "^(acr:[a-z0-9]+([._/-][a-z0-9]+)*|[a-z0-9.-]+(:[0-9]+)?/[a-z0-9]+([._/-][a-z0-9]+)*)@sha256:[a-f0-9]{64}$",
+      "x-error": "Image-Referenz ohne Digest; erwartet <registry>/<repo>@sha256:<64 hex> oder acr:<repo>@sha256:<64 hex>"
+    },
+    "secretRef": {
+      "type": "string",
+      "pattern": "^(foundation|app):[A-Za-z0-9][A-Za-z0-9-]*$",
+      "x-error": "Secret-Referenz muss foundation:<ausgabeName> oder app:<name> sein, kein Klartextwert"
+    },
+    "secretMap": {
+      "type": "object",
+      "propertyNames": { "$ref": "#/$defs/envName" },
+      "additionalProperties": { "$ref": "#/$defs/secretRef" }
+    }
+  }
+}

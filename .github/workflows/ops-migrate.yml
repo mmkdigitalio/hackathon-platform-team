@@ -1,0 +1,44 @@
+# Erstinitialisierung der Datenbank operations (Strang C).
+# Einmal vor dem ersten App-Deployment ausführen, weil die Operations-Sperre ihr
+# Schema braucht. Danach migriert der Helm-Hook-Job des Agenten-Charts. Gleichzeitige
+# Läufe serialisiert ops migrate über eine PostgreSQL-Advisory-Lock.
+name: ops-migrate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Ein-/Ausgabenamen gemäß Foundation-Ausgabevertrag (Strang A).
+      - id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Operations-Client installieren
+        run: pip install ./operations-agent
+
+      - name: Migrationen ausführen
+        env:
+          PGHOST: ${{ steps.foundation.outputs.postgresHost }}
+          PGUSER: ${{ steps.foundation.outputs.postgresAdminUser }}
+          PGPASSWORD: ${{ steps.foundation.outputs.postgresAdminPassword }}
+          PGDATABASE: ${{ steps.foundation.outputs.postgresOperationsDatabase }}
+          PGSSLMODE: require
+        run: |
+          ops migrate
+          ops schema-version | tee -a "$GITHUB_STEP_SUMMARY"

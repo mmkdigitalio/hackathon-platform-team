@@ -11,7 +11,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 
 ## 2. Aufrufbare Agentenausführung
 
-- [ ] 2.1 Agentenausführung in `operations-agent/src/agent/` gegen C's Vertrag unter `src/contracts/` implementieren; Abschluss durch Worker-Aufruf mit strukturierten Befunden und ausschließlich C-seitig persistierten Zustandsübergängen prüfen.
+- [x] 2.1 Agentenausführung in `operations-agent/src/agent/` gegen C's Vertrag unter `src/contracts/` implementieren; Abschluss durch Worker-Aufruf mit strukturierten Befunden und ausschließlich C-seitig persistierten Zustandsübergängen prüfen.
 - [ ] 2.2 Katalog-, Sollzustands-, Release-, Runbook- und Alarm-Payload-Kontext versionsbezogen laden; Abschluss durch getrennte Soll-/Iststände und korrekt zugeordneten AFFiNE-Kontext prüfen.
 - [x] 2.3 Grenzen für Laufzeit (10 min), Tool-Aufrufe (30), Reparaturversuche (2) und Modellkosten (etwa 1 USD) konfigurierbar im Code erzwingen; Abschluss durch jede ausgelöste Grenze mit `needs_attention` statt weiterer Aufrufe prüfen.
 - [x] 2.4 Kontextdaten von Betriebsregeln trennen und Herkunft von Erkenntnissen dokumentieren; Abschluss durch Log-/Tickettext mit unerlaubter Anweisung ohne zusätzliche Berechtigung prüfen.
@@ -47,7 +47,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 - [ ] 6.1 C's API-/Worker-Einstiegspunkte und Tests in `operations-agent/Dockerfile` integrieren; Abschluss durch getrennten Prozessstart aus demselben Image prüfen.
 - [ ] 6.2 Helm-Chart unter `operations-agent/deploy/` mit Deployments `api` und `worker`, Service und Werten für Image-Digest, Secret-Name und Image-Pull-Secret-Name liefern; Abschluss durch `helm lint`, Template-Prüfung und Start gegen ein vom App-Stack angelegtes Secret prüfen.
 - [ ] 6.3 Helm-Hook-Job (`pre-install,pre-upgrade`) mit C's Migrations-CLI und Schema-Versionsprüfung in API und Worker einbinden; Abschluss durch Upgrade mit neuer Migration ohne konkurrierende Schemaänderung prüfen.
-- [ ] 6.4 ServiceAccount `operations-agent`, ClusterRole und ClusterRoleBinding im Chart liefern; Abschluss durch `kubectl auth can-i` für erlaubte und verweigerte Verben prüfen.
+- [x] 6.4 ServiceAccount `operations-agent`, ClusterRole und ClusterRoleBinding im Chart liefern; Abschluss durch `kubectl auth can-i` für erlaubte und verweigerte Verben prüfen.
 - [ ] 6.5 `.github/workflows/agent-build.yml` mit Tests, Image-Push und Chart-Veröffentlichung über den ACR-Admin-User aus `foundation-outputs` sowie Aufruf von `app-update-desired-state.yml` anlegen; Abschluss durch aktualisiertes `platform/environments/staging/operations-agent.yaml` ohne Azure-Anmeldung prüfen.
 - [ ] 6.6 Paketstart, Stopp, Wiederanlauf und kompatibles Rollback in `platform/operations/agent/` dokumentieren; Abschluss durch Agenten-Update mit erhaltenem Auftrag und fortgesetzter Workflow-Beobachtung prüfen.
 

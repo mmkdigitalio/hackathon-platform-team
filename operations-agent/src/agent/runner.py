@@ -13,7 +13,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
 from agent.config import AgentSettings, ModelSettings, agent_settings, model_settings
-from agent.context import ContextLoader, OperationalContext, assess_drift
+from agent.context import ContextLoader, OperationalContext, assess_drift, desired_digest
 from agent.limits import BudgetMiddleware, LimitReached, RunBudget, UsageCallback
 from agent.model import build_chat_model
 from agent.outcome import Stop, valid_verification, verification_failed
@@ -95,7 +95,17 @@ def execute(
             dispatcher=WorkflowDispatcher(
                 gh, services, settings.dispatch_workflows, settings.dispatch_ref, deps.sleep, deps.clock, poll.get("workflow", 10.0)
             ),
-            smoke=SmokeTest(loader_k8s, policy, services, settings.image_pull_secret, settings.http_scheme, deps.sleep, deps.clock, poll.get("smoke", 5.0)),
+            smoke=SmokeTest(
+                loader_k8s,
+                policy,
+                services,
+                settings.image_pull_secret,
+                settings.http_scheme,
+                deps.sleep,
+                deps.clock,
+                poll.get("smoke", 5.0),
+                acr_login_server=settings.acr_login_server,
+            ),
         )
         _context_findings(scope)
         budget.repair_attempts = _previous_repairs(previous)
@@ -152,7 +162,13 @@ def _context_findings(s: RunScope) -> None:
         )
     if ctx.actual_release:
         s.recorder.references["actualRelease"] = ctx.actual_release.model_dump()
-    s.recorder.references["desiredState"] = {"path": ctx.desired_path, "gitRef": ctx.git_ref, "source": ctx.desired.source}
+    s.recorder.references["desiredState"] = {
+        "path": ctx.desired_path,
+        "gitRef": ctx.git_ref,
+        "source": ctx.desired.source,
+        # Erwarteter Zielstand für C's Abschlussprüfung (Strang C).
+        "imageDigest": desired_digest(ctx.desired.value),
+    }
     if ctx.runbook:
         s.recorder.references["runbook"] = ctx.runbook.source
 

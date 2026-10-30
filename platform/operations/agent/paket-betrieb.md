@@ -11,13 +11,15 @@ docker build -f operations-agent/Dockerfile --target runtime -t operations-agent
 
 Ein Image für alle Prozesse, Benutzer `10001`, Python 3.12.16, Abhängigkeiten aus `uv.lock` (`--frozen`). Den Startbefehl setzt das Chart; ohne Befehl beendet sich der Container mit Hinweis.
 
+Im Image liegen zum Stand des Builds: Betriebsregeln, `platform/catalog`, `platform/environments` und `platform/schemas/events` (`OPS_PLATFORM_ROOT=/app/platform`). C's API prüft damit App-Zuordnung und Ereignisschema. Eine neue App im Katalog wird deshalb erst nach einem Agenten-Build angenommen; `agent-build.yml` startet bei Änderungen unter `platform/catalog/**` und `platform/schemas/events/**`, bewusst nicht bei `platform/environments/**`, weil sein eigener Sollzustands-Commit sonst den nächsten Build auslöst. Die Teststufe (`--target test`) bildet die Repository-Struktur unter `/repo` nach und führt C's und D's Tests aus; Tests mit PostgreSQL werden dort übersprungen.
+
 | Prozess | Befehl (Chart-Wert) | Eigentümer |
 | --- | --- | --- |
 | API | `api.command`, Standard `ops-api` | C |
 | Worker | `worker.command`, Standard `ops-worker` | C |
 | Migration | `migrate.command`, Standard `ops migrate` | C |
 
-Die Standardbefehle sind Annahmen, bis C seine Einstiegspunkte liefert ([uebergaben.md](uebergaben.md)).
+C hat die Einstiegspunkte unter diesen Namen geliefert; der Worker lädt D's Ausführung über `OPS_AGENT_EXECUTOR` (Standard `agent:execute`).
 
 ## Chart
 
@@ -53,6 +55,7 @@ Werden über die `secrets:`-Zuordnung in `platform/catalog/operations-agent/app.
 | `OPS_MODEL_API_KEYS` | `modelApiKeys` | D |
 | `OPS_GITHUB_TOKEN` | `opsGithubToken` | D |
 | `OPS_BASE_DOMAIN` | `baseDomain` | D |
+| `OPS_ACR_LOGIN_SERVER` | `acrLoginServer` | D (löst `acr:`-Smoke-Test-Images aus dem Katalog auf) |
 | `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE` | `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase` | C (Namen legt C fest) |
 | `ALERT_WEBHOOK_KEY`, `MAINTENANCE_API_KEY`, `GITHUB_WEBHOOK_SECRET` | gleichnamige Ausgaben | C (Namen legt C fest) |
 | `DIAGNOSTICS_STORAGE_ACCOUNT`, `DIAGNOSTICS_CONTAINER`, `DIAGNOSTICS_STORAGE_KEY` | `diagnostics*` | C/D |

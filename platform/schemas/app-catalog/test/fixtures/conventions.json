@@ -1,0 +1,5 @@
+{
+  "$comment": "Testkopie der Konventionen aus platform-bootstrap; maßgeblich ist platform/schemas/conventions/ von Strang A.",
+  "appId": { "pattern": "^[a-z][a-z0-9-]{1,30}$" },
+  "environments": ["staging", "production"]
+}

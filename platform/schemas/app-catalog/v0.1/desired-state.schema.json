@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mmkdigital.io/schemas/app-catalog/v0.1/desired-state.schema.json",
+  "title": "Sollzustand v0.1 (platform/environments/<env>/<app-id>.yaml)",
+  "description": "App-ID und Umgebung ergeben sich aus dem Dateipfad. Git-SHA, Image-Digest und Chart-Version bilden die Release-Referenz.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "image", "chart", "sizes"],
+  "properties": {
+    "schemaVersion": { "const": "0.1" },
+    "upstreamRelease": {
+      "description": "Informativ: Upstream-Version, aus der Image und Chart stammen.",
+      "type": "string",
+      "minLength": 1
+    },
+    "image": { "$ref": "app.schema.json#/$defs/imageRef" },
+    "chart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+([-+][0-9A-Za-z.-]+)?$",
+          "x-error": "Chart-Version muss eine feste SemVer-Version sein"
+        }
+      }
+    },
+    "sizes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replicas"],
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 0, "maximum": 20 },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": { "$ref": "#/$defs/resourceList" },
+            "limits": { "$ref": "#/$defs/resourceList" }
+          }
+        },
+        "volumeSize": {
+          "description": "Pflicht genau dann, wenn der Katalogeintrag persistent-volume deklariert.",
+          "type": "string",
+          "pattern": "^[1-9][0-9]*(Mi|Gi)$"
+        }
+      }
+    },
+    "values": {
+      "description": "Konfigurationswerte des Charts; gehören dem Chart und werden gegen dessen values.schema.json geprüft.",
+      "type": "object"
+    }
+  },
+  "$defs": {
+    "resourceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?m?$" },
+        "memory": { "type": "string", "pattern": "^[0-9]+(Mi|Gi)$" }
+      }
+    }
+  }
+}

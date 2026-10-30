@@ -1,0 +1,13 @@
+{
+  "$comment": "Datenbausteine v0.1. Validierung und App-Programm lesen beide diese Datei; ein neuer Baustein braucht Umsetzung in platform/infra/app-runtime/ und eine neue Schema-Version.",
+  "postgres-database": {
+    "secrets": ["postgres-host", "postgres-database", "postgres-user", "postgres-password", "postgres-url"]
+  },
+  "redis": {
+    "secrets": ["redis-host", "redis-password"]
+  },
+  "persistent-volume": {
+    "secrets": [],
+    "requiresVolumeSize": true
+  }
+}

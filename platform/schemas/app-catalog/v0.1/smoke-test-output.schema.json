@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mmkdigital.io/schemas/app-catalog/v0.1/smoke-test-output.schema.json",
+  "title": "Ausgabe eines Smoke-Test-Images v0.1",
+  "description": "Eine JSON-Zeile als letzte Zeile der Ausgabe. appId, environment, release und checkRef ergänzt der Ausführende.",
+  "type": "object",
+  "required": ["success", "startedAt", "finishedAt", "evidence"],
+  "properties": {
+    "success": { "type": "boolean" },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } }
+  },
+  "$defs": {
+    "evidence": {
+      "type": "object",
+      "required": ["check", "success"],
+      "properties": {
+        "check": { "type": "string", "minLength": 1, "description": "Name der Teilprüfung, z. B. login, document, attachment" },
+        "success": { "type": "boolean" },
+        "detail": { "type": "string", "description": "Kurzer Befund ohne Secrets" },
+        "ref": { "type": "string", "description": "Referenz auf den Nachweis, z. B. Dokument-ID oder URL ohne Zugangsdaten" }
+      }
+    }
+  }
+}

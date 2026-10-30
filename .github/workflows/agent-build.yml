@@ -7,12 +7,20 @@ on:
     paths:
       - operations-agent/**
       - platform/operations/agent/**
+      # Katalog und Ereignisschema liegen für C's API im Image. platform/environments/** bewusst nicht:
+      # der Sollzustands-Commit dieses Workflows würde sonst den nächsten Build auslösen.
+      - platform/catalog/**
+      - platform/schemas/events/**
       - .github/workflows/agent-build.yml
   push:
     branches: [main]
     paths:
       - operations-agent/**
       - platform/operations/agent/**
+      # Katalog und Ereignisschema liegen für C's API im Image. platform/environments/** bewusst nicht:
+      # der Sollzustands-Commit dieses Workflows würde sonst den nächsten Build auslösen.
+      - platform/catalog/**
+      - platform/schemas/events/**
       - .github/workflows/agent-build.yml
 
 permissions:

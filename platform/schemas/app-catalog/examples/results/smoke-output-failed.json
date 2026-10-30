@@ -1,0 +1,1 @@
+{"success":false,"startedAt":"2026-10-30T12:00:00Z","finishedAt":"2026-10-30T12:00:12Z","evidence":[{"check":"login","success":true},{"check":"document","success":false,"detail":"GraphQL createDocument antwortet mit 500"},{"check":"attachment","success":false,"detail":"übersprungen, weil document fehlschlug"}]}

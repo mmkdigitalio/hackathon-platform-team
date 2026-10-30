@@ -10,6 +10,7 @@ Agentenausführung, Betriebswerkzeuge, Image und Chart des MMK-Betriebsagenten. 
 | [abweichung-p1-07.md](abweichung-p1-07.md) | Diagnose ohne Azure-Zugriff (E6) |
 | [paket-betrieb.md](paket-betrieb.md) | Image, Chart, Secret-Schlüssel, Start, Stopp, Wiederanlauf, Rollback |
 | [uebergaben.md](uebergaben.md) | Annahmen und offene Punkte gegenüber A, B, C |
+| [testen.md](testen.md) | Teststufen: Unit, Prototyp, lokaler kind-Cluster, Staging-Abnahme |
 
 ## Paketstand
 
@@ -87,7 +88,12 @@ Stand 30.10.2026, lokal auf macOS mit Python 3.12.6:
 | Nachweis | Ergebnis |
 | --- | --- |
 | Installation aus Lockdatei in leerer Umgebung (`uv sync --frozen --no-cache`) | erfolgreich, Versionen wie oben |
-| Agenten- und Adaptertests (`uv run pytest`) | 62 bestanden, davon 1 gegen lokales PostgreSQL 18 (`OPS_TEST_POSTGRES_DSN`) |
+| Image-Build, Teststufe im Image (`docker build --target test`) | bestanden |
+| Lokaler kind-Cluster mit echtem Modell, ServiceAccount-Token und Smoke-Job ([testen.md](testen.md#stufe-3-lokaler-cluster-mit-echtem-modell-ca-5-minuten-ca-010-usd-je-szenario)) | RBAC 20/20, `repair` → `resolved`, `unrepairable` → `needs_attention` |
+| Lesender Abgleich mit dem echten Repository (Katalog, Runbook-Verzeichnis, letzter Sollzustands-Commit, Laufliste) | bestanden |
+| Gesamtsuite nach Lieferung von B und C (`uv run pytest` mit PostgreSQL) | 202 bestanden, davon C's Worker mit D's echtem `agent.execute` |
+| Teststufe im Image (Repository-Struktur unter `/repo`) | 103 bestanden, 99 ohne PostgreSQL übersprungen |
+| Agenten- und Adaptertests (`uv run pytest`) | 69 bestanden (davon 4 Vertragstests gegen Strang B), 1 weiterer nur mit PostgreSQL (`OPS_TEST_POSTGRES_DSN`) |
 | Unabhängiges Review mit Codex (`gpt-6.1-sol`, high) | 10 Befunde bestätigt und behoben, je ein Regressionstest in `tests/agent/test_review_regressions.py` |
 | Checkpoint gegen PostgreSQL, neue Verbindung liest Thread weiter | bestanden (`tests/agent/test_persistence.py`) |
 | `helm lint` / `helm template` mit `deploy/ci-values.yaml` | bestanden |
@@ -102,18 +108,18 @@ Protokoll ohne Secrets: [nachweise/2026-10-30-p1-02-azure.json](nachweise/2026-1
 
 ## Umsetzungsstand je Task
 
-Abgehakt sind in `tasks.md` nur Tasks, deren Abschlussprüfung lokal vollständig lief (1.1–1.4, 2.3, 2.4, 2.5, 3.5). Für die übrigen ist der Code fertig und mit simulierten Gegenstellen getestet; es fehlt die genannte Prüfung:
+Abgehakt sind in `tasks.md` nur Tasks, deren Abschlussprüfung vollständig lief (1.1–1.4, 2.1, 2.3–2.5, 3.5, 6.4). Für die übrigen ist der Code fertig, mit simulierten Gegenstellen und größtenteils im lokalen kind-Cluster getestet; es fehlt die genannte Prüfung:
 
 | Task | Offene Abschlussprüfung | Wartet auf |
 | --- | --- | --- |
-| 2.1, 2.2 | Aufruf durch C's Worker, echter AFFiNE-Kontext | C-Worker, B-Katalog, AFFiNE-Lieferung |
-| 3.1, 3.2 | reale AFFiNE-Befunde, echter Staging-Alarm | Staging-Cluster, A-Alarm |
+| 2.2 | echter AFFiNE-Kontext (Code gegen B's Beispielkatalog geprüft) | AFFiNE-Lieferung |
+| 3.1, 3.2 | reale AFFiNE-Befunde, echter Staging-Alarm (lokal: echte Kubernetes-Befunde mit ServiceAccount) | Staging-Cluster, A-Alarm |
 | 3.3, 3.4 | echter Commit und Issue-Kommentar über den PAT | `opsGithubToken`, B-Sollzustand |
 | 3.6 | Review mit A | A |
 | 4.1–4.5 | echter Neustart, echter `app-deploy.yml`-Lauf, Besitzverlust mit C | Staging, B-Workflow, C-Sperrclient |
 | 5.1–5.5 | Läufe gegen AFFiNE in Staging | Staging, Smoke-Test-Image |
-| 6.1 | Prozessstart aus dem Image | C's Einstiegspunkte, Docker-Build |
-| 6.2–6.4 | Start gegen echtes Secret, Upgrade mit Migration, `kubectl auth can-i` | Staging, B-App-Stack, C-Migrationen |
+| 6.1 | Start von C's API und Worker aus dem Image gegen eine Datenbank (Einstiegspunkte liegen jetzt im Image) | lokaler Lauf mit PostgreSQL im kind-Cluster |
+| 6.2, 6.3 | Start gegen B's Secret, Upgrade mit echter Migration (lokal: Install mit Hook-Job und Platzhalter-Migration belegt) | B-App-Stack, C-Migrationen |
 | 6.5, 6.6 | Lauf auf `main`, Agenten-Update in Staging | A-Composite-Action, B-Workflow |
 | 7.1–7.3 | gemeinsame Abnahme | alle Stränge |
 

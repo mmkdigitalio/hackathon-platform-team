@@ -34,7 +34,7 @@ Der App-Stack SHALL den Namespace `<app-id>-<env>`, darin ein Image-Pull-Secret 
 - **THEN** ist AFFiNE unter `https://affine.<baseDomain>` ohne DNS-Änderung erreichbar
 
 ### Requirement: Secrets im Namespace
-Der App-Stack SHALL alle Secret-Referenzen eines Katalogeintrags auflösen und als Kubernetes-Secret `<app-id>-platform` im Namespace anlegen. `foundation:`-Referenzen SHALL aus der `StackReference` stammen, `app:`-Referenzen aus Datenbausteinen oder vom App-Stack generierten Zufallswerten. Generierte Werte SHALL über Läufe hinweg stabil bleiben.
+Der App-Stack SHALL alle Secret-Referenzen eines Katalogeintrags auflösen und als Kubernetes-Secret `<app-id>-platform` im Namespace anlegen. `foundation:`-Referenzen SHALL aus der `StackReference` stammen, `app:`-Referenzen aus Datenbausteinen oder vom App-Stack generierten Zufallswerten. Test-Secrets aus `smokeTest.secrets` SHALL im selben Secret liegen; ein Smoke-Test-Job SHALL nur diese Schlüssel erhalten. Generierte Werte SHALL über Läufe hinweg stabil bleiben.
 
 #### Scenario: Erneuter Lauf
 - **WHEN** der App-Stack von AFFiNE ohne Sollzustandsänderung erneut ausgerollt wird
@@ -50,7 +50,7 @@ Für `postgres-database` SHALL der App-Stack über das PostgreSQL-Protokoll, z. 
 - **AND** wurde dafür keine Azure-Anmeldung benötigt
 
 ### Requirement: Datenbaustein redis
-Für `redis` SHALL der App-Stack Redis per Chart mit fester Version im App-Namespace bereitstellen und das Passwort als `app:`-Secret liefern. Redis SHALL als flüchtig gelten; dauerhafte App-Daten SHALL in `postgres-database` oder `persistent-volume` liegen.
+Für `redis` SHALL der App-Stack Redis mit fester, per Digest referenzierter Image-Version im App-Namespace bereitstellen und das Passwort als `app:`-Secret liefern. Redis SHALL als flüchtig gelten; dauerhafte App-Daten SHALL in `postgres-database` oder `persistent-volume` liegen.
 
 #### Scenario: Redis neu gestartet
 - **WHEN** der Redis-Pod von AFFiNE neu startet
@@ -76,6 +76,17 @@ App-Datenbank, Login und PersistentVolumeClaim SHALL vor impliziter Löschung ge
 - **WHEN** ein Plan die Löschung einer geschützten Datenbank oder eines PVC enthält
 - **THEN** scheitert der Plan, bevor eine Zieländerung beginnt
 
+### Requirement: Werte-Vertrag für Charts
+Das App-Programm SHALL jedem Chart zusätzlich zu den Werten aus dem Sollzustand `image.repository`, `image.digest`, `secretName`, `imagePullSecretName`, `rolloutMarker` und einen Block `platform` (Host, URL, PVC-Name, Größen, Release-Referenz) übergeben. Diese Schlüssel SHALL im Sollzustand reserviert sein. Charts SHALL weder Secrets noch Ingress-Regeln, PVCs oder Datenbanken anlegen und `rolloutMarker` nicht in Pod-Templates verwenden.
+
+#### Scenario: Reservierter Wert im Sollzustand
+- **WHEN** ein Sollzustand `values.secretName` setzt
+- **THEN** scheitert die Validierung mit dem betroffenen Feld
+
+#### Scenario: Erneuter Lauf ohne Änderung
+- **WHEN** der Deploy-Workflow ohne Sollzustandsänderung mit neuer `operationId` läuft
+- **THEN** führt Helm ein Upgrade aus, ohne laufende Pods neu zu starten
+
 ### Requirement: Abweichungen vom Sollzustand zurücksetzen
 Jeder Rollout SHALL die Kubernetes-Objekte einer App auf den Sollzustand bringen, auch wenn sich die Sollzustandsdatei nicht geändert hat. Manuelle Abweichungen wie eine geänderte Replica-Zahl SHALL dabei zurückgesetzt werden, ohne Datenbank oder Volumes zu verändern.
 
@@ -93,7 +104,11 @@ Vor jeder Zieländerung SHALL der Deploy-Workflow Katalog und Sollzustand gegen 
 - **AND** nennt die Workflow-Zusammenfassung die fehlgeschlagenen Prüfungen
 
 ### Requirement: Plan-Prüfung für Pull Requests
-Der Workflow `.github/workflows/app-plan.yml` SHALL bei Pull Requests mit Änderungen unter `platform/catalog/`, `platform/environments/`, `platform/schemas/app-catalog/` oder `platform/infra/app-runtime/` die Validierung und ein Pulumi-Preview der betroffenen App-Stacks ausführen. Sein Ergebnis SHALL als erforderlicher Status-Check für `main` konfiguriert sein.
+Der Workflow `.github/workflows/app-plan.yml` SHALL bei Pull Requests mit Änderungen unter `platform/catalog/`, `platform/environments/`, `platform/schemas/app-catalog/` oder `platform/infra/app-runtime/` die Validierung und ein Pulumi-Preview der betroffenen App-Stacks ausführen. Sein Ergebnis-Job `Plan-Ergebnis` SHALL als erforderlicher Status-Check für `main` konfiguriert sein.
+
+#### Scenario: Pull Request ohne Änderungen am App-Pfad
+- **WHEN** ein Pull Request nur Dateien außerhalb des App-Pfads ändert
+- **THEN** berichtet `app-plan.yml` trotzdem den Check `Plan-Ergebnis` und endet sofort erfolgreich
 
 #### Scenario: Grüner Plan
 - **WHEN** ein Pull Request den AFFiNE-Sollzustand gültig ändert
@@ -132,7 +147,7 @@ Plan- und Deploy-Workflow SHALL sich nur mit den Repo-Secrets `PULUMI_BACKEND_AC
 - **THEN** bricht der Workflow vor jeder Zieländerung ab
 
 ### Requirement: Sollzustand per Pull Request ändern
-Der wiederverwendbare Workflow `.github/workflows/app-update-desired-state.yml` (`workflow_call`) SHALL Image-Digest und Chart-Version in `platform/environments/<env>/<app-id>.yaml` setzen und mit `OPS_GITHUB_TOKEN` Commit und Pull Request mit aktiviertem Auto-Merge anlegen. `GITHUB_TOKEN` SHALL dafür nicht verwendet werden, weil damit ausgelöste Ereignisse keine weiteren Workflows starten.
+Der wiederverwendbare Workflow `.github/workflows/app-update-desired-state.yml` (`workflow_call`) SHALL Image-Digest (Eingabe `imageDigest`, Repository standardmäßig `acr:<app-id>`) und Chart-Version in `platform/environments/<env>/<app-id>.yaml` setzen und mit `OPS_GITHUB_TOKEN` Commit und Pull Request mit aktiviertem Auto-Merge anlegen. `GITHUB_TOKEN` SHALL dafür nicht verwendet werden, weil damit ausgelöste Ereignisse keine weiteren Workflows starten.
 
 #### Scenario: Neues Agentenpaket
 - **WHEN** der Agenten-Build den wiederverwendbaren Workflow mit neuem Image-Digest und neuer Chart-Version aufruft

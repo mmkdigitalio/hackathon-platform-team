@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mmkdigital.io/schemas/app-catalog/v0.1/deployment-result.schema.json",
+  "title": "Deployment-Ergebnis v0.1",
+  "description": "Ergebnis eines app-deploy.yml-Laufs je App und Umgebung; steht in der Workflow-Zusammenfassung und im Aktionsprotokoll.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "operationId", "workflowRun", "appId", "environment", "release", "status", "breakGlass", "verification"],
+  "properties": {
+    "schemaVersion": { "const": "0.1" },
+    "operationId": { "type": "string" },
+    "actionId": { "type": "string" },
+    "workflowRun": { "type": "string", "format": "uri" },
+    "appId": { "type": "string" },
+    "environment": { "type": "string" },
+    "release": { "$ref": "verification-result.schema.json#/$defs/release" },
+    "status": { "enum": ["succeeded", "failed"] },
+    "failedStep": { "type": "string" },
+    "breakGlass": { "type": "boolean" },
+    "verification": {
+      "oneOf": [{ "$ref": "verification-result.schema.json" }, { "type": "null" }]
+    }
+  }
+}

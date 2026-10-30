@@ -1,0 +1,44 @@
+schemaVersion: "0.1"
+appId: affine
+description: AFFiNE als einzige Fach-App, unverändertes Upstream-Release
+source:
+  repository: mmkdigitalio/hackathon-platform-affine
+  upstream: toeverything/AFFiNE
+chart:
+  oci:
+    url: oci://ghcr.io/mmkdigitalio/charts/affine
+ingress:
+  service: affine
+  port: 3010
+dataBlocks:
+  - postgres-database
+  - redis
+  - persistent-volume
+generatedSecrets:
+  - smoke-user-password
+secrets:
+  DATABASE_URL: app:postgres-url
+  REDIS_SERVER_HOST: app:redis-host
+  REDIS_SERVER_PASSWORD: app:redis-password
+  KUBECONFIG: foundation:kubeconfig
+availability:
+  path: /info
+smokeTest:
+  image: ghcr.io/mmkdigitalio/affine-smoke@sha256:70aface7d0b7262b9decef1ca842c7a8d9d2b60e823052ef8c21906bba0f05ab
+  env:
+    SMOKE_USER_EMAIL: smoke@affine.invalid
+  secrets:
+    SMOKE_USER_PASSWORD: app:smoke-user-password
+runbook:
+  repository: mmkdigitalio/hackathon-platform-affine
+  path: runbook/README.md
+  commit: 0123456789abcdef0123456789abcdef01234567
+allowedActions:
+  - restart
+  - redeploy
+dataProcedures:
+  migration: Upstream-Migrationen laufen beim Start; vor jedem Versionswechsel im
+    Runbook beschreiben
+  backup: Datenbank über die Sicherung des Foundation-Servers; Anhänge auf dem PVC
+    ohne Sicherung (Staging-Risiko)
+  restore: manuell durch Menschen laut Runbook; keine autonome Wiederherstellung

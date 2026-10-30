@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "0.1",
+  "source": "github",
+  "deliveryId": "8f1c7e00-b5f1-11f0-8a1b-6c3e2d7a9b41",
+  "externalRef": "mmkdigitalio/hackathon-platform-team#43",
+  "eventType": "issue-opened",
+  "severity": "unknown",
+  "state": "opened",
+  "occurredAt": "2026-10-30T09:20:00Z",
+  "sourceRef": {
+    "type": "github-issue",
+    "url": "https://github.com/mmkdigitalio/hackathon-platform-team/issues/43",
+    "payloadSha256": "69bd1d601c0c211b966052fa5fa0f620fbb437112aa0180a9902ee6d7bfbf4cc"
+  },
+  "appId": null,
+  "environment": null,
+  "receivedAt": "2026-10-30T09:21:01+00:00",
+  "mappingError": "Issue enthält die Abschnitte ### App und ### Umgebung der Support-Form nicht"
+}

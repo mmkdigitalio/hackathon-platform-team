@@ -1,0 +1,7 @@
+schemaVersion: "0.1"
+image: docker.io/library/nginx@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+chart:
+  version: 0.2.0
+sizes:
+  replicas: 2
+  volumeSize: 1Gi

@@ -1,0 +1,31 @@
+schemaVersion: "0.1"
+appId: operations-agent
+source:
+  repository: mmkdigitalio/hackathon-platform-team
+chart:
+  acr:
+    repository: helm/operations-agent
+ingress:
+  service: operations-agent
+  port: 80
+dataBlocks: []
+secrets:
+  POSTGRES_HOST: foundation:postgresHost
+  POSTGRES_USER: foundation:postgresAdminUser
+  POSTGRES_PASSWORD: foundation:postgresAdminPassword
+  POSTGRES_DATABASE: foundation:postgresOperationsDatabase
+availability:
+  path: /healthz
+smokeTest:
+  image: acr:platform/smoke-http@sha256:bf7d3551822d2ea596db4f8f78c891f42da60635d0ab8e626d2c82a44be2dfa7
+  env:
+    CHECK_PATH: /healthz
+runbook:
+  repository: mmkdigitalio/hackathon-platform-team
+  path: platform/operations/agent
+  commit: 0123456789abcdef0123456789abcdef01234567
+allowedActions: []
+dataProcedures:
+  migration: Helm-Hook-Job ops migrate (pre-install,pre-upgrade) aus dem Agenten-Chart
+  backup: Datenbank operations über die Sicherung des Foundation-Servers
+  restore: not-applicable

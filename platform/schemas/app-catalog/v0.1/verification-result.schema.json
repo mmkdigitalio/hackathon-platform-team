@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mmkdigital.io/schemas/app-catalog/v0.1/verification-result.schema.json",
+  "title": "Verifikationsergebnis v0.1",
+  "description": "Ergebnis eines Smoke-Tests, ergänzt um Ziel, tatsächlich laufendes Release und Prüfreferenz. Wird von app-deploy.yml und von D's Verifikationswerkzeug erzeugt.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "appId",
+    "environment",
+    "release",
+    "desiredRelease",
+    "releaseMatchesDesired",
+    "deviations",
+    "checkRef",
+    "startedAt",
+    "finishedAt",
+    "success",
+    "exitCode",
+    "evidence"
+  ],
+  "properties": {
+    "schemaVersion": { "const": "0.1" },
+    "appId": { "type": "string" },
+    "environment": { "type": "string" },
+    "release": { "$ref": "#/$defs/release", "description": "Im Cluster tatsächlich laufendes Release" },
+    "desiredRelease": { "$ref": "#/$defs/release", "description": "Sollzustand aus Git" },
+    "releaseMatchesDesired": { "type": "boolean" },
+    "deviations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "desired", "running"],
+        "properties": {
+          "field": { "enum": ["gitSha", "imageDigest", "chartVersion"] },
+          "desired": { "type": "string" },
+          "running": { "type": "string" }
+        }
+      }
+    },
+    "checkRef": {
+      "description": "Smoke-Test-Image mit Digest",
+      "type": "string",
+      "pattern": "@sha256:[a-f0-9]{64}$"
+    },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "success": { "type": "boolean" },
+    "exitCode": { "type": "integer" },
+    "failureReason": { "type": "string" },
+    "evidence": {
+      "type": "array",
+      "items": { "$ref": "smoke-test-output.schema.json#/$defs/evidence" }
+    },
+    "operationId": { "type": "string" },
+    "workflowRun": { "type": "string", "format": "uri" }
+  },
+  "$defs": {
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gitSha", "imageDigest", "chartVersion"],
+      "properties": {
+        "gitSha": { "type": "string" },
+        "imageDigest": { "type": "string" },
+        "chartVersion": { "type": "string" }
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+/sizes/volumeSize: Pflicht, weil der Katalogeintrag persistent-volume deklariert

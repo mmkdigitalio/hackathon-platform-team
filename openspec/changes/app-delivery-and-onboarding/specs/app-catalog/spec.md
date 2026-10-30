@@ -88,7 +88,7 @@ Jeder Katalogeintrag SHALL einen Verfügbarkeits-Prüfpfad enthalten, der ohne A
 - **AND** enthält der Plan des App-Stacks keine Azure-Ressource
 
 ### Requirement: Smoke-Test-Vertrag
-Ein Smoke-Test SHALL ein per Digest referenziertes Container-Image sein, das als Kubernetes-Job mit der Umgebungsvariable `TARGET_URL` läuft. Er SHALL mit Exit-Code 0 bei Erfolg und ungleich 0 bei Fehlschlag enden und genau ein JSON-Ergebnis auf stdout schreiben. Benötigte Test-Secrets SHALL über Secret-Referenzen im Katalogeintrag bereitgestellt werden.
+Ein Smoke-Test SHALL ein per Digest referenziertes Container-Image sein, das als Kubernetes-Job mit der Umgebungsvariable `TARGET_URL` läuft. Er SHALL mit Exit-Code 0 bei Erfolg und ungleich 0 bei Fehlschlag enden und genau ein JSON-Ergebnis als letzte Zeile seiner Ausgabe auf stdout schreiben; Diagnosezeilen davor sind erlaubt. Nicht geheime Testparameter SHALL über `smokeTest.env`, benötigte Test-Secrets über Secret-Referenzen in `smokeTest.secrets` bereitgestellt werden.
 
 #### Scenario: Erreichbar, aber fachlich defekt
 - **WHEN** eine App HTTP 200 liefert, ihre zentrale Nutzeraktion aber fehlschlägt
@@ -108,7 +108,7 @@ Ein Verifikationsergebnis SHALL `appId`, `environment`, `release` (Git-SHA, Imag
 - **AND** wird eine Abweichung vom Sollzustand im Ergebnis ausgewiesen
 
 ### Requirement: Soll- und Iststand unterscheidbar
-Deploy-Workflow und Agent SHALL den Sollzustand aus Git und den tatsächlich laufenden Stand aus dem Cluster getrennt ermitteln können. Der App-Stack SHALL die Release-Referenz des letzten Rollouts als Annotationen am Namespace hinterlegen; den laufenden Image-Digest liefern die Pods.
+Deploy-Workflow und Agent SHALL den Sollzustand aus Git und den tatsächlich laufenden Stand aus dem Cluster getrennt ermitteln können. Der App-Stack SHALL die Release-Referenz des letzten erfolgreichen Rollouts als Annotationen `ops.mmk/release-git-sha`, `ops.mmk/release-image-digest` und `ops.mmk/release-chart-version` am Namespace hinterlegen; den laufenden Image-Digest liefern die Pods.
 
 #### Scenario: Fehlgeschlagenes Deployment untersuchen
 - **WHEN** ein gewünschtes Release nicht erfolgreich ausgerollt wurde

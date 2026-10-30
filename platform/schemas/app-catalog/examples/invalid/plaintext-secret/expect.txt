@@ -1,0 +1,1 @@
+Secret-Referenz muss foundation:<ausgabeName> oder app:<name> sein

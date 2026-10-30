@@ -101,7 +101,7 @@ def limits_from_env(env: dict[str, str] | None = None) -> RunLimits:
     )
 
 
-def _default_rules_file() -> Path:
+def default_rules_file() -> Path:
     here = Path(__file__).resolve()
     for base in (*here.parents, Path("/app")):
         candidate = base / "platform" / "operations" / "agent" / "betriebsregeln.md"
@@ -122,6 +122,7 @@ class AgentSettings:
     rules_file: Path
     post_issue_comment: bool
     smoke_timeout_seconds: int
+    acr_login_server: str | None = None
 
 
 def agent_settings(env: dict[str, str] | None = None) -> AgentSettings:
@@ -143,7 +144,8 @@ def agent_settings(env: dict[str, str] | None = None) -> AgentSettings:
         dispatch_ref=env.get("OPS_DISPATCH_REF", "main"),
         image_pull_secret=env.get("OPS_APP_IMAGE_PULL_SECRET") or None,
         http_scheme=scheme,
-        rules_file=Path(env["OPS_RULES_FILE"]) if env.get("OPS_RULES_FILE") else _default_rules_file(),
+        rules_file=Path(env["OPS_RULES_FILE"]) if env.get("OPS_RULES_FILE") else default_rules_file(),
         post_issue_comment=env.get("OPS_POST_ISSUE_COMMENT", "true").lower() == "true",
         smoke_timeout_seconds=int(env.get("OPS_SMOKE_TIMEOUT_SECONDS", "180")),
+        acr_login_server=env.get("OPS_ACR_LOGIN_SERVER") or None,
     )
