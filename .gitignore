@@ -6,7 +6,8 @@
 ._*
 
 # Custom folder icons
-Icon
+Icon
+
 
 # Volume root files
 .DocumentRevisions-V100
@@ -50,3 +51,9 @@ $RECYCLE.BIN/
 .env
 .env.*
 !.env.example
+/.idea/.gitignore
+/.idea/hackathon-platform-team.iml
+/.idea/modules.xml
+/.idea/inspectionProfiles/profiles_settings.xml
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/vcs.xml
