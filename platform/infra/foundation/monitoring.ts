@@ -66,9 +66,11 @@ export function createMonitoring(args: MonitoringArgs) {
         resourceGroupName,
         location: "global",
         enabled: true,
-        emailReceivers: [
-            { name: "team-distribution-list", emailAddress: cfg.humansEmail, useCommonAlertSchema: true },
-        ],
+        emailReceivers: cfg.humansEmails.map((emailAddress, index) => ({
+            name: `team-${index + 1}`,
+            emailAddress,
+            useCommonAlertSchema: true,
+        })),
         tags: platformTags,
     });
 
@@ -95,7 +97,7 @@ export function createMonitoring(args: MonitoringArgs) {
                 operator: "GreaterThan",
                 threshold: 80,
                 thresholdType: "Actual",
-                contactEmails: [cfg.humansEmail],
+                contactEmails: cfg.humansEmails,
                 contactGroups: [humans.id],
             },
             forecast100: {
@@ -103,7 +105,7 @@ export function createMonitoring(args: MonitoringArgs) {
                 operator: "GreaterThan",
                 threshold: 100,
                 thresholdType: "Forecasted",
-                contactEmails: [cfg.humansEmail],
+                contactEmails: cfg.humansEmails,
                 contactGroups: [humans.id],
             },
         },

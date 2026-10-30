@@ -16,6 +16,8 @@ case "$*" in
   "rest --method get --url https://management.azure.com/subscriptions/sub-1/providers/Microsoft.Authorization/permissions"*)
     if [[ -n "\${NOT_CONTRIBUTOR:-}" ]]; then echo '*/read'; else printf '*\\n*/read\\n'; fi ;;
   "aks get-versions"*) echo 1.34.0 ;;
+  "vm list-skus --location germanywestcentral --size "*) printf '%s' "\${SKUS_JSON:-[]}" ;;
+  "vm list-usage --location germanywestcentral -o json") printf '%s' "\${USAGE_JSON:-[]}" ;;
   "provider show"*) echo Registered ;;
   "group exists"*) [[ -f "$s/rg" ]] && echo true || echo false ;;
   "group create"*) touch "$s/rg" ;;
@@ -102,6 +104,56 @@ test("preflight without OPS_GITHUB_TOKEN stops before any call", { skip }, () =>
     assert.equal(result.status, 1);
     assert.match(result.stderr, /OPS_GITHUB_TOKEN is not set/);
     assert.deepEqual(result.calls, []);
+});
+
+// A node pool without availability zones only needs the size in the region, so a
+// restriction of single zones must not fail the preflight; the vCPU quota must cover it.
+const defaultEnvLines = [
+    "SUBSCRIPTION_ID=sub-1",
+    "LOCATION=germanywestcentral",
+    "ENVIRONMENT=staging",
+    "GITHUB_REPO=mmkdigitalio/hackathon-platform-team",
+    'PAT_REPOS="mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine"',
+    "STATE_STORAGE_ACCOUNT=stmmkstatetest",
+];
+const sku = (name, family, vcpus, restrictions) =>
+    JSON.stringify([{ name, family, capabilities: [{ name: "vCPUs", value: String(vcpus) }], restrictions }]);
+const usage = (entries) =>
+    JSON.stringify(entries.map(([value, currentValue, limit]) => ({ name: { value }, currentValue, limit })));
+const zoneRestriction = { type: "Zone", reasonCode: "NotAvailableForSubscription", restrictionInfo: { zones: ["1"] } };
+const locationRestriction = { type: "Location", reasonCode: "NotAvailableForSubscription", restrictionInfo: {} };
+
+test("a VM size restricted only in single zones passes and its vCPU quota is checked", { skip }, () => {
+    const box = sandbox(
+        { az: azStub, gh: ghStub, curl: curlStub },
+        { envFile: [...defaultEnvLines, "NODE_VM_SIZE=Standard_D2als_v6", "NODE_COUNT=1"].join("\n") },
+    );
+    const result = box.run("preflight.sh", [box.config], {
+        OPS_GITHUB_TOKEN: pat,
+        SKUS_JSON: sku("Standard_D2als_v6", "standardDalv6Family", 2, [zoneRestriction]),
+        USAGE_JSON: usage([["standardDalv6Family", "0", "10"], ["cores", "0", "10"]]),
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /OK +VM size Standard_D2als_v6 is available in germanywestcentral/);
+    assert.match(result.stderr, /INFO +Standard_D2als_v6 is restricted in zones 1/);
+    assert.match(result.stderr, /OK +vCPU quota standardDalv6Family in germanywestcentral: 2 needed, 10 free/);
+    assert.match(result.stderr, /OK +vCPU quota cores in germanywestcentral: 2 needed, 10 free/);
+});
+
+test("a regional restriction and a missing vCPU quota are both reported", { skip }, () => {
+    const box = sandbox(
+        { az: azStub, gh: ghStub, curl: curlStub },
+        { envFile: [...defaultEnvLines, "NODE_VM_SIZE=Standard_D4s_v5", "NODE_COUNT=2"].join("\n") },
+    );
+    const result = box.run("preflight.sh", [box.config], {
+        OPS_GITHUB_TOKEN: pat,
+        SKUS_JSON: sku("Standard_D4s_v5", "standardDSv5Family", 4, [locationRestriction, zoneRestriction]),
+        USAGE_JSON: usage([["standardDSv5Family", "0", "0"], ["cores", "6", "10"]]),
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /- VM size Standard_D4s_v5 in germanywestcentral \(restriction: NotAvailableForSubscription\)/);
+    assert.match(result.stderr, /- vCPU quota standardDSv5Family in germanywestcentral: 2 x Standard_D4s_v5 need 8, 0 free/);
+    assert.match(result.stderr, /- vCPU quota cores in germanywestcentral: 2 x Standard_D4s_v5 need 8, 4 free/);
 });
 
 test("an invalid env file is rejected", { skip }, () => {

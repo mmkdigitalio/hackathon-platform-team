@@ -18,7 +18,8 @@ export const baseConfig = {
     kubernetesVersion: "1.34.0",
     nodeVmSize: "Standard_D4s_v5",
     nodeCount: "2",
-    humansEmail: "platform-team@example.org",
+    // A comma-separated team list; whitespace and a repeated address are tolerated.
+    humansEmail: "platform-team@example.org, oncall@example.org,platform-team@example.org",
     budgetAmount: "500",
     budgetStartDate: "2026-11-01",
     catalogDir: new URL("../fixtures/catalog", import.meta.url).pathname,

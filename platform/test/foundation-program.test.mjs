@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { before, test } from "node:test";
 import { contractValidator, runFoundation, schema } from "./helpers/foundation-mocks.mjs";
+import { parseEmailList } from "../dist/infra/foundation/config.js";
 
 let run;
 before(async () => {
@@ -116,7 +117,10 @@ test("spec: operations-agent never alerts itself through ops-intake", () => {
 test("ops-humans is e-mail only; ops-intake posts the common alert schema with the key", () => {
     const humans = one("azure-native:monitor:ActionGroup", "ops-humans");
     assert.equal(humans.inputs.webhookReceivers, undefined);
-    assert.equal(humans.inputs.emailReceivers[0].emailAddress, "platform-team@example.org");
+    assert.deepEqual(
+        humans.inputs.emailReceivers.map((r) => [r.name, r.emailAddress]),
+        [["team-1", "platform-team@example.org"], ["team-2", "oncall@example.org"]],
+    );
     const intake = one("azure-native:monitor:ActionGroup", "ops-intake");
     assert.equal(intake.inputs.webhookReceivers[0].useCommonAlertSchema, true);
     assert.equal(
@@ -129,6 +133,14 @@ test("budget covers the platform and AKS node resource groups and notifies ops-h
     const budget = one("azure-native:consumption:Budget", "staging-budget");
     assert.deepEqual(budget.inputs.filter.dimensions.values, ["rg-mmk-platform-staging", "rg-mmk-platform-staging-aks-nodes"]);
     assert.match(budget.inputs.notifications.actual80.contactGroups[0], /ops-humans$/);
+    for (const notification of Object.values(budget.inputs.notifications)) {
+        assert.deepEqual(notification.contactEmails, ["platform-team@example.org", "oncall@example.org"]);
+    }
+});
+
+test("humansEmail rejects an empty list or an invalid address", () => {
+    assert.throws(() => parseEmailList(" , ", "humansEmail"), /humansEmail needs at least one e-mail address/);
+    assert.throws(() => parseEmailList("team@example.org, not-an-address", "humansEmail"), /"not-an-address" is not an e-mail address/);
 });
 
 test("data: 7 days of backups, open firewall with TLS, operations database, 30-day diagnostics retention", () => {

@@ -200,7 +200,7 @@ pulumi -C platform/infra/foundation config set location <region>            # no
 pulumi -C platform/infra/foundation config set kubernetesVersion <x.y.z>    # from the preflight INFO line
 pulumi -C platform/infra/foundation config set nodeVmSize <vm-size>         # as checked by the preflight
 pulumi -C platform/infra/foundation config set nodeCount <n>
-pulumi -C platform/infra/foundation config set humansEmail <team list>      # ops-humans, budget, Let's Encrypt account
+pulumi -C platform/infra/foundation config set humansEmail "<a@x>, <b@x>"   # comma-separated; ops-humans, budget, Let's Encrypt (first address)
 pulumi -C platform/infra/foundation config set budgetAmount <amount>        # monthly, in the billing currency (verify live)
 pulumi -C platform/infra/foundation config set budgetStartDate <YYYY-MM-01>
 ```
@@ -214,7 +214,7 @@ Defaults from [`config.ts`](../../infra/foundation/config.ts):
 
 | Key | Default | Purpose |
 | --- | --- | --- |
-| `acmeEmail` | value of `humansEmail` | Let's Encrypt account e-mail |
+| `acmeEmail` | first address in `humansEmail` | Let's Encrypt account e-mail |
 | `acmeServer` | `https://acme-v02.api.letsencrypt.org/directory` | ACME endpoint (the staging endpoint for rehearsals) |
 | `httpFallback` | `false` | [HTTP fallback](operations.md#http-fallback) |
 | `containerInsights` | `true` | Container Insights addon and data collection rule |

@@ -79,7 +79,24 @@ if versions="$(az aks get-versions --location "$LOCATION" --query 'values[?!isPr
 else
     fail "AKS availability in region $LOCATION (az aks get-versions failed)"
 fi
+# Free vCPUs of one quota (a VM family, or "cores" for the region) against the node pool.
+check_quota() {
+    local quota="$1" usage="$2" need="$3" free
+    free="$(jq -r --arg q "${quota,,}" \
+        'map(select((.name.value | ascii_downcase) == $q)) | first | if . then (.limit | tonumber) - (.currentValue | tonumber) else empty end' \
+        <<<"$usage")"
+    if [[ -z "$free" ]]; then
+        fail "vCPU quota $quota in $LOCATION (not listed by az vm list-usage)"
+    elif (( free >= need )); then
+        pass "vCPU quota $quota in $LOCATION: $need needed, $free free"
+    else
+        fail "vCPU quota $quota in $LOCATION: $NODE_COUNT x $NODE_VM_SIZE need $need, $free free"
+    fi
+}
+
 if [[ -n "${NODE_VM_SIZE:-}" ]]; then
+    NODE_COUNT="${NODE_COUNT:-1}"
+    [[ "$NODE_COUNT" =~ ^[1-9][0-9]*$ ]] || die "NODE_COUNT must be a positive integer."
     # --size matches prefixes, and an unknown size has no restrictions either; count exact names first.
     skus="$(az vm list-skus --location "$LOCATION" --size "$NODE_VM_SIZE" --resource-type virtualMachines \
         --query "[?name=='$NODE_VM_SIZE']" -o json 2>/dev/null || echo error)"
@@ -88,12 +105,25 @@ if [[ -n "${NODE_VM_SIZE:-}" ]]; then
     elif [[ "$(jq length <<<"$skus")" == "0" ]]; then
         restrictions="unknown size in this region"
     else
-        restrictions="$(jq -r '[.[].restrictions[]?.reasonCode] | join(", ")' <<<"$skus")"
+        # The node pool uses no availability zones, so only a regional restriction blocks it.
+        restrictions="$(jq -r '[.[].restrictions[]? | select(.type == "Location") | .reasonCode] | join(", ")' <<<"$skus")"
+        zones="$(jq -r '[.[].restrictions[]? | select(.type == "Zone") | .restrictionInfo.zones[]?] | unique | join(" ")' <<<"$skus")"
+        [[ -z "$zones" ]] || info "$NODE_VM_SIZE is restricted in zones $zones; the regional node pool does not use zones."
     fi
     if [[ -z "$restrictions" ]]; then
         pass "VM size $NODE_VM_SIZE is available in $LOCATION"
     else
         fail "VM size $NODE_VM_SIZE in $LOCATION (restriction: $restrictions)"
+    fi
+    if [[ "$skus" != "error" && "$(jq length <<<"$skus")" != "0" ]]; then
+        family="$(jq -r '.[0].family' <<<"$skus")"
+        vcpus="$(jq -r '.[0].capabilities[] | select(.name == "vCPUs") | .value' <<<"$skus")"
+        if usage="$(az vm list-usage --location "$LOCATION" -o json 2>/dev/null)"; then
+            check_quota "$family" "$usage" $((vcpus * NODE_COUNT))
+            check_quota cores "$usage" $((vcpus * NODE_COUNT))
+        else
+            fail "vCPU quota in $LOCATION (az vm list-usage failed)"
+        fi
     fi
 fi
 info "MANUAL: issue webhook to <publicScheme>://<operationsApiHost>/events/github once the event intake runs (bootstrap.md, step 8)."

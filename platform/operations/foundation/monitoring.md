@@ -21,7 +21,7 @@ be proven from the repository and still needs a check against the real environme
 | Log Analytics workspace | `log-mmk-platform-<env>` | `PerGB2018`, 30 days retention, no daily cap |
 | Application Insights (workspace-based) | `appi-mmk-platform-<env>` | Hosts every availability test; apps may send telemetry through `appInsightsConnectionString` |
 | Action group | `ops-intake` | Webhook to the event intake of the operations agent (C) |
-| Action group | `ops-humans` | E-mail to the team distribution list `humansEmail`; no webhook |
+| Action group | `ops-humans` | E-mail to every address in `humansEmail` (comma-separated); no webhook |
 | Availability test and alert rule per catalog app | `webtest-<app-id>-<env>-availability`, `alert-<app-id>-<env>-availability` | App outage to `ops-intake` |
 | Availability test and alert rule of the agent | `webtest-operations-agent-<env>-healthz`, `alert-operations-agent-<env>-healthz` | Agent outage to `ops-humans` |
 | Budget | `budget-mmk-platform-<env>` | Monthly cost to `ops-humans` |
