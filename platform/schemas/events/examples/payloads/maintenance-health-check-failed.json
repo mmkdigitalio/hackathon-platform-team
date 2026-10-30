@@ -1,0 +1,15 @@
+{
+  "deliveryId": "health-check:1234567890:1:affine:staging",
+  "externalRef": "health-check:affine:staging:availability",
+  "appId": "affine",
+  "environment": "staging",
+  "eventType": "health-check-failed",
+  "severity": "error",
+  "occurredAt": "2026-10-30T09:15:00Z",
+  "details": {
+    "check": "availability",
+    "url": "https://affine.20-50-60-70.sslip.io/info",
+    "httpStatus": 503,
+    "workflowRun": "https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/1234567890"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "0.1",
+  "source": "github",
+  "deliveryId": "8f1c7e00-b5f1-11f0-8a1b-6c3e2d7a9b40",
+  "externalRef": "mmkdigitalio/hackathon-platform-team#42",
+  "eventType": "issue-opened",
+  "severity": "unknown",
+  "state": "opened",
+  "occurredAt": "2026-10-30T09:20:00Z",
+  "sourceRef": {
+    "type": "github-issue",
+    "url": "https://github.com/mmkdigitalio/hackathon-platform-team/issues/42",
+    "payloadSha256": "ed11f708811a8744b99d60b9df8d5eb87b0a2b0a75b6fb51a68cb9f1a45dce88"
+  },
+  "appId": "affine",
+  "environment": "staging",
+  "receivedAt": "2026-10-30T09:20:01+00:00",
+  "mappingError": null
+}

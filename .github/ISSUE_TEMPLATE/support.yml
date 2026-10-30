@@ -1,0 +1,44 @@
+# Support-Issue-Form (Strang C). Der Betriebsagent liest die gerenderten Abschnitte
+# "### App" und "### Umgebung". Labels dieser beiden Felder nicht umbenennen.
+# Die App-Optionen entsprechen den Einträgen unter platform/catalog/ ohne den
+# Betriebsagenten selbst; neue Katalog-Apps hier ergänzen.
+name: Support-Anfrage
+description: Problem mit einer betriebenen App melden. Der Betriebsagent antwortet in diesem Issue.
+title: "[Support] "
+labels: ["support"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bitte App und Umgebung auswählen und das Problem beschreiben. Keine Passwörter oder Tokens eintragen.
+  - type: dropdown
+    id: app
+    attributes:
+      label: App
+      description: Betroffene App laut Katalog (platform/catalog/)
+      options:
+        - affine
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Umgebung
+      options:
+        - staging
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Beschreibung
+      description: Was funktioniert nicht? Was hast du erwartet?
+    validations:
+      required: true
+  - type: input
+    id: since
+    attributes:
+      label: Seit wann?
+      placeholder: "z. B. 30.10.2026, ca. 09:00"
+    validations:
+      required: false

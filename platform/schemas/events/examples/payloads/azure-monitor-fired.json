@@ -1,0 +1,42 @@
+{
+  "schemaId": "azureMonitorCommonAlertSchema",
+  "data": {
+    "essentials": {
+      "alertId": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.AlertsManagement/alerts/11111111-1111-1111-1111-111111111111",
+      "alertRule": "alert-affine-staging-availability",
+      "severity": "Sev1",
+      "signalType": "Metric",
+      "monitorCondition": "Fired",
+      "monitoringService": "Platform",
+      "alertTargetIDs": [
+        "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg-mmk-platform-staging/providers/microsoft.insights/components/appi-mmk-platform-staging"
+      ],
+      "configurationItems": ["appi-mmk-platform-staging"],
+      "originAlertId": "00000000-0000-0000-0000-000000000000_example",
+      "firedDateTime": "2026-10-30T09:12:00.000Z",
+      "description": "Verfügbarkeitstest affine-staging schlägt fehl",
+      "essentialsVersion": "1.0",
+      "alertContextVersion": "1.0"
+    },
+    "alertContext": {
+      "properties": null,
+      "conditionType": "SingleResourceMultipleMetricCriteria",
+      "condition": {
+        "windowSize": "PT5M",
+        "allOf": [
+          {
+            "metricName": "availabilityResults/availabilityPercentage",
+            "operator": "LessThan",
+            "threshold": "100",
+            "timeAggregation": "Average",
+            "metricValue": 0
+          }
+        ]
+      }
+    },
+    "customProperties": {
+      "app-id": "affine",
+      "environment": "staging"
+    }
+  }
+}

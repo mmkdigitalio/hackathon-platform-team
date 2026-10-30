@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0.1",
+  "source": "maintenance",
+  "deliveryId": "health-check:1234567890:1:affine:staging",
+  "externalRef": "health-check:affine:staging:availability",
+  "eventType": "health-check-failed",
+  "severity": "error",
+  "state": "requested",
+  "occurredAt": "2026-10-30T09:15:00Z",
+  "sourceRef": {
+    "type": "maintenance-request",
+    "payloadSha256": "edd8d461217cc08f2dbb1eb9bdbe11461a7e295d0b23412d6f906ce71b2c4f13"
+  },
+  "appId": "affine",
+  "environment": "staging",
+  "receivedAt": "2026-10-30T09:15:01+00:00",
+  "mappingError": null
+}

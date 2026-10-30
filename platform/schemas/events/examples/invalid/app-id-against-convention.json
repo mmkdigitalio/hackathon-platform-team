@@ -1,0 +1,22 @@
+{
+  "expectedField": "appId",
+  "description": "App-ID verletzt ^[a-z][a-z0-9-]{1,30}$.",
+  "event": {
+    "schemaVersion": "0.1",
+    "source": "azure-monitor",
+    "deliveryId": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.AlertsManagement/alerts/11111111-1111-1111-1111-111111111111:Fired",
+    "externalRef": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.AlertsManagement/alerts/11111111-1111-1111-1111-111111111111",
+    "eventType": "alert",
+    "severity": "error",
+    "state": "fired",
+    "occurredAt": "2026-10-30T09:12:00.000Z",
+    "sourceRef": {
+      "type": "azure-alert",
+      "payloadSha256": "326cf806d5d7ec2b6f58ba193f579a59b0a77a1205006a66f07e2a3e7ab54f52"
+    },
+    "appId": "Demo_App",
+    "environment": "staging",
+    "receivedAt": "2026-10-30T09:12:03+00:00",
+    "mappingError": null
+  }
+}

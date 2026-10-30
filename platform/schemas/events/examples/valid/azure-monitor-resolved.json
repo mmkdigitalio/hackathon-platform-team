@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0.1",
+  "source": "azure-monitor",
+  "deliveryId": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.AlertsManagement/alerts/11111111-1111-1111-1111-111111111111:Resolved",
+  "externalRef": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.AlertsManagement/alerts/11111111-1111-1111-1111-111111111111",
+  "eventType": "alert",
+  "severity": "error",
+  "state": "resolved",
+  "occurredAt": "2026-10-30T09:40:00.000Z",
+  "sourceRef": {
+    "type": "azure-alert",
+    "payloadSha256": "4686e6ee8f9dc8414582417ec01dc7bbc6e5be5defc65248e8eca2d9ca62029f"
+  },
+  "appId": "affine",
+  "environment": "staging",
+  "receivedAt": "2026-10-30T09:40:02+00:00",
+  "mappingError": null
+}
