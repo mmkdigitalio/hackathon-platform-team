@@ -1,10 +1,10 @@
-# Sollzustand des Betriebsagenten in staging. Image-Digest und Chart-Version setzt agent-build.yml
-# über app-update-desired-state.yml; bis zum ersten Agenten-Build steht hier ein Platzhalter,
-# den app-deploy.yml nicht ausrollt.
+# Sollzustand des Betriebsagenten in staging. Release aus agent-build #18,
+# Quell-Commit a756060be01ab1a88986db8863cb3bceb56e0075, einschließlich Status-UI.
+# Image und Chart sind in ACR veröffentlicht; app-deploy.yml rollt diesen Stand per Pulumi aus.
 schemaVersion: "0.1"
-image: acr:operations-agent@sha256:0000000000000000000000000000000000000000000000000000000000000000
+image: acr:operations-agent@sha256:52b48976e5433616416de5d4414544b8a82f9b47ded281f7b4dcac85963d3aad
 chart:
-  version: 0.1.0
+  version: 0.1.18
 sizes:
   replicas: 1
 values:
