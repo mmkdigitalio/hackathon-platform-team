@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-status-entrypoint
+data:
+  serve.py: |
+{{ .Files.Get "files/serve.py" | indent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-status
+  labels:
+    app.kubernetes.io/name: platform-status
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform-status
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platform-status
+        app.kubernetes.io/instance: {{ .Release.Name }}
+      annotations:
+        checksum/entrypoint: {{ .Files.Get "files/serve.py" | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      imagePullSecrets:
+        - name: {{ required "imagePullSecretName fehlt" .Values.imagePullSecretName }}
+      containers:
+        - name: status
+          image: {{ required "image.repository fehlt" .Values.image.repository }}@{{ required "image.digest fehlt" .Values.image.digest }}
+          command: ["python", "/status-entrypoint/serve.py"]
+          envFrom:
+            - secretRef:
+                name: {{ required "secretName fehlt" .Values.secretName }}
+          env:
+            - name: OPS_STATUS_ENVIRONMENT
+              value: {{ .Values.platform.environment | quote }}
+            - name: PYTHONDONTWRITEBYTECODE
+              value: "1"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: entrypoint
+              mountPath: /status-entrypoint
+              readOnly: true
+      volumes:
+        - name: entrypoint
+          configMap:
+            name: platform-status-entrypoint
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-status
+  labels:
+    app.kubernetes.io/name: platform-status
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  selector:
+    app.kubernetes.io/name: platform-status
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

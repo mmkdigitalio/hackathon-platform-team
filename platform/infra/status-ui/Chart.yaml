@@ -1,0 +1,6 @@
+apiVersion: v2
+name: platform-status
+description: Read-only platform status UI, independent of the operations worker
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

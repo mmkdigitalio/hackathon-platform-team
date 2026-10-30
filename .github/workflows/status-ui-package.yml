@@ -1,0 +1,48 @@
+name: status-ui-package
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - platform/infra/status-ui/**
+      - .github/workflows/status-ui-package.yml
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.18.4
+      - name: Chart prüfen
+        run: |
+          helm lint platform/infra/status-ui \
+            --set image.repository=example.azurecr.io/operations-agent \
+            --set image.digest=sha256:0000000000000000000000000000000000000000000000000000000000000000 \
+            --set secretName=platform-status-platform --set imagePullSecretName=acr-pull
+          python3 -m py_compile platform/infra/status-ui/files/serve.py
+      - name: Foundation-Ausgaben
+        id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          environment: staging
+          expected-contract-version: "1"
+      - name: Chart veröffentlichen
+        env:
+          ACR: ${{ steps.foundation.outputs.acrLoginServer }}
+          ACR_USER: ${{ steps.foundation.outputs.acrUsername }}
+          ACR_PASSWORD: ${{ steps.foundation.outputs.acrPassword }}
+        run: |
+          version="0.1.${GITHUB_RUN_NUMBER}"
+          helm package platform/infra/status-ui --version "$version" --app-version "$GITHUB_SHA" -d dist
+          printf '%s' "$ACR_PASSWORD" | helm registry login "$ACR" --username "$ACR_USER" --password-stdin
+          helm push "dist/platform-status-${version}.tgz" "oci://${ACR}/helm"
+          echo "Chart: oci://${ACR}/helm/platform-status, Version $version, Quelle $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"

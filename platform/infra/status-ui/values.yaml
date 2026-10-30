@@ -1,0 +1,8 @@
+# Image, existing platform Secret and release facts are supplied by the app-runtime stack.
+image:
+  repository: ""
+  digest: ""
+secretName: ""
+imagePullSecretName: ""
+platform:
+  environment: staging
