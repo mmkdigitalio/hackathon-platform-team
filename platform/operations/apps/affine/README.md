@@ -7,6 +7,8 @@ Zwei kontrollierte, datensichere Fehler für die gemeinsame Abnahme (Szenarien 4
 | Reparierbar | `fault-scale-to-zero.sh trigger --environment staging` | Smoke-Test negativ, Alarm `alert-affine-staging-availability`, Agent startet `app-deploy.yml`, danach Smoke-Test grün und Alarm aufgelöst | `fault-scale-to-zero.sh reset --environment staging` (startet `app-deploy.yml`) |
 | Nicht reparierbar | `fault-invalid-config.sh trigger --environment staging`, PR mergen | Rollout scheitert bzw. AFFiNE unerreichbar, Alarm, `restart`/`redeploy` wirkungslos, Agent endet mit `needs_attention` und nennt den Commit | `fault-invalid-config.sh revert --environment staging`, Revert-PR mergen |
 
+Den reparierbaren Fall mit Alarm und Reparatur durch den Agenten von Anfang bis Ende verfolgt [playbook-self-heal.md](playbook-self-heal.md) (`playbook-self-heal.sh run --environment staging`).
+
 ## Vor jedem Durchlauf
 
 1. Ausgangszustand: `app-deploy.yml` für AFFiNE grün, Smoke-Test hat Testdokument und Anhang angelegt (Ergebnis-Artefakt sichern).
