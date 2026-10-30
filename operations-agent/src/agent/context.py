@@ -12,7 +12,7 @@ import yaml
 
 from contracts import ActionRecord, AgentInvocation, KubernetesState, ReleaseRef
 from tools.alert import summarize_alert
-from tools.common import ToolError, github_ref
+from tools.common import NotFound, ToolError, github_ref
 from tools.github import GitHubClient
 from tools.kubernetes import KubernetesAdapter
 from tools.targets import Target
@@ -42,6 +42,7 @@ class OperationalContext:
     alert: dict[str, Any] | None
     previous_actions: list[ActionRecord]
     errors: list[str] = field(default_factory=list)
+    resolved_deployment: str | None = None
 
     @property
     def allowed_actions(self) -> frozenset[str]:
@@ -49,7 +50,7 @@ class OperationalContext:
 
     @property
     def deployment(self) -> str:
-        return deployment_name(self.catalog.value, self.target.app_id)
+        return self.resolved_deployment or deployment_name(self.catalog.value, self.target.app_id)
 
     @property
     def check_path(self) -> str:
@@ -123,17 +124,18 @@ class ContextLoader:
         rb = catalog.value.get("runbook") or {}
         if rb.get("repository") and rb.get("path") and rb.get("commit"):
             try:
-                f = self.gh.get_file(rb["path"], rb["commit"], repository=rb["repository"])
+                f = self.gh.get_document(rb["path"], rb["commit"], repository=rb["repository"], max_chars=RUNBOOK_MAX_CHARS)
                 runbook = Sourced(f["content"][:RUNBOOK_MAX_CHARS], github_ref(rb["repository"], "blob", f"{rb['commit']}/{rb['path']}"))
             except ToolError as e:
                 errors.append(f"Runbook nicht lesbar: {e}")
         else:
             errors.append("Katalogeintrag ohne vollständige Runbook-Referenz (repository, path, commit)")
 
-        actual = actual_release = None
+        actual = actual_release = resolved = None
         if self.k8s is not None:
             try:
-                actual, _, _ = self.k8s.workload_state(target, deployment_name(catalog.value, target.app_id))
+                resolved = self._resolve_deployment(target, deployment_name(catalog.value, target.app_id))
+                actual, _, _ = self.k8s.workload_state(target, resolved)
                 actual_release = self.k8s.namespace_release(target)
             except ToolError as e:
                 errors.append(f"Istzustand nicht lesbar: {e.kind}: {e}")
@@ -150,4 +152,16 @@ class ContextLoader:
             alert=summarize_alert(inv.context.alert_payload),
             previous_actions=previous_actions,
             errors=errors,
+            resolved_deployment=resolved,
         )
+
+    def _resolve_deployment(self, target: Target, preferred: str) -> str:
+        """Bevorzugter Name aus dem Katalog, sonst über das Label ``app.kubernetes.io/instance`` (B's Konvention)."""
+        names = self.k8s.app_deployments(target)
+        if preferred in names or not names:
+            return preferred
+        if target.app_id in names:
+            return target.app_id
+        if len(names) == 1:
+            return names[0]
+        raise NotFound(f"kein eindeutiges Haupt-Deployment für {target}", candidates=names)

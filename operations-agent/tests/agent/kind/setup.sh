@@ -42,7 +42,7 @@ kubectl annotate namespace affine-staging --overwrite ops.mmk/release-git-sha=lo
 kubectl apply -n affine-staging -f - >/dev/null <<YAML
 apiVersion: apps/v1
 kind: Deployment
-metadata: { name: affine }
+metadata: { name: affine, labels: { app.kubernetes.io/instance: affine } }
 spec:
   replicas: 1
   selector: { matchLabels: { app: affine } }

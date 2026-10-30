@@ -105,6 +105,10 @@ class _Apps:
         self.c.gate("read_deployment", ns)
         return _deployment(name, ns, self._get(name, ns))
 
+    def list_namespaced_deployment(self, ns: str, **_: Any) -> client.V1DeploymentList:
+        self.c.gate("list_deployments", ns)
+        return client.V1DeploymentList(items=[_deployment(n, s, d) for (s, n), d in self.c.deployments.items() if s == ns])
+
     def patch_namespaced_deployment(self, name: str, ns: str, body: dict, **_: Any) -> client.V1Deployment:
         self.c.gate("patch_deployment", ns)
         d = self._get(name, ns)

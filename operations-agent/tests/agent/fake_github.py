@@ -56,6 +56,9 @@ class FakeGitHub:
             if p == "platform/catalog":
                 return httpx.Response(200, json=[{"name": a, "type": "dir"} for a in self.catalog_apps])
             if (repo, p) not in self.files:
+                children = sorted({f[len(p) + 1 :].split("/")[0] for r, f in self.files if r == repo and f.startswith(p + "/")})
+                if children:
+                    return httpx.Response(200, json=[{"name": c, "type": "file" if (repo, f"{p}/{c}") in self.files else "dir"} for c in children])
                 return httpx.Response(404, json={"message": "Not Found"})
             content = base64.b64encode(self.files[(repo, p)].encode()).decode()
             return httpx.Response(200, json={"type": "file", "sha": "blob1", "content": content})

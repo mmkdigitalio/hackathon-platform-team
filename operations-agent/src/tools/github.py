@@ -59,6 +59,28 @@ class GitHubClient:
             raise ValidationFailed(f"{path} ist keine Datei")
         return {"repository": repo, "path": path, "ref": ref, "sha": body["sha"], "content": base64.b64decode(body["content"]).decode()}
 
+    def get_document(self, path: str, ref: str, repository: str | None = None, max_chars: int = 20_000) -> dict[str, Any]:
+        """Datei oder Verzeichnis mit Markdown-Dateien (README zuerst), zusammengefügt und begrenzt."""
+        repo = repository or self.repository
+        r = self._request("GET", f"/repos/{repo}/contents/{path}", f"{repo}:{path}@{ref} lesen", params={"ref": ref})
+        body = r.json()
+        if not isinstance(body, list):
+            return self.get_file(path, ref, repository)
+        names = sorted(
+            (e["name"] for e in body if e.get("type") == "file" and e["name"].lower().endswith(".md")),
+            key=lambda n: (n.lower() != "readme.md", n),
+        )
+        if not names:
+            raise ValidationFailed(f"{path} enthält keine Markdown-Dateien")
+        parts, size = [], 0
+        for name in names:
+            text = self.get_file(f"{path.rstrip('/')}/{name}", ref, repository)["content"]
+            parts.append(f"<!-- Datei: {name} -->\n{text}")
+            size += len(text)
+            if size >= max_chars:
+                break
+        return {"repository": repo, "path": path, "ref": ref, "files": names, "content": "\n\n".join(parts)[:max_chars]}
+
     def list_dir(self, path: str, ref: str) -> list[str]:
         r = self._request("GET", f"/repos/{self.repository}/contents/{path}", f"Verzeichnis {path}@{ref} lesen", params={"ref": ref})
         body = r.json()
