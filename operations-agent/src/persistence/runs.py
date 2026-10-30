@@ -15,6 +15,7 @@ SECRET_ENV_VARS = (
     "MAINTENANCE_API_KEY",
     "GITHUB_WEBHOOK_SECRET",
     "OPS_GITHUB_TOKEN",
+    "OPS_GITHUB_APP_PRIVATE_KEY",
     "OPS_MODEL_API_KEYS",
     "PGPASSWORD",
     "POSTGRES_PASSWORD",
@@ -23,6 +24,8 @@ SECRET_ENV_VARS = (
 )
 _SECRET_KEY_NAMES = re.compile(r"(pass(word)?|secret|token|api[-_]?key|authorization|signature)$", re.I)
 _URL_PASSWORD = re.compile(r"(\w+://[^:/@\s]+:)[^@\s]+@")
+# Private Schlüssel (z. B. der GitHub App) auch dann, wenn sie in anderer Formatierung auftauchen.
+_PEM = re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----.*?-----END [A-Z ]*PRIVATE KEY-----", re.S)
 REDACTED = "***"
 
 
@@ -47,6 +50,7 @@ def redact(value, secrets: list[str]):
     if isinstance(value, str):
         for secret in secrets:
             value = value.replace(secret, REDACTED)
+        value = _PEM.sub(REDACTED, value)
         return _URL_PASSWORD.sub(r"\1" + REDACTED + "@", value)
     return value
 
