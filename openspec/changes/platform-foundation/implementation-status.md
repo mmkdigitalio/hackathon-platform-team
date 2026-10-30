@@ -27,7 +27,7 @@ schema tests, Pulumi mock tests, script tests against stub commands) and
 | 2.3 Repo and stack secrets | Implemented | Repository secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE` exist (`gh secret list`, 2026-10-30 13:35 UTC); `OPS_GITHUB_TOKEN` is optional since the GitHub App. Stack config holds the Azure OpenAI key and `githubWebhookSecret` as ciphertext; `foundation.sh secrets` stores the app key after `openssl` read it as an unencrypted private key | Store `githubAppPrivateKey` (needs the `.pem` file from Erik) |
 | 2.4 Composite action | Done | `.github/actions/foundation-outputs/`; tests read the placeholder outputs end to end, abort on a wrong contract version, mask secrets (also ones unknown to the schema) and check every workflow's inputs and outputs; `foundation-ci` run 41059807172 on `main` (049529a) green: 96/96 tests, action read 31 placeholder outputs | none |
 | 3.1 Base platform | Implemented | `platform/infra/foundation/` (resource group, Log Analytics, App Insights, ACR admin, AKS with local accounts), mock tests: no role assignments; local `foundation.sh up` on 2026-10-30 created the stack without role errors, but under an Owner account | A run (for example `preview --expect-no-changes`) by someone with Contributor only |
-| 3.2 Container Insights | Implemented | DCR without role assignment behind `containerInsights`; procedure in `operations/foundation/monitoring.md` | Log query of a test line, or documented waiver |
+| 3.2 Container Insights | Done | DCR without role assignment behind `containerInsights`; procedure in `operations/foundation/monitoring.md`. On 2026-10-30 a pod `default/logtest` wrote `mmk-logtest-20261030T142513Z` at 14:25:15 UTC; `ContainerLogV2 \| where LogMessage has '<marker>'` returned it at 14:28:50 UTC, so logs arrive without a role assignment | none |
 | 3.3 Ingress, certificates | Done | Traefik, cert-manager, Let's Encrypt HTTP-01, `baseDomain` from the service IP; `foundation.sh ingress-check` passed on 2026-10-30 14:09 UTC: `https://ingress-check.57-153-7-126.sslip.io/` answered with a valid Let's Encrypt certificate (issued in about 23 s) | none |
 | 3.4 PostgreSQL | Done | Flexible Server, database `operations`, TLS required, open firewall, 7 days backup; access check run [41070864441](https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/41070864441) on `ubuntu-latest`: `postgres` PASS (login with `sslmode=require`, session encrypted) | none |
 | 3.5 Diagnostics storage | Done | Container `diagnostics`, 30-day lifecycle; access check run [41070864441](https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/41070864441): `diagnostics-storage` PASS (write, read, compare and delete a blob with the key) | none |
@@ -49,7 +49,6 @@ them. Assumptions that only a live run can settle are marked "verify live" in th
 the most important ones:
 
 - The ingress IP survives an AKS stop and start, so `baseDomain` stays stable overnight.
-- Container Insights delivers logs without a role assignment.
 - A subscription budget can be created with Contributor rights.
 
 ## Integration notes

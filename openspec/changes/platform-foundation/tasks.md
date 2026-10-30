@@ -18,7 +18,7 @@ A startet sofort. B, C und D brauchen früh die Konventionen und das Ausgabe-Sch
 ## 3. Grundplattform, P1-04
 
 - [ ] 3.1 Resource Group, Log Analytics, Application Insights, ACR mit Admin-User und AKS mit lokalen Accounts ausrollen; Abschluss durch lokalen Lauf ohne Fehler wegen fehlender Rollenzuweisung prüfen.
-- [ ] 3.2 Container Insights aktivieren, soweit ohne Rollenzuweisung möglich; Abschluss durch Log-Abfrage einer Testzeile oder dokumentierten Verzicht prüfen.
+- [x] 3.2 Container Insights aktivieren, soweit ohne Rollenzuweisung möglich; Abschluss durch Log-Abfrage einer Testzeile oder dokumentierten Verzicht prüfen.
 - [x] 3.3 Ingress-Controller und Zertifikatsverwaltung ausrollen, `baseDomain` aus der Service-IP ableiten; Abschluss durch HTTPS-Aufruf einer Test-Ingress-Regel unter `<test>.<baseDomain>` prüfen.
 - [x] 3.4 PostgreSQL Flexible Server mit Datenbank `operations`, TLS-Pflicht, offener Firewall und 7 Tagen Backup ausrollen; Abschluss durch Verbindung von einem GitHub-hosted Runner prüfen.
 - [x] 3.5 Diagnose-Storage mit Container `diagnostics` und 30-Tage-Lifecycle ausrollen; Abschluss durch Schreiben und Lesen mit dem Storage-Key prüfen.
