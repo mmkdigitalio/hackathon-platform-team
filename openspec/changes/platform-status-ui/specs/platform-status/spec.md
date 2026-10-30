@@ -7,7 +7,7 @@ Eine schreibgeschützte Statusansicht zeigt den aktuellen Zustand der Apps, der 
 ## ADDED Requirements
 
 ### Requirement: Ausschließlich lesende Statusansicht
-Die Statusansicht SHALL nur lesende Endpunkte bereitstellen (`GET /` für die Seite, `GET /status` für die JSON-Projektion, `GET /status-assets/*` für statische Dateien, `GET /healthz` im eigenständigen Dienst). Sie SHALL keine Ereignisse, Eingaben oder Aktionen annehmen, keine Betriebsmaßnahme auslösen und weder Datenbank, Kubernetes noch GitHub verändern. Die Seite SHALL keine bedienbare schreibende Funktion enthalten. Datenbankabfragen SHALL in einer lesenden Transaktion mit Statement-Timeout laufen.
+Die Statusansicht SHALL nur lesende Endpunkte bereitstellen (`GET /`, `GET /applications`, `GET /applications/<app-id>` und `GET /activity` für die Seiten, `GET /status` für die JSON-Projektion, `GET /status-assets/*` für statische Dateien, `GET /healthz` im eigenständigen Dienst). Sie SHALL keine Ereignisse, Eingaben oder Aktionen annehmen, keine Betriebsmaßnahme auslösen und weder Datenbank, Kubernetes noch GitHub verändern. Die Seite SHALL keine bedienbare schreibende Funktion enthalten. Datenbankabfragen SHALL in einer lesenden Transaktion mit Statement-Timeout laufen.
 
 #### Scenario: Schreibender Request
 - **WHEN** ein `POST`, `PUT`, `PATCH` oder `DELETE` an `/`, `/status` oder `/healthz` des eigenständigen Dienstes gesendet wird
@@ -20,7 +20,7 @@ Die Statusansicht SHALL nur lesende Endpunkte bereitstellen (`GET /` für die Se
 - **AND** bricht sie nach spätestens 2,5 Sekunden ab
 
 ### Requirement: Keine Geheimnisse und minimale Projektion
-Die öffentliche Projektion SHALL ausschließlich Umgebung, Prüfzeitpunkt, Gesamt- und Komponentenzustände, App-IDs, Namen, Sollversionen, Hosts, HTTP-Status, Latenz, kurze feste Fehlerbeschreibungen, Heartbeat-Alter, Auftragszahlen sowie je Auftrag App-ID, Zustand und Aktualisierungszeit enthalten. Sie SHALL keine Auftrags- oder Vorfalltexte, Auftrags- oder Vorfall-IDs, Logs, Modellantworten, Zugangsdaten, Connection-Strings, Secret-Werte oder rohen Ausnahmetexte enthalten. Fehler SHALL nur als betroffene Komponente und fester Kurztext sichtbar werden.
+Die öffentliche Projektion SHALL ausschließlich Umgebung, Prüfzeitpunkt, Gesamt- und Komponentenzustände, App-IDs, Namen, Sollversionen, Hosts, HTTP-Status, Latenz, kurze feste Fehlerbeschreibungen, Heartbeat-Alter, Auftragszahlen, erlaubte Monitoring-Metadaten, strukturierte Quellen und Tätigkeiten, Ergebnis- und Verifikationsstatus, dokumentierte Release-Metadaten und erlaubte GitHub-Lauf-Links enthalten. Sie SHALL keine Auftrags- oder Vorfalltexte, Auftrags- oder Vorfall-IDs, Logs, Modellantworten, Zugangsdaten, Connection-Strings, Secret-Werte oder rohen Ausnahmetexte enthalten. Fehler SHALL nur als betroffene Komponente und fester Kurztext sichtbar werden.
 
 #### Scenario: Datenbankfehler mit Zugangsdaten in der Ausnahme
 - **WHEN** die Datenbankverbindung mit einer Ausnahme scheitert, die Host oder Passwort enthält
@@ -108,7 +108,7 @@ Die angezeigte Version einer App SHALL die Sollversion aus dem Sollzustand im Im
 - **THEN** ist die Version unbekannt und wird nicht erfunden
 
 ### Requirement: Aktualisierung und Veralterung
-Der Server SHALL den Snapshot höchstens alle 10 Sekunden neu berechnen und mehrere gleichzeitige Abrufe auf eine Berechnung bündeln. `/status` SHALL `Cache-Control: no-store`, `checkedAt` und `refreshAfterSeconds` liefern. Die Seite SHALL die Daten automatisch im Abstand von 30 Sekunden und beim erneuten Sichtbarwerden der Seite aktualisieren und eine manuelle Aktualisierung anbieten. Schlägt ein Abruf fehl oder ist der Stand älter als 90 Sekunden, SHALL die Seite den letzten Stand als veraltet kennzeichnen und den Gesamtzustand als unbekannt anzeigen, statt ihn als gesund stehen zu lassen. Ohne JavaScript SHALL ein Hinweis auf `/status` verweisen.
+Der Server SHALL den Snapshot höchstens alle 10 Sekunden neu berechnen und mehrere gleichzeitige Abrufe auf eine Berechnung bündeln. `/status` SHALL `Cache-Control: no-store`, `checkedAt` und `refreshAfterSeconds` liefern. Die Seite SHALL die Daten automatisch im durch `refreshAfterSeconds` angegebenen Abstand (Standard 30 Sekunden) und beim erneuten Sichtbarwerden der Seite aktualisieren und eine manuelle Aktualisierung anbieten. Schlägt ein Abruf fehl oder ist der Stand älter als 90 Sekunden, SHALL die Seite den letzten Stand als veraltet kennzeichnen und den Gesamtzustand als unbekannt anzeigen, statt ihn als gesund stehen zu lassen. Ohne JavaScript SHALL ein Hinweis auf `/status` verweisen.
 
 #### Scenario: Status-API fällt aus
 - **WHEN** die Seite geladen ist und `/status` danach nicht mehr antwortet
@@ -131,17 +131,64 @@ Der eigenständige Dienst SHALL `GET /healthz` bereitstellen, der nur den Status
 - **THEN** antwortet `/healthz` des eigenständigen Dienstes weiterhin mit 200
 - **AND** zeigt `/status` die Datenbank als `unavailable`
 
-### Requirement: Vorläufige Inhaltsdarstellung
-Die konkret angezeigten Inhalte, Kennzahlen, Texte, Anordnung, Gestaltung und Navigation der Seite sind vorläufig, werden inhaltlich überarbeitet und SHALL nicht Gegenstand dieser Spec sein. Sie SHALL ohne Änderung dieser Spec geändert werden dürfen, solange alle übrigen Requirements gelten. Stand 30.10.2026 (nur beschreibend): Die Seite ist deutsch, zeigt Umgebung, Gesamtzustand, Prüfzeit, vier Kennzahlen, eine App-Liste mit Sollversion und Latenz, Komponenten des Betriebs (Status-API, Datenbank, Worker mit Heartbeat-Alter) und die sechs zuletzt aktualisierten Aufträge, lädt alle Schriften und Skripte vom eigenen Host und stellt Texte per `textContent` statt als HTML dar.
+### Requirement: Getrennte Admin-Aufgaben
+Die UI SHALL ein priorisiertes Dashboard unter `/`, einen suchbaren Bestand unter `/applications`, Detailseiten unter `/applications/<app-id>` und einen Verlauf unter `/activity` bereitstellen. Alle Seiten SHALL echte Links, eindeutige Titel, sichtbare aktive Navigation und einen mobilen Zugang haben. Das Dashboard SHALL zu gefilterten Analyseansichten führen.
 
-#### Scenario: Überarbeitung des Inhalts
-- **WHEN** Layout, Kennzahlen oder Texte der Seite geändert werden
-- **THEN** gelten weiterhin Schreibschutz, Datenminimierung, feste Prüfziele, unabhängige Bereitstellung, Zustandssemantik und Aktualisierungsverhalten
-- **AND** ist dafür keine Änderung dieser Requirements nötig
+#### Scenario: Tagescheck mit Störung
+- **WHEN** der Admin eine gestörte App auf dem Dashboard auswählt
+- **THEN** öffnet sich deren eigene Detailseite mit Zustand, Monitoring und Aktivitäten
+- **AND** bleibt die Übersicht als eigener Anwendungsfall erreichbar
 
-#### Scenario: Neue angezeigte Datenfelder
-- **WHEN** die Überarbeitung zusätzliche Felder in `/status` aufnimmt
-- **THEN** erfüllen sie das Requirement „Keine Geheimnisse und minimale Projektion“ oder dieses wird zuvor per Spec-Änderung bewusst erweitert
+#### Scenario: Direkte Detail-URL
+- **WHEN** eine gültige App-Detailadresse neu geladen wird
+- **THEN** wird dieselbe App angezeigt
+- **AND** liefert eine unbekannte App HTTP 404
+
+### Requirement: Auffindbare Anwendungen
+Die Anwendungsliste SHALL nach Name oder Host suchbar und nach Erreichbarkeit bzw. fehlendem Prüfziel filterbar sein. Suchtext und Filter SHALL in der URL stehen und Aktualisierung sowie Browser-Zurück überstehen. Die angezeigte Versionskonfiguration SHALL von einem dokumentierten Rollout getrennt sein.
+
+#### Scenario: Suche und Zurück
+- **WHEN** der Admin eine gefilterte App öffnet und über Browser-Zurück zurückkehrt
+- **THEN** sind Suche und Filter unverändert
+
+### Requirement: Nachvollziehbare Überwachung
+Die Detailseite SHALL Live-HTTP-Prüfung, konfigurierte externe Verfügbarkeit und konfigurierten Smoke-Test unterscheiden. Sie SHALL Prüfpfad, TLS-Verhalten, Takt, Alarmziel und vorhandene Signal- bzw. Verifikationszeitpunkte nennen. Aus IaC abgeleitete Monitoring-Konfiguration SHALL nicht als verifizierte aktive Azure-Konfiguration erscheinen.
+
+#### Scenario: Noch kein externes Signal
+- **WHEN** die externe Überwachung konfiguriert ist, aber kein empfangenes Signal existiert
+- **THEN** zeigt die Seite Konfiguration und fehlenden Signalnachweis separat
+- **AND** behauptet nicht, Azure-Monitor sei aktiv oder ausgefallen
+
+### Requirement: Strukturierter Aktivitätenverlauf
+Der Verlauf SHALL Erkennungen, Agentenaktionen, Systemaktionen und Abschlüsse anhand fester Beschreibungen unterscheiden. Er SHALL nach App, Kategorie, Ergebnis und 24 Stunden bzw. sieben Tagen filterbar sein. Die URL SHALL Filter enthalten. Der Ausschnitt SHALL auf 100 jüngste Einträge aus sieben Tagen begrenzt und diese Grenze sichtbar sein. Rohe Payloads, Gründe, Findings, Targets, interne IDs und freie Meldungen SHALL nicht ausgegeben werden.
+
+#### Scenario: System-Deployment und Agentenaktion
+- **WHEN** beide in der Datenbank dokumentiert sind
+- **THEN** sind sie als System bzw. Agent erkennbar
+- **AND** lässt sich die betroffene App direkt öffnen
+
+#### Scenario: Verlauf nicht verfügbar
+- **WHEN** die Verlaufsabfrage fehlschlägt
+- **THEN** zeigt die UI fehlende Daten statt „keine Aktivitäten“ oder null Probleme
+
+### Requirement: Behebungen mit Prüfnachweis
+„Verifiziert behoben“ SHALL einen Auftrag im Zustand `resolved` und eine erfolgreiche jüngste Verifikation desselben Auftrags erfordern. Ein erfolgreicher Aktions- oder Deployment-Status allein SHALL nicht ausreichen. Ein aktueller App-Ausfall SHALL unabhängig von früheren Behebungen angezeigt werden.
+
+#### Scenario: Abschluss ohne erfolgreiche jüngste Verifikation
+- **WHEN** ein Auftrag resolved ist, aber der jüngste Prüfnachweis fehlt oder fehlschlug
+- **THEN** erscheint er als abgeschlossen, nicht als verifiziert behoben
+
+#### Scenario: Spätere erneute Störung
+- **WHEN** eine früher verifiziert behobene App heute nicht erreichbar ist
+- **THEN** bleibt ihr aktueller Zustand gestört
+- **AND** bleibt die frühere Behebung ein historischer Eintrag
+
+### Requirement: Dokumentierter Release-Stand
+Die App-Detailseite SHALL den letzten gespeicherten Deployment-Lauf mit Zeitpunkt und Ergebnis zeigen, sofern vorhanden. „Verifiziert“ SHALL nur bei erfolgreichem Deployment-Ergebnis, erfolgreicher Verifikation und passendem Soll-/Ist-Release erscheinen. GitHub-Links SHALL ausschließlich auf das bekannte Plattform-Repository und dessen Actions-Läufe zeigen. Diese Angaben SHALL als letzter dokumentierter Rollout, nicht als Live-Kubernetes-Inventar bezeichnet werden.
+
+#### Scenario: Unverifizierter Rollout
+- **WHEN** das gespeicherte Deployment-Ergebnis keinen passenden Prüfnachweis enthält
+- **THEN** wird kein verifizierter Release behauptet
 
 ## Abgrenzung
 
