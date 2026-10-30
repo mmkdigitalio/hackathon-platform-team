@@ -379,10 +379,11 @@ are still refused.
 | Credential | Rotate | Then |
 | --- | --- | --- |
 | State storage key (`PULUMI_BACKEND_KEY`) | `az storage account keys renew --account-name "$STATE_STORAGE_ACCOUNT" --resource-group rg-mmk-platform-state --key primary` | Re-run `bootstrap.sh` ([repeating](bootstrap.md#repeating-the-bootstrap)); it re-syncs the secret. Workflows that read the state fail in between; `foundation.sh` reads the key fresh on every run |
-| PAT (`opsGithubToken`, `OPS_GITHUB_TOKEN`) | New token ([PAT](bootstrap.md#fine-grained-pat)), stored in the password manager with its expiry | Export `OPS_GITHUB_TOKEN`, `GITHUB_WEBHOOK_SECRET` and the model keys and run `foundation.sh … secrets` (it requires all of them), or set only this one with the backend environment: `printf '%s' "$OPS_GITHUB_TOKEN" \| pulumi -C platform/infra/foundation config set --secret opsGithubToken`. Commit `Pulumi.staging.yaml`, run `up`, re-run `bootstrap.sh` (repository secret), B releases the agent again. Revoke the old token |
+| GitHub App private key (`githubAppPrivateKey`) | New key in the app settings under *Private keys* ([GitHub App](bootstrap.md#github-app)) | Export `GITHUB_APP_PRIVATE_KEY_FILE`, `GITHUB_WEBHOOK_SECRET` and the model keys and run `foundation.sh … secrets` (it requires all of them). Commit `Pulumi.staging.yaml`, run `up`, B releases the agent again. Then delete the old key in the app settings and the downloaded `.pem` file ([GitHub App key](bootstrap.md#github-app-key)) |
+| Optional PAT (`opsGithubToken`, `OPS_GITHUB_TOKEN`) | New fine-grained token, stored in the password manager with its expiry | Set it with the backend environment: `printf '%s' "$OPS_GITHUB_TOKEN" \| pulumi -C platform/infra/foundation config set --secret opsGithubToken`, or export it for `foundation.sh … secrets`. Commit `Pulumi.staging.yaml`, run `up`, re-run `bootstrap.sh` with `OPS_GITHUB_TOKEN` exported (repository secret), B releases the agent again. Revoke the old token |
 | ACR admin password | `az acr credential renew --name "$acr_name" --password-name password` | `up` (output `acrPassword` uses the first password), then B releases the apps again (image pull secrets). Workflows get it through the composite action |
 | Diagnostics storage key | `az storage account keys renew --account-name "$diag_account" --resource-group rg-mmk-platform-staging --key primary` | `up` (output uses key 1), then B releases the agent again |
-| Model keys, webhook secret | New value from the provider or `openssl rand -hex 32` | `foundation.sh … secrets` as for the PAT, commit, `up`, agent release; a new webhook secret also goes into the issue webhook |
+| Model keys, webhook secret | New value from the provider or `openssl rand -hex 32` | `foundation.sh … secrets` as for the app key (it also needs `GITHUB_APP_PRIVATE_KEY_FILE`; without the `.pem` file, set only the changed value with the backend environment as for the PAT, with `--path` for `modelApiKeys["…"]`), commit, `up`, agent release; a new webhook secret also goes into the issue webhook |
 
 The generated PostgreSQL password, `alertWebhookKey` and `maintenanceApiKey` have no
 prepared rotation.
@@ -396,7 +397,7 @@ prepared rotation.
 | `<NAME> is empty in <file>` or `Bootstrap config … not found` | Env file incomplete or wrong path | [Step 1](bootstrap.md#step-1-record-the-environment-values); run from the repository root |
 | `PULUMI_CONFIG_PASSPHRASE is not set` | Not exported | `read -rs PULUMI_CONFIG_PASSPHRASE && export PULUMI_CONFIG_PASSPHRASE` |
 | Pulumi reports an incorrect passphrase | Wrong passphrase | Password manager; [lost passphrase](bootstrap.md#lost-passphrase) |
-| Preflight `MISSING …` | Right or PAT permission missing | Fix the named item; nothing was created |
+| Preflight `MISSING …` | Right or GitHub App permission missing | Fix the named item; nothing was created |
 | Stack is "currently locked" | Another run is active, or a killed run left its lock | Wait; otherwise see [foundation release](#foundation-release) |
 | `Missing required configuration variable` | Required setting missing | [Step 4](bootstrap.md#step-4-configure-the-foundation-stack) |
 | `budgetStartDate must be the first day of a month` | Wrong format | `YYYY-MM-01` |
@@ -409,5 +410,6 @@ prepared rotation.
 | Ingress check: `Neither https nor http://… answers` | Traefik or load balancer | `kubectl -n platform-ingress get pods,svc`, `kubectl -n platform-ingress logs deploy/traefik` |
 | Access check: `foundation-state` fails, the rest `skipped` | Repository secrets outdated (rotated key, passphrase), stack missing, or contract version mismatch | Read the step log; re-run `bootstrap.sh` |
 | Access check: `kubernetes`, `acr`, `postgres` or `diagnostics-storage` fails | Resource stopped, or a key rotated without `up` | Start it; run `up` |
-| Access check: `github` or `github-workflow-token` fails | PAT expired, revoked or missing a repository | [Rotating keys](#rotating-keys) |
+| Access check: `github` fails | App key deleted in the app settings or never stored, app not installed on a repository, or wrong `GITHUB_APP_ID`/`GITHUB_APP_INSTALLATION_ID` | [Rotating keys](#rotating-keys) |
+| Access check: `github-workflow-token` fails | PAT expired, revoked or missing a repository | [Rotating keys](#rotating-keys) |
 | `Foundation contract version mismatch` in a consumer workflow | Consumer written for another `contractVersion` | Update the consumer ([handover](handover.md)) |

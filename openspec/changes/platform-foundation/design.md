@@ -4,7 +4,7 @@
 
 Motivation und Umfang stehen im [Proposal](proposal.md), Verhalten in [platform-bootstrap](specs/platform-bootstrap/spec.md) und [shared-platform-runtime](specs/shared-platform-runtime/spec.md). Die gemeinsamen Hackathon-Entscheidungen E1 bis E10 stehen in der [gemeinsamen Übersicht](../../PARALLEL-IMPLEMENTATION.md).
 
-Die prägende Einschränkung: Das Team hat Contributor auf der Subscription, aber niemand kann Rollen zuweisen oder Entra-App-Registrierungen anlegen. Contributor darf Ressourcen anlegen und Schlüssel abrufen (`listKeys`, `listCredentials`, `listClusterAdminCredential`), aber nicht `Microsoft.Authorization/roleAssignments/write`. Auf GitHub können Teammitglieder Repositories anlegen und Repo-Secrets setzen, aber keine GitHub App und keine Organisations-Secrets.
+Die prägende Einschränkung: Das Team hat Contributor auf der Subscription, aber niemand kann Rollen zuweisen oder Entra-App-Registrierungen anlegen. Contributor darf Ressourcen anlegen und Schlüssel abrufen (`listKeys`, `listCredentials`, `listClusterAdminCredential`), aber nicht `Microsoft.Authorization/roleAssignments/write`. Auf GitHub können Teammitglieder Repositories anlegen und Repo-Secrets setzen, aber keine Organisations-Secrets. Für den Agenten gibt es die GitHub App `hackathonplatformagent`, installiert auf beiden Repositories (siehe Entscheidung 3; geändert 2026-10-30 (Erik); war: keine GitHub App).
 
 ## Goals / Non-Goals
 
@@ -40,7 +40,7 @@ Aus Entscheidung 1 folgt die Besitzregel: Was Azure Resource Manager braucht, ge
 | Image-Push aus CI | ACR-Admin-User | `AcrPush` per OIDC |
 | Cluster-Zugriff aus CI | Admin-Kubeconfig in den Ausgaben, lokale Accounts aktiv | Entra-Integration mit Azure RBAC |
 | Diagnose-Storage | Storage-Key | `Storage Blob Data Contributor` |
-| GitHub-Zugriff | Fine-grained PAT | GitHub App |
+| GitHub-Zugriff | GitHub App `hackathonplatformagent` mit privatem Schlüssel aus den Foundation-Ausgaben (geändert 2026-10-30 (Erik); war: Fine-grained PAT) | Fine-grained PAT eines Teammitglieds |
 
 Der AKS-Cluster nutzt eine system-assigned Identity und das Standardnetz im Node-Resource-Group, damit beim Anlegen keine Rollenzuweisung nötig ist. Der Ingress-Controller bekommt seine öffentliche IP über den LoadBalancer-Service im Cluster statt über eine vorab angelegte IP in einer anderen Resource Group.
 
@@ -68,7 +68,7 @@ Der Foundation-Stack erwirbt keine Operations-Sperre. Sonst könnte er eine ausg
 - [Ingress-IP ändert sich beim Ersetzen des Controllers] → `baseDomain` ändert sich mit; App-Stacks und Verfügbarkeitstests werden danach neu ausgerollt. Den Controller nicht ohne Not ersetzen.
 - [Breite Schlüssel liegen im State] → Akzeptiertes Staging-Risiko; State-Zugriff nur über Repo-Secrets.
 - [Wiederherstellung hängt an einer Person mit lokalem Zugang] → Verfahren dokumentieren und mindestens zwei Personen mit Contributor durchspielen lassen.
-- [PAT läuft ab oder Person verlässt das Team] → Ablaufdatum dokumentieren; Austausch über `pulumi config set --secret` und Repo-Secret.
+- [Privater Schlüssel der GitHub App wird bekannt oder geht verloren] → Neuen Schlüssel in den App-Einstellungen erzeugen, über `foundation.sh <env-file> secrets` hinterlegen, ausrollen und den alten Schlüssel in der App löschen. Ein optionaler PAT im Repo-Secret `OPS_GITHUB_TOKEN` läuft weiterhin ab; sein Ablaufdatum wird dokumentiert. Geändert 2026-10-30 (Erik); war: [PAT läuft ab oder Person verlässt das Team].
 
 ## Migration Plan
 

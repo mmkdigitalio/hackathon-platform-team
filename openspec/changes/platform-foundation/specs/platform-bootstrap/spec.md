@@ -67,8 +67,8 @@ Phase 1 SHALL Secrets mit geringem Aufwand verwalten und keine separate Secret-I
 | Storage-Account und -Key des State-Backends, Pulumi-Passphrase | Repo-Secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE` | Bootstrap-Skript bzw. einmalig manuell |
 | Admin-Kubeconfig, ACR-Admin-Zugang, Storage-Key des Diagnose-Speichers | Geheime Foundation-Ausgaben | Foundation-Stack (von Azure abgerufen) |
 | PostgreSQL-Admin-Passwort, `alertWebhookKey`, `maintenanceApiKey` | Geheime Foundation-Ausgaben | Foundation-Stack (zufällig generiert) |
-| Modell-Keys, `githubWebhookSecret`, PAT des Agenten | Geheime Foundation-Konfiguration, als geheime Ausgabe weitergereicht | Einmalig manuell per `pulumi config set --secret` |
-| PAT für Workflows | Repo-Secret `OPS_GITHUB_TOKEN` | Ein Teammitglied |
+| Modell-Keys, `githubWebhookSecret`, privater Schlüssel der GitHub App des Agenten (`githubAppPrivateKey`; geändert 2026-10-30 (Erik); war: PAT des Agenten), optional ein PAT (`opsGithubToken`) | Geheime Foundation-Konfiguration, als geheime Ausgabe weitergereicht | Einmalig manuell per `pulumi config set --secret` |
+| Optional: PAT für Workflows, die noch kein Installations-Token der GitHub App nutzen | Repo-Secret `OPS_GITHUB_TOKEN`, nur gesetzt, wenn ein PAT vorliegt | Ein Teammitglied |
 
 Key Vault, Secret-Rotation und getrennte Secrets pro Verbraucher SHALL NOT Voraussetzung für Phase 1 sein. Die Dokumentation SHALL diese Vereinfachung als bewusst akzeptiertes Risiko für Staging nennen.
 
@@ -90,7 +90,7 @@ Die Plattform SHALL ohne Azure-Rollenzuweisungen und ohne Entra-App-Registrierun
 | Workflows und Agent | PostgreSQL | Admin-Login mit Passwort, TLS erzwungen |
 | Agent | Diagnose-Storage | Storage-Key |
 | Agent | Kubernetes | ServiceAccount `operations-agent` mit ClusterRoleBinding aus dem Agenten-Chart |
-| Agent und Workflows | GitHub | Fine-grained PAT eines Teammitglieds |
+| Agent und Workflows | GitHub | Installations-Token der GitHub App `hackathonplatformagent` aus dem privaten Schlüssel `githubAppPrivateKey` (geändert 2026-10-30 (Erik); war: Fine-grained PAT eines Teammitglieds); optional ein PAT im Repo-Secret `OPS_GITHUB_TOKEN` als Rückfall |
 
 Der Agent SHALL in Phase 1 keinen Zugriff auf Azure Resource Manager, Azure-Messwerte oder Log Analytics benötigen.
 
@@ -104,14 +104,14 @@ Der Agent SHALL in Phase 1 keinen Zugriff auf Azure Resource Manager, Azure-Mess
 - **THEN** schlägt kein Schritt wegen fehlender Berechtigung für Rollenzuweisungen fehl
 
 ### Requirement: Dokumentierte manuelle Voraussetzungen
-Die Bootstrap-Dokumentation SHALL alle nicht automatisierten Schritte nennen und die dafür nötigen Rechte: Contributor auf der Subscription, Admin-Rechte auf dem Repository für Repo-Secrets und den Issue-Webhook, ein Fine-grained PAT mit Issues-, Contents-, Pull-Request- und Actions-Rechten für `hackathon-platform-team` und `hackathon-platform-affine`. Ein Vorab-Check SHALL diese Voraussetzungen prüfen, bevor Ressourcen angelegt werden.
+Die Bootstrap-Dokumentation SHALL alle nicht automatisierten Schritte nennen und die dafür nötigen Rechte: Contributor auf der Subscription, Admin-Rechte auf dem Repository für Repo-Secrets und den Issue-Webhook, die GitHub App des Agenten, installiert auf `hackathon-platform-team` und `hackathon-platform-affine` mit Schreibrechten für Issues, Contents, Pull Requests und Actions, und ihren privaten Schlüssel (geändert 2026-10-30 (Erik); war: ein Fine-grained PAT mit diesen Rechten). Ein Vorab-Check SHALL diese Voraussetzungen prüfen, bevor Ressourcen angelegt werden; die Rechte der GitHub App prüft er, wenn ihm der private Schlüssel übergeben wird.
 
-#### Scenario: PAT ohne nötige Rechte
-- **WHEN** der hinterlegte PAT keine Actions-Rechte besitzt
+#### Scenario: GitHub App ohne nötige Rechte
+- **WHEN** die GitHub App des Agenten keine Schreibrechte für Actions besitzt
 - **THEN** bricht der Vorab-Check ab und nennt das fehlende Recht
 
 ### Requirement: Nachgewiesene Zugänge
-Ein Zugangscheck-Workflow `.github/workflows/foundation-access-check.yml` SHALL jeden Zugang aus CI-Sicht tatsächlich ausüben: Foundation-State lesen, mit der Admin-Kubeconfig `kubectl auth can-i '*' '*'` ausführen, sich an ACR und PostgreSQL anmelden, im Diagnose-Storage schreiben, lesen und löschen sowie mit dem PAT Repository und Issues lesen.
+Ein Zugangscheck-Workflow `.github/workflows/foundation-access-check.yml` SHALL jeden Zugang aus CI-Sicht tatsächlich ausüben: Foundation-State lesen, mit der Admin-Kubeconfig `kubectl auth can-i '*' '*'` ausführen, sich an ACR und PostgreSQL anmelden, im Diagnose-Storage schreiben, lesen und löschen sowie mit einem Installations-Token der GitHub App Repository und Issues lesen (geändert 2026-10-30 (Erik); war: mit dem PAT).
 
 #### Scenario: Vollständige Zugänge
 - **WHEN** der Zugangscheck nach einem erfolgreichen Foundation-Lauf ausgeführt wird

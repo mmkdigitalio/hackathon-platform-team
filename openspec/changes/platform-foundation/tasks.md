@@ -10,9 +10,9 @@ A startet sofort. B, C und D brauchen früh die Konventionen und das Ausgabe-Sch
 
 ## 2. Bootstrap und Zugänge, P1-03
 
-- [x] 2.1 Vorab-Check für Contributor-Rechte, Repo-Admin und PAT-Berechtigungen liefern; Abschluss durch Abbruch mit klarer Meldung bei fehlendem Recht prüfen.
+- [x] 2.1 Vorab-Check für Contributor-Rechte, Repo-Admin und Berechtigungen der GitHub App liefern (geändert 2026-10-30 (Erik); war: PAT-Berechtigungen); Abschluss durch Abbruch mit klarer Meldung bei fehlendem Recht prüfen.
 - [ ] 2.2 Idempotentes Bootstrap-Skript für State-Resource-Group, Storage-Account mit Versionierung und Soft Delete sowie State-Container liefern; Abschluss durch zweimaligen Lauf ohne Änderung und Wiederholung nach Abbruch prüfen.
-- [ ] 2.3 Repo-Secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE`, `OPS_GITHUB_TOKEN` setzen und Foundation-Konfigurationssecrets (Modell-Keys, `githubWebhookSecret`, PAT) hinterlegen; Abschluss durch Secret-Liste ohne Klartext im Repo prüfen.
+- [ ] 2.3 Repo-Secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE` und optional `OPS_GITHUB_TOKEN` setzen und Foundation-Konfigurationssecrets (Modell-Keys, `githubWebhookSecret`, `githubAppPrivateKey`, optional PAT) hinterlegen (geändert 2026-10-30 (Erik); war: PAT verpflichtend); Abschluss durch Secret-Liste ohne Klartext im Repo prüfen.
 - [x] 2.4 Composite Action `.github/actions/foundation-outputs` mit Versionsprüfung und Maskierung liefern; Abschluss durch Lesen der Platzhalterausgaben und Abbruch bei falscher Vertragsversion prüfen.
 
 ## 3. Grundplattform, P1-04

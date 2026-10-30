@@ -84,7 +84,7 @@ Der Ausgabevertrag SHALL aus den Stack-Ausgaben von `organization/foundation/sta
 | `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase` | Datenbank | nur Passwort |
 | `diagnosticsStorageAccount`, `diagnosticsContainer`, `diagnosticsStorageKey` | Diagnoseartefakte | nur Key |
 | `alertWebhookKey`, `maintenanceApiKey`, `githubWebhookSecret` | Schutz der Eingänge | ja |
-| `modelApiKeys`, `opsGithubToken` | Modell- und GitHub-Zugang des Agenten | ja |
+| `modelApiKeys`, `githubAppPrivateKey`, `opsGithubToken` | Modell- und GitHub-Zugang des Agenten: privater Schlüssel (PEM) der GitHub App; `opsGithubToken` ist ein optionaler PAT als Rückfall und leer, wenn kein PAT hinterlegt ist (geändert 2026-10-30 (Erik); war: PAT als einziger GitHub-Zugang; additive Ergänzung, `contractVersion` bleibt 1) | ja |
 
 #### Scenario: Neue Ausgabe ergänzen
 - **WHEN** der Foundation-Stack eine zusätzliche Ausgabe erhält

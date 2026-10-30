@@ -7,9 +7,9 @@ Neither the bootstrap nor a foundation run needs a running operations agent.
 
 | Created by | What |
 | --- | --- |
-| [`bootstrap.sh`](../../scripts/bootstrap/bootstrap.sh) | Resource provider registrations, state resource group `rg-mmk-platform-state`, state storage account (blob versioning, 30-day blob and container soft delete), container `pulumi-state`, repository secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE`, `OPS_GITHUB_TOKEN` |
+| [`bootstrap.sh`](../../scripts/bootstrap/bootstrap.sh) | Resource provider registrations, state resource group `rg-mmk-platform-state`, state storage account (blob versioning, 30-day blob and container soft delete), container `pulumi-state`, repository secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE` and, only when a PAT is exported, `OPS_GITHUB_TOKEN` |
 | Foundation stack `organization/foundation/staging`, deployed with [`foundation.sh`](../../scripts/bootstrap/foundation.sh) | Resource group `rg-mmk-platform-staging`, Log Analytics, Application Insights, ACR with admin user, AKS `aks-mmk-platform-staging` (node resource group `rg-mmk-platform-staging-aks-nodes`), Container Insights, Traefik, cert-manager with ClusterIssuer `letsencrypt`, PostgreSQL Flexible Server with database `operations`, diagnostics storage, action groups `ops-intake` and `ops-humans`, budget, availability tests, generated keys |
-| A person (this page) | Env file, passphrase, PAT, stack settings, model keys, webhook secret, GitHub issue webhook, test notifications |
+| A person (this page) | Env file, passphrase, GitHub App private key, stack settings, model keys, webhook secret, GitHub issue webhook, test notifications |
 
 No step creates role assignments, Entra objects or management locks: Contributor cannot
 create them, and the platform does not need them. Consumers get every value through the
@@ -41,30 +41,33 @@ cd <repository root>
 | --- | --- | --- |
 | Contributor (or higher) on the subscription | All Azure resources | yes |
 | Admin on `mmkdigitalio/hackathon-platform-team` | Repository secrets, issue webhook | yes |
-| Fine-grained PAT, see below | Agent and workflows on GitHub | yes, per repository |
-| Team password manager | Passphrase, PAT, webhook secret, model keys | no |
+| GitHub App of the agent and its private key, see below | Agent on GitHub, access check | yes, per repository, when the key file is given |
+| Team password manager | Passphrase, webhook secret, model keys, optional PAT | no |
 | Mailbox behind `humansEmail` | Confirming test notifications | no |
 
 At least two team members should have Contributor and access to the passphrase, so a
 recovery does not depend on one person.
 
-### Fine-grained PAT
+### GitHub App
 
-A team member creates the token. Comments of the agent appear under this person.
+The agent accesses GitHub through the GitHub App `hackathonplatformagent` (App ID
+`5542094`, installation `176901698` on `mmkdigitalio/hackathon-platform-team` and
+`mmkdigitalio/hackathon-platform-affine`; `GITHUB_APP_ID` and
+`GITHUB_APP_INSTALLATION_ID` in the env file). Changed 2026-10-30 (Erik); was:
+fine-grained PAT of a team member
+([D's handover](../agent/uebergaben.md#github-app-entscheidung-vom-30102026)).
 
-1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained
-   tokens → Generate new token.
-2. Resource owner `mmkdigitalio`; repository access *Only select repositories*:
-   `hackathon-platform-team` and `hackathon-platform-affine`.
-3. Repository permissions: Issues, Contents, Pull requests, Actions, each *Read and
-   write* (Metadata read is added automatically).
-4. Choose an expiry. Store the token in the password manager and write the expiry date
-   into that entry and the team calendar. Replacement:
-   [operations](operations.md#rotating-keys).
-
-If the organization requires approval of fine-grained tokens, the token works only after
-an organization owner approved it (verify live); until then the preflight reports the
-missing PAT access.
+- The installation needs the repository permissions Issues, Pull requests, Contents and
+  Actions, each *Read and write*. The preflight checks them.
+- The private key (PEM) is generated in the app settings under *Private keys*; GitHub
+  keeps only the public part. Pass the path of the downloaded `.pem` file as
+  `GITHUB_APP_PRIVATE_KEY_FILE` and delete the file once the key is stored in the stack
+  ([GitHub App key](#github-app-key)).
+- A fine-grained PAT is optional. If exported as `OPS_GITHUB_TOKEN`, it becomes the
+  repository secret `OPS_GITHUB_TOKEN` and the output `opsGithubToken` (fallback). B's
+  `app-update-desired-state.yml` still pushes and opens pull requests with that
+  repository secret until it uses an app installation token (open item for B). Store a
+  PAT in the password manager with its expiry date.
 
 ## Step 1: Record the environment values
 
@@ -78,7 +81,8 @@ Fill in `platform/scripts/bootstrap/staging.env` (it contains no secrets):
 - `STATE_STORAGE_ACCOUNT`: globally unique, 3 to 24 lowercase letters and digits, for
   example `stmmkstate<random>`
 - optional `NODE_VM_SIZE`: only used by the preflight to check availability
-- `LOCATION`, `ENVIRONMENT`, `GITHUB_REPO` and `PAT_REPOS` are prefilled
+- `LOCATION`, `ENVIRONMENT`, `GITHUB_REPO`, `AGENT_REPOS`, `GITHUB_APP_ID` and
+  `GITHUB_APP_INSTALLATION_ID` are prefilled
 
 Commit the file, so every later run uses the same values. State resource group and
 container names come from
@@ -96,13 +100,16 @@ Store it in the team password manager **before** continuing (for example entry
 be decrypted ([Lost passphrase](#lost-passphrase)).
 
 Log in and export the secrets without echo, so they appear neither on screen nor in the
-shell history:
+shell history. `GITHUB_APP_PRIVATE_KEY_FILE` is the path to the app's `.pem` file, not
+the key itself:
 
 ```bash
 az login
 gh auth login
 read -rs PULUMI_CONFIG_PASSPHRASE && export PULUMI_CONFIG_PASSPHRASE
-read -rs OPS_GITHUB_TOKEN && export OPS_GITHUB_TOKEN
+export GITHUB_APP_PRIVATE_KEY_FILE=<path to the downloaded .pem file>
+# optional PAT, see GitHub App above:
+# read -rs OPS_GITHUB_TOKEN && export OPS_GITHUB_TOKEN
 ```
 
 All commands on this page run from the repository root in this shell.
@@ -119,20 +126,15 @@ items, exits non-zero and has created nothing. It checks:
 - Azure login, access to `SUBSCRIPTION_ID`, and Contributor (the `*` action on the
   subscription).
 - `gh` login and admin on `GITHUB_REPO`.
-- The PAT, for each repository in `PAT_REPOS`: repository access; reads of issues, pull
-  requests, commits and Actions runs (200; 409 for an empty repository counts for
-  Contents); writes probed with an invalid body, so nothing is created (Issues, Pull
-  requests, Contents: 422 means the permission is present; Actions: a dispatch to
-  workflow `0`, 404 or 422).
+- The GitHub App, if `GITHUB_APP_PRIVATE_KEY_FILE` is set: it signs an app JWT (RS256,
+  `openssl`) with `GITHUB_APP_ID` and calls `GET /repos/{repo}/installation` for each
+  repository in `AGENT_REPOS`. The installation must exist and grant `issues`,
+  `pull_requests`, `contents` and `actions` with `write`; each gap is one line, for
+  example `GitHub App permission actions (write) on <repo> (granted: read)`. Without the
+  key file these checks are skipped with an `INFO` line.
 - `INFO` with the supported non-preview AKS versions in `LOCATION` (you pick
   `kubernetesVersion` from it in step 4) and, if `NODE_VM_SIZE` is set, whether that size
   exists in the region without restrictions.
-
-**Unverified assumption:** the write probes rely on GitHub answering 403 for a missing
-permission before it validates the request body (422). If GitHub validates first, or
-answers a missing Actions permission with 404, a missing write permission passes the
-preflight and only shows up when the agent or a workflow writes. The access check
-(step 7) only reads.
 
 ## Step 3: Bootstrap the state backend and repository secrets
 
@@ -153,9 +155,10 @@ What it does, in this order:
    shared key access on because workflows read the state with the key).
 5. Re-applies blob versioning and 30-day blob and container soft delete.
 6. Creates the private container `pulumi-state` (idempotent).
-7. Sets repository secrets through stdin: `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`
-   (key 1 of the state account) and `OPS_GITHUB_TOKEN` (from your environment) on every
-   run; `PULUMI_CONFIG_PASSPHRASE` only if it does not exist yet.
+7. Sets repository secrets through stdin: `PULUMI_BACKEND_ACCOUNT` and
+   `PULUMI_BACKEND_KEY` (key 1 of the state account) on every run; `OPS_GITHUB_TOKEN`
+   only when `OPS_GITHUB_TOKEN` is exported, otherwise it skips it (the bootstrap needs no
+   PAT); `PULUMI_CONFIG_PASSPHRASE` only if it does not exist yet.
 
 The final output names backend and secrets (no values) and the next commands.
 
@@ -225,20 +228,29 @@ Defaults from [`config.ts`](../../infra/foundation/config.ts):
 | `certManagerChartVersion` | `v1.21.3` | [Chart upgrades](operations.md#chart-upgrades) |
 | `catalogDir` | `platform/catalog` | Source of the app availability tests |
 
-### Deferred PAT
+### GitHub App key
 
-The foundation itself needs no GitHub access; only the operations agent and the
-desired-state PR workflow use the PAT. To deploy before the PAT exists, export
-`DEFER_PAT=1` for `bootstrap.sh` and `foundation.sh secrets`: the preflight skips the PAT
-checks, the repository secret `OPS_GITHUB_TOKEN` is not set and the output
-`opsGithubToken` stays empty. The access check reports its `github` category as failed
-until then. To add the PAT later, re-run `bootstrap.sh` and `foundation.sh secrets` with
-`OPS_GITHUB_TOKEN` exported (without `DEFER_PAT`), then `foundation.sh up`.
+The foundation itself needs no GitHub access; it passes the app's private key to the
+agent as the secret output `githubAppPrivateKey`. To store the key, or to rotate it after
+generating a new one in the app settings:
+
+```bash
+GITHUB_APP_PRIVATE_KEY_FILE=<path to the .pem file> \
+  platform/scripts/bootstrap/foundation.sh platform/scripts/bootstrap/staging.env secrets
+platform/scripts/bootstrap/foundation.sh platform/scripts/bootstrap/staging.env up
+```
+
+`secrets` needs the other values as well ([stack secrets](#stack-secrets)); commit
+`Pulumi.staging.yaml` through a pull request before `up`
+([step 5](#step-5-preview-and-deploy)). After `up`, delete the downloaded `.pem` file.
+On a rotation, B releases the agent again; only then delete the old key in the app
+settings.
 
 ### Stack secrets
 
 Generate the GitHub webhook secret (for example `openssl rand -hex 32`) and store it in
-the password manager. Then, with `OPS_GITHUB_TOKEN` still exported from step 1:
+the password manager. Then, with `GITHUB_APP_PRIVATE_KEY_FILE` still exported from
+step 1:
 
 ```bash
 read -rs GITHUB_WEBHOOK_SECRET && export GITHUB_WEBHOOK_SECRET
@@ -246,11 +258,13 @@ read -rs MODEL_KEY_AZURE_OPENAI && export MODEL_KEY_AZURE_OPENAI   # and/or MODE
 platform/scripts/bootstrap/foundation.sh platform/scripts/bootstrap/staging.env secrets
 ```
 
-`secrets` needs `GITHUB_WEBHOOK_SECRET`, `OPS_GITHUB_TOKEN` and at least one of
-`MODEL_KEY_ANTHROPIC` and `MODEL_KEY_AZURE_OPENAI`. It stores them through stdin as
-encrypted settings `githubWebhookSecret`, `opsGithubToken`, `modelApiKeys["anthropic"]`
-and `modelApiKeys["azure-openai"]`. Only exported model keys are written; a key stored
-earlier for the other provider stays.
+`secrets` needs `GITHUB_WEBHOOK_SECRET`, `GITHUB_APP_PRIVATE_KEY_FILE` and at least one
+of `MODEL_KEY_ANTHROPIC` and `MODEL_KEY_AZURE_OPENAI`. It stores them through stdin as
+encrypted settings `githubWebhookSecret`, `githubAppPrivateKey` (the content of the key
+file), `modelApiKeys["anthropic"]` and `modelApiKeys["azure-openai"]`. `OPS_GITHUB_TOKEN`
+is optional: only if it is exported, it is stored as `opsGithubToken`; the output
+`opsGithubToken` is empty when no PAT is stored. Only exported model keys are written; a
+key stored earlier for the other provider stays.
 
 Commit `platform/infra/foundation/Pulumi.staging.yaml` through a pull request. It holds
 the settings, the `encryptionsalt` and the secrets as ciphertext only.
@@ -340,13 +354,13 @@ gh run watch <run-id> --repo mmkdigitalio/hackathon-platform-team
 | `acr` | `docker login` with the ACR admin user |
 | `postgres` | `psql` login to `operations` with `sslmode=require`, session encrypted |
 | `diagnostics-storage` | Write, read, compare and delete a blob with the storage key |
-| `github` | The agent PAT (output `opsGithubToken`) reads repository and issues of every repository in `PAT_REPOS` |
-| `github-workflow-token` | The same with the repository secret `OPS_GITHUB_TOKEN`; only when that secret exists |
+| `github` | An installation token of the GitHub App, created from the output `githubAppPrivateKey` with `GITHUB_APP_ID` and `GITHUB_APP_INSTALLATION_ID` (workflow env), reads repository and issues of every repository in `AGENT_REPOS` |
+| `github-workflow-token` | The same reads with the repository secret `OPS_GITHUB_TOKEN` (optional PAT); only when that secret exists |
 
 The job summary lists each category with result and detail; the job fails if any
 category fails. If `foundation-state` fails, every other category is reported as
-`skipped: no foundation outputs`. The script uses `kubectl`, `docker`, `psql`, `az` and
-`curl` from the runner image (verify live that `ubuntu-latest` has them; a missing tool
+`skipped: no foundation outputs`. The script uses `kubectl`, `docker`, `psql`, `az`,
+`curl`, `openssl` and `jq` from the runner image (verify live that `ubuntu-latest` has them; a missing tool
 fails its category with `tool … is not installed`).
 
 Red run, proving that a broken access is detected:
@@ -357,8 +371,8 @@ gh workflow run foundation-access-check.yml --repo mmkdigitalio/hackathon-platfo
 ```
 
 Expected: the run fails, the summary shows only `postgres` as failed and names the
-deliberately broken category. Any other category can be chosen; with `foundation-state`
-all categories fail because the others are skipped. Keep the URLs of both runs as
+deliberately broken category. Any other category can be chosen (`github` gets an invalid
+private key); with `foundation-state` all categories fail because the others are skipped. Keep the URLs of both runs as
 evidence for task 5.1.
 
 ## Step 8: Manual steps
@@ -378,28 +392,32 @@ evidence for task 5.1.
    mail and nothing reaches the agent. `ops-intake` once C's intake runs: the request
    with key is accepted, the same request without key is rejected
    ([monitoring](monitoring.md)).
-3. **PAT expiry**: the expiry date is in the password manager entry and the team
-   calendar; replacement in [operations](operations.md#rotating-keys).
+3. **GitHub App key file**: delete the downloaded `.pem` file after `up`
+   ([GitHub App key](#github-app-key)). If an optional PAT is used, write its expiry date
+   into the password manager entry and the team calendar; replacement in
+   [operations](operations.md#rotating-keys).
 
 The bootstrap is complete when steps 5 to 7 succeeded and the summary, the ingress check
 result and both access check runs are recorded.
 
 ## Repeating the bootstrap
 
-Run `bootstrap.sh` again after rotating the state storage key, after replacing the PAT,
-after an interrupted run, or to check an environment. It needs `OPS_GITHUB_TOKEN` set to
-the **current team PAT** (the run overwrites the repository secret with it) and
-`PULUMI_CONFIG_PASSPHRASE` only if the repository secret is missing.
+Run `bootstrap.sh` again after rotating the state storage key, after replacing the
+optional PAT, after an interrupted run, or to check an environment. It needs
+`PULUMI_CONFIG_PASSPHRASE` only if the repository secret is missing. With
+`OPS_GITHUB_TOKEN` exported, the run overwrites the repository secret with it; without,
+it leaves the secret as it is. Export `GITHUB_APP_PRIVATE_KEY_FILE` if the preflight
+should check the GitHub App.
 
 | On every run | Never |
 | --- | --- |
-| Preflight; registers missing providers; creates missing resource group, account or container; re-applies versioning and soft delete; re-syncs `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY` and `OPS_GITHUB_TOKEN` | Touches state blobs or the foundation stack; replaces an existing `PULUMI_CONFIG_PASSPHRASE`; generates a passphrase; reads a failed lookup as "missing"; creates role assignments, locks or Entra objects |
+| Preflight; registers missing providers; creates missing resource group, account or container; re-applies versioning and soft delete; re-syncs `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY` and, if exported, `OPS_GITHUB_TOKEN` | Touches state blobs or the foundation stack; replaces an existing `PULUMI_CONFIG_PASSPHRASE`; generates a passphrase; reads a failed lookup as "missing"; creates role assignments, locks or Entra objects |
 
 ## Lost passphrase
 
 The passphrase encrypts the secret settings in `Pulumi.staging.yaml` (model keys,
-`githubWebhookSecret`, `opsGithubToken`) and every secret value in the state of every
-stack that shares it: the foundation (kubeconfig, ACR password, PostgreSQL admin
+`githubWebhookSecret`, `githubAppPrivateKey`, optional `opsGithubToken`) and every
+secret value in the state of every stack that shares it: the foundation (kubeconfig, ACR password, PostgreSQL admin
 password, diagnostics key, `alertWebhookKey`, `maintenanceApiKey`) and B's app stacks.
 Azure resources and data are not affected; what is lost is Pulumi's ability to read and
 update these stacks.
@@ -444,9 +462,11 @@ production.
   enforced TLS and a generated password.
 - **No Key Vault, no rotation, no per-consumer secrets.** Rotation is manual
   ([operations](operations.md#rotating-keys)).
-- **PAT of one person.** Agent comments and workflow commits appear under this person.
-  Expiry, revocation or the person leaving breaks the agent and the workflows until the
-  token is replaced.
+- **One GitHub App key.** Whoever can read the state, the stack config with the
+  passphrase or the agent's Kubernetes Secret can act as the app on both repositories
+  with Issues, Pull requests, Contents and Actions write. Changed 2026-10-30 (Erik); was:
+  fine-grained PAT of one person. An optional PAT in `OPS_GITHUB_TOKEN` still belongs to
+  one person; its expiry or revocation breaks the workflows that use it.
 - **No management lock.** Contributor lacks `Microsoft.Authorization/locks/write`.
   Protection is Pulumi `protect` (only against Pulumi runs) plus versioning and soft
   delete of the state. Anyone with Contributor can still delete resources directly.

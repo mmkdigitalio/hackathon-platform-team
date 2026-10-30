@@ -20,7 +20,7 @@ output contract; nobody derives Azure names from logs or the portal.
 | --- | --- |
 | B, app stacks and release workflows | `kubeconfig`, `acrLoginServer`, `acrUsername`, `acrPassword`, `baseDomain`, `ingressClassName`, `clusterIssuerName`, `publicScheme`, `appInsightsConnectionString`, `postgresHost`, `postgresAdminUser`, `postgresAdminPassword` (app databases) |
 | C, event intake, maintenance intake and persistence | `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase`, `alertWebhookKey`, `maintenanceApiKey`, `githubWebhookSecret`, `operationsApiHost` |
-| D, agent runtime and tools | `kubeconfig` (release only; the agent itself uses its ServiceAccount), `modelApiKeys`, `opsGithubToken`, `diagnosticsStorageAccount`, `diagnosticsContainer`, `diagnosticsStorageKey`, `acrLoginServer`, `acrUsername`, `acrPassword` |
+| D, agent runtime and tools | `kubeconfig` (release only; the agent itself uses its ServiceAccount), `modelApiKeys`, `githubAppPrivateKey`, `opsGithubToken` (optional), `diagnosticsStorageAccount`, `diagnosticsContainer`, `diagnosticsStorageKey`, `acrLoginServer`, `acrUsername`, `acrPassword` |
 
 `modelApiKeys` is a JSON object keyed by provider: `anthropic` and/or `azure-openai`.
 At least one key is present.
@@ -91,7 +91,7 @@ For the operations agent (D's chart, B's app stack):
 | Kubernetes rights | ServiceAccount and RBAC shipped with D's chart; no Azure identity |
 | Database | `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase`; TLS is enforced (`sslmode=require`) |
 | Intake keys | `alertWebhookKey`, `maintenanceApiKey`, `githubWebhookSecret` |
-| Model and GitHub | `modelApiKeys`, `opsGithubToken` |
+| Model and GitHub | `modelApiKeys`, `githubAppPrivateKey`, `opsGithubToken` (optional) |
 | Diagnostics | `diagnosticsStorageAccount`, `diagnosticsContainer`, `diagnosticsStorageKey` |
 | Public API | Ingress rule for `operationsApiHost` with class `ingressClassName` and annotation `cert-manager.io/cluster-issuer: <clusterIssuerName>` (B); `/healthz` (C) |
 
@@ -120,10 +120,17 @@ admin login for migrations, runtime and app databases.
 
 ## GitHub access
 
-There is no GitHub App. A fine-grained PAT (`opsGithubToken`, also repository secret
-`OPS_GITHUB_TOKEN`) covers both repositories (`hackathon-platform-team`,
-`hackathon-platform-affine`) with the repository permissions Issues, Contents, Pull
-requests and Actions, each read and write. Comments the
+The agent uses the GitHub App `hackathonplatformagent` (App ID `5542094`, installation
+`176901698` on `hackathon-platform-team` and `hackathon-platform-affine`) with the
+repository permissions Issues, Contents, Pull requests and Actions, each read and write.
+Changed 2026-10-30 (Erik); was: fine-grained PAT. The secret output
+`githubAppPrivateKey` holds the app's private key (PEM; empty until stored); consumers
+create installation tokens from it. The output `opsGithubToken` and the repository
+secret `OPS_GITHUB_TOKEN` remain an optional PAT fallback and are empty or absent when
+no PAT is stored. Open for B: `app-update-desired-state.yml` pushes and opens pull
+requests with `secrets.OPS_GITHUB_TOKEN` and needs an app installation token without a
+PAT; the agent's catalog entry needs
+`OPS_GITHUB_APP_PRIVATE_KEY: foundation:githubAppPrivateKey`. Comments the
 agent writes carry the marker `<!-- mmk-ops-agent -->`; C ignores events that carry it.
 The GitHub webhook to `<publicScheme>://<operationsApiHost>/events/github` with `githubWebhookSecret` is
 created by a team member once C's receiver runs.

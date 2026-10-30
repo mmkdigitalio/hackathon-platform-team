@@ -25,7 +25,7 @@ to them where they build on them.
 | [D7](#d7-catalog-generated-monitoring-carries-the-apps-app-id-tag) | Catalog-generated monitoring carries the app's `app-id` tag | [`monitoring.ts`](../../infra/foundation/monitoring.ts) |
 | [D8](#d8-stricter-app-ids-and-a-pattern-for-check-names) | Stricter app IDs, pattern for check names | [`conventions.json`](../../schemas/conventions/conventions.json) |
 | [D9](#d9-catalog-field-names-follow-bs-draft) | Catalog field names follow B's draft | [`catalog.ts`](../../infra/foundation/catalog.ts) |
-| [D10](#d10-preflight-probes-pat-write-permissions-with-invalid-requests) | Preflight probes PAT write permissions with invalid requests | [`preflight.sh`](../../scripts/bootstrap/preflight.sh) |
+| [D10](#d10-preflight-reads-the-github-app-installation-permissions) | Preflight reads the GitHub App installation permissions | [`preflight.sh`](../../scripts/bootstrap/preflight.sh) |
 | [D11](#d11-git-sha-only-in-the-run-summary-versions-as-an-optional-output) | Git SHA only in the run summary, versions as optional output | [`summary.mjs`](../../scripts/bootstrap/summary.mjs), [`index.ts`](../../infra/foundation/index.ts) |
 | [D12](#d12-access-check-runs-once-with-a-break-category-for-the-red-run) | Access check runs once, break category for the red run | [`access-check.sh`](../../scripts/bootstrap/access-check.sh), [`foundation-access-check.yml`](../../../.github/workflows/foundation-access-check.yml) |
 | [D13](#d13-agent-health-test-independent-of-the-catalog) | Agent health test independent of the catalog | [`monitoring.ts`](../../infra/foundation/monitoring.ts) |
@@ -220,24 +220,26 @@ to them where they build on them.
 - Alternatives: wait for B's schema (blocks the monitoring work); validate against a
   local copy of B's draft (two sources of truth).
 
-## D10. Preflight probes PAT write permissions with invalid requests
+## D10. Preflight reads the GitHub App installation permissions
 
-- Status: Proposed (pending Erik's decision); based on an unverified assumption.
-- Context: the preflight must check the PAT's Issues, Contents, Pull requests and Actions
-  rights, name every missing one, and create nothing (spec "Dokumentierte manuelle
-  Voraussetzungen", task 2.1).
-- Decision: read probes must return 200 (Contents also 409 for an empty repository).
-  Write probes send an invalid body `{}`: `POST /issues`, `POST /pulls` and
-  `POST /git/refs` must return 422; `POST /actions/workflows/0/dispatches` must return
-  404 or 422. Any other status, typically 403, counts as missing.
-- Consequences: the probes assume that GitHub checks the permission before it validates
-  the body or looks up the workflow. If it validates first, a PAT without the write right
-  passes. The Actions probe accepts 404, which is weaker evidence. Verify live: run the
-  preflight with a PAT lacking Actions write (the spec scenario) and one lacking Issues
-  write; both must fail with the named permission.
-- Alternatives: create and delete real objects (visible issues, branches, notifications);
-  read the token's permissions from the API (no such endpoint for fine-grained PATs
-  found; not checked exhaustively).
+- Status: Proposed (pending Erik's decision). The GitHub App itself is Erik's decision of
+  2026-10-30; changed 2026-10-30 (Erik); was: write probes of the fine-grained PAT with
+  invalid requests.
+- Context: the preflight must check the agent's Issues, Contents, Pull requests and
+  Actions rights, name every missing one, and create nothing (spec "Dokumentierte
+  manuelle Voraussetzungen", task 2.1).
+- Decision: with `GITHUB_APP_PRIVATE_KEY_FILE` set, the preflight signs an app JWT
+  (RS256, `openssl`) with `GITHUB_APP_ID` and calls `GET /repos/{repo}/installation` for
+  every repository in `AGENT_REPOS`. The installation must exist and grant `issues`,
+  `pull_requests`, `contents` and `actions` with `write`; each gap is reported with the
+  granted level. Without the key file it skips these checks with an `INFO` line.
+- Consequences: the check reads the granted permissions instead of inferring them from
+  error codes, so the former assumption about GitHub's validation order no longer
+  applies, and it creates nothing. A preflight without the key file does not check
+  GitHub access at all; the access check category `github` then still reads with an
+  installation token, but never writes.
+- Alternatives: the former PAT write probes (depend on GitHub answering 403 before 422);
+  write probes with an installation token (same dependency).
 
 ## D11. Git SHA only in the run summary, versions as an optional output
 
