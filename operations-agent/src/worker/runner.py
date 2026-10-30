@@ -22,8 +22,8 @@ from contracts import (
     AgentResult,
     ContextRefs,
     IssueRef,
-    OwnershipLost,
     Ownership,
+    OwnershipLost,
     ResumeInfo,
     RunLimits,
 )

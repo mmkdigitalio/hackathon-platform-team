@@ -18,6 +18,7 @@ RUN uv sync --frozen --no-dev
 # Prüfstufe für CI: docker build --target test ...
 # Gleiche Verzeichnisstruktur wie im Repository, weil C's Tests platform/ und .github/ relativ lesen.
 FROM python:3.12.16-slim-bookworm AS test
+RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=never UV_PROJECT_ENVIRONMENT=/repo/operations-agent/.venv
 WORKDIR /repo/operations-agent
@@ -30,7 +31,9 @@ COPY operations-agent/tests ./tests
 RUN uv sync --frozen && uv run --frozen pytest -q
 
 FROM python:3.12.16-slim-bookworm AS runtime
-RUN useradd --uid 10001 --create-home ops
+# git für die Repository-Werkzeuge (Klonen, Commit, Push auf Agenten-Branches)
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/* \
+    && useradd --uid 10001 --create-home ops
 WORKDIR /app
 COPY --from=build /app /app
 COPY platform/operations/agent/betriebsregeln.md /app/platform/operations/agent/betriebsregeln.md
@@ -40,6 +43,7 @@ COPY platform/schemas/events /app/platform/schemas/events
 ENV PATH=/app/.venv/bin:$PATH \
     PYTHONUNBUFFERED=1 \
     OPS_RULES_FILE=/app/platform/operations/agent/betriebsregeln.md \
-    OPS_PLATFORM_ROOT=/app/platform
+    OPS_PLATFORM_ROOT=/app/platform \
+    OPS_GIT_WORKDIR=/tmp/ops-agent-git
 USER 10001
 CMD ["python", "-c", "import sys; sys.exit('Startbefehl kommt aus dem Helm-Chart (api, worker oder migrate)')"]

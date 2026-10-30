@@ -11,6 +11,8 @@ docker build -f operations-agent/Dockerfile --target runtime -t operations-agent
 
 Ein Image für alle Prozesse, Benutzer `10001`, Python 3.12.16, Abhängigkeiten aus `uv.lock` (`--frozen`). Den Startbefehl setzt das Chart; ohne Befehl beendet sich der Container mit Hinweis.
 
+Das Runtime-Image enthält `git` für die Repository-Werkzeuge; Arbeitskopien liegen unter `OPS_GIT_WORKDIR` (`/tmp/ops-agent-git`, `emptyDir`). App-ID und Installations-ID sind Chart-Werte (`agent.githubAppId`, `agent.githubAppInstallationId`), der private Schlüssel nur im Secret.
+
 Im Image liegen zum Stand des Builds: Betriebsregeln, `platform/catalog`, `platform/environments` und `platform/schemas/events` (`OPS_PLATFORM_ROOT=/app/platform`). C's API prüft damit App-Zuordnung und Ereignisschema. Eine neue App im Katalog wird deshalb erst nach einem Agenten-Build angenommen; `agent-build.yml` startet bei Änderungen unter `platform/catalog/**` und `platform/schemas/events/**`, bewusst nicht bei `platform/environments/**`, weil sein eigener Sollzustands-Commit sonst den nächsten Build auslöst. Die Teststufe (`--target test`) bildet die Repository-Struktur unter `/repo` nach und führt C's und D's Tests aus; Tests mit PostgreSQL werden dort übersprungen.
 
 | Prozess | Befehl (Chart-Wert) | Eigentümer |
@@ -53,7 +55,8 @@ Werden über die `secrets:`-Zuordnung in `platform/catalog/operations-agent/app.
 | Schlüssel | Foundation-Ausgabe | Verbraucher |
 | --- | --- | --- |
 | `OPS_MODEL_API_KEYS` | `modelApiKeys` | D |
-| `OPS_GITHUB_TOKEN` | `opsGithubToken` | D |
+| `OPS_GITHUB_APP_PRIVATE_KEY` | neu: `githubAppPrivateKey` (A) | D; PEM, auch mit maskierten Zeilenumbrüchen (`\n`) |
+| `OPS_GITHUB_TOKEN` | `opsGithubToken` | D, nur noch Rückfall ohne App-Schlüssel |
 | `OPS_BASE_DOMAIN` | `baseDomain` | D |
 | `OPS_PUBLIC_SCHEME` | `publicScheme` | D (HTTP-Fallback nach E8; fehlt noch im Katalog, siehe uebergaben.md) |
 | `OPS_ACR_LOGIN_SERVER` | `acrLoginServer` | D (Auflösung von `acr:`-Smoke-Images) |
