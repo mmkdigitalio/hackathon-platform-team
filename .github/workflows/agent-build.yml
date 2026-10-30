@@ -52,6 +52,16 @@ jobs:
         run: |
           helm lint deploy -f deploy/ci-values.yaml
           helm template operations-agent deploy -f deploy/ci-values.yaml -n operations-agent-staging > /dev/null
+      - uses: docker/setup-buildx-action@v3
+      - name: Image-Prüfstufe bauen
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: operations-agent/Dockerfile
+          target: test
+          push: false
+          cache-from: type=gha,scope=operations-agent-test
+          cache-to: type=gha,mode=min,scope=operations-agent-test
 
   publish:
     needs: test

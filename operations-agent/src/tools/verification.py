@@ -93,6 +93,8 @@ class SmokeTest:
             job = self.k8s.read_job(t, name)
             st = job.status
             if (st.succeeded or 0) > 0 or (st.failed or 0) > 0:
+                # activeDeadlineSeconds beendet den Job meist vor unserer eigenen Frist
+                timed_out = any(c.type == "Failed" and c.reason == "DeadlineExceeded" for c in st.conditions or [])
                 pod = self.k8s.job_pod(t, name)
                 if pod is not None:
                     stdout = self.k8s.pod_log(t, pod.metadata.name)

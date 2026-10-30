@@ -108,11 +108,21 @@ def cmd_migrate(args) -> int:
 
 
 def cmd_schema_version(args) -> int:
+    from agent.persistence import SDK_SCHEMA_VERSION
+
     with db.connect(args.database_url) as conn:
         actual = db.current_version(conn)
-    expected = migrate.expected_version()
-    print(json.dumps({"expected": expected, "actual": actual}))
-    return 0 if actual == expected else 3
+        sdk_actual = None
+        if conn.execute("SELECT to_regclass('checkpoint_migrations') AS t").fetchone()["t"] is not None:
+            sdk_actual = conn.execute("SELECT COALESCE(MAX(v), -1) AS v FROM checkpoint_migrations").fetchone()["v"]
+        print(json.dumps({
+            "expected": migrate.expected_version(),
+            "actual": actual,
+            "sdkExpected": SDK_SCHEMA_VERSION,
+            "sdkActual": sdk_actual,
+        }))
+        db.check_schema(conn, include_sdk=True)
+    return 0
 
 
 def cmd_lock_acquire(args) -> int:

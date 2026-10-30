@@ -257,6 +257,12 @@ def test_smoke_hanging_job_times_out(world: World) -> None:
     assert world.cluster.jobs[("affine-staging", ev.job_name)]["deleted"]
 
 
+def test_smoke_job_ended_by_kubernetes_deadline_is_a_timeout(world: World) -> None:
+    world.cluster.smoke = lambda c: "deadline"
+    ev = smoke(world).run(AFFINE, "affine", SMOKE_IMAGE, {}, "op-1", 60)
+    assert ev.timed_out and not ev.success and ev.exit_code is None
+
+
 def test_smoke_job_passes_static_env_and_secret_refs(world: World) -> None:
     ev = smoke(world).run(AFFINE, "affine", SMOKE_IMAGE, {"SMOKE_USER_PASSWORD": "app:pw"}, "op-1", 120, {"CHECK_PATH": "/info"})
     env = world.cluster.jobs[("affine-staging", ev.job_name)]["body"].spec.template.spec.containers[0].env

@@ -1,4 +1,4 @@
-"""GitHub-Adapter; Zugang über die GitHub App des Agenten oder den PAT aus ``opsGithubToken``."""
+"""GitHub-Adapter; Zugang über die GitHub App des Agenten, Rückfall auf den PAT aus ``opsGithubToken``."""
 
 from __future__ import annotations
 
@@ -48,7 +48,7 @@ class GitHubClient:
                 github_message=message,
             )
         if r.status_code == 404:
-            raise NotFound(f"GitHub: {what} nicht gefunden (oder PAT ohne Zugriff)", status=404)
+            raise NotFound(f"GitHub: {what} nicht gefunden (oder Zugang ohne Berechtigung)", status=404)
         if r.status_code == 409:
             raise Conflict(f"GitHub: {what} Konflikt: {message}", status=409)
         if r.status_code == 422:

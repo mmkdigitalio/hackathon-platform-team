@@ -1,8 +1,7 @@
 """Vertrag zwischen Auftragsverwaltung (Strang C) und Agentenausführung (Strang D).
 
-ENTWURF v0.1: Besitz liegt bei Strang C (C-Task 1.2). Strang D hat diesen Entwurf
-angelegt, damit Agent und Werkzeuge gegen feste Typen entwickelt werden können.
-Änderungen stimmt C mit D ab; brechende Änderungen erhöhen ``CONTRACT_VERSION``.
+Abgestimmter Vertrag v0.1, Besitz bei Strang C. Änderungen stimmt C mit D ab;
+brechende Änderungen erhöhen ``CONTRACT_VERSION``.
 """
 
 from contracts.v0_1 import (

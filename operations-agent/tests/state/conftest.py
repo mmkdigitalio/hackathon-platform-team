@@ -47,14 +47,16 @@ def pg_server(tmp_path_factory):
     bindir = _pg_bin()
     data = tmp_path_factory.mktemp("pgdata")
     port = _free_port()
+    # Ein deutsches macOS-Locale lässt den Postmaster beim Start abbrechen ("multithreaded during startup").
+    env = {**os.environ, "LC_ALL": "C", "LANG": "C"}
     subprocess.run(
         [bindir / "initdb", "-D", data, "-U", "postgres", "--auth=trust", "-E", "UTF8", "--no-instructions"],
-        check=True, capture_output=True,
+        check=True, capture_output=True, env=env,
     )
     subprocess.run(
         [bindir / "pg_ctl", "-D", data, "-l", data / "server.log", "-w", "start",
          "-o", f"-p {port} -c listen_addresses=127.0.0.1 -c unix_socket_directories='' -c fsync=off"],
-        check=True, capture_output=True,
+        check=True, capture_output=True, env=env,
     )
     try:
         yield f"postgresql://postgres@127.0.0.1:{port}/postgres"

@@ -357,7 +357,11 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
             if issue is None:
                 raise NotAllowed("Auftrag stammt nicht aus einem Issue")
             action = s.services.actions.record_planned(s.inv.operation_id, "issue_comment", f"{issue.repository}#{issue.number}", {})
-            c = s.gh.comment_issue(issue, s.inv.job_id, text)
+            try:
+                c = s.gh.comment_issue(issue, s.inv.job_id, text)
+            except Exception as e:
+                s.services.actions.update(action.action_id, "failed", {"error": type(e).__name__})
+                raise
             s.services.actions.update(action.action_id, "succeeded", {"commentId": str(c["id"]), "url": c.get("url") or ""})
             return ToolOutcome.ok("comment_on_issue", f"{issue.repository}#{issue.number}", c, [c.get("url") or ""], action_id=action.action_id)
 

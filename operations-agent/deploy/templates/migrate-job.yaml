@@ -29,6 +29,7 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ required "secretName fehlt" .Values.secretName }}
+          resources: {{- toYaml .Values.migrate.resources | nindent 12 }}
           {{- include "ops.containerSecurity" . | nindent 10 }}
           volumeMounts:
             - { name: tmp, mountPath: /tmp }

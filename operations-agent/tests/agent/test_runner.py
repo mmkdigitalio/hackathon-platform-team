@@ -210,6 +210,15 @@ def test_issue_gets_marked_comment(world: World) -> None:
     assert body.startswith("<!-- mmk-ops-agent -->") and "job-1" in body
 
 
+def test_resumed_job_does_not_repeat_result_comment(world: World) -> None:
+    inv = world.invocation(context=world.invocation().context.model_copy(update={"issue": IssueRef(repository=REPO, number=42), "issue_text": "AFFiNE lädt nicht", "alert_payload": None}))
+    world.run(ScriptedModel(responder=script(call("http_check"), say("Erreichbar."))), inv)
+    result = world.run(ScriptedModel(responder=script(call("http_check"), say("Erreichbar."))), inv)
+
+    assert len(world.github.comments) == 1
+    assert result.references["issueComment"]["commentId"] == "1"
+
+
 def test_result_contains_no_secrets(world: World) -> None:
     broken_scaled_to_zero(world)
     result = world.run(ScriptedModel(responder=script(call("redeploy_desired_state", {"reason": "x"}), call("run_smoke_test"))))

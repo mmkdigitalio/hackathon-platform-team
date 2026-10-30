@@ -42,4 +42,5 @@ jobs:
           PGSSLMODE: require
         run: |
           ops migrate
+          echo '### Schema-Versionen (expected, actual, sdkExpected, sdkActual)' >> "$GITHUB_STEP_SUMMARY"
           ops schema-version | tee -a "$GITHUB_STEP_SUMMARY"

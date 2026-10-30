@@ -128,7 +128,7 @@ class _Core:
         self.c.gate("list_pods", ns)
         if label_selector.startswith("job-name="):
             job = self.c.jobs.get((ns, label_selector.split("=", 1)[1]))
-            if not job or job["result"] is None:
+            if not job or job["result"] in (None, "deadline"):
                 return client.V1PodList(items=[])
             exit_code, _ = job["result"]
             return client.V1PodList(
@@ -215,6 +215,11 @@ class _Batch:
         self.c.gate("read_job", ns)
         job = self.c.jobs[(ns, name)]
         res = job["result"]
+        if res == "deadline":  # Kubernetes hat den Job über activeDeadlineSeconds beendet
+            status = client.V1JobStatus(
+                failed=1, conditions=[client.V1JobCondition(type="Failed", status="True", reason="DeadlineExceeded")]
+            )
+            return client.V1Job(metadata=client.V1ObjectMeta(name=name), status=status)
         status = client.V1JobStatus(
             succeeded=1 if res and res[0] == 0 else None,
             failed=1 if res and res[0] != 0 else None,

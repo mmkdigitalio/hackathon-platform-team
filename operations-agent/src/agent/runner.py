@@ -334,12 +334,24 @@ def _comment_result(s: RunScope, result: AgentResult) -> None:
         lines += ["", "**Befunde:**", *[f"- {x}" for x in confirmed]]
     if result.required_change:
         lines += ["", f"**Nötige Änderung:** {result.required_change}"]
+    # Nach einer Wiederaufnahme steht das Ergebnis eines früheren Laufs eventuell schon im Issue.
+    posted = [
+        a for a in s.ctx.previous_actions
+        if a.kind == "issue_comment" and a.status == "succeeded" and a.correlation.get("purpose") == "result"
+    ]
+    if posted:
+        result.references["issueComment"] = {"actionId": posted[-1].action_id, **posted[-1].external_refs}
+        return
+    issue = s.inv.context.issue
+    action = s.services.actions.record_planned(
+        s.inv.operation_id, "issue_comment", f"{issue.repository}#{issue.number}", {"purpose": "result"}
+    )
     try:
-        issue = s.inv.context.issue
-        action = s.services.actions.record_planned(s.inv.operation_id, "issue_comment", f"{issue.repository}#{issue.number}", {})
         c = s.gh.comment_issue(issue, s.inv.job_id, "\n".join(lines))
-        s.services.actions.update(action.action_id, "succeeded", {"commentId": str(c["id"])})
-        result.actions.append(action.action_id)
-        result.references["issueComment"] = c
     except ToolError as e:
+        s.services.actions.update(action.action_id, "failed", {"error": e.kind})
         result.references["issueCommentError"] = f"{e.kind}: {e}"
+        return
+    s.services.actions.update(action.action_id, "succeeded", {"commentId": str(c["id"])})
+    result.actions.append(action.action_id)
+    result.references["issueComment"] = c
