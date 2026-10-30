@@ -51,3 +51,12 @@ Das Design übernimmt Farben, Typografie und Abstände aus `new-website/src/desi
 Ein vollständiger Agenten-Rollout braucht weiterhin dessen Foundation-Ausgabe `githubAppPrivateKey` oder den dokumentierten PAT-Rückfall. Die Status-UI ersetzt diesen Zugang nicht und zeigt den Agenten bei fehlender Erreichbarkeit als gestört an.
 
 Bei ausgefallenem gemeinsamem Ingress ist auch die Status-UI nicht erreichbar; sie ersetzt kein unabhängiges externes Monitoring. Nach neuen Builds wird der gewünschte Image-Digest im Sollzustand explizit aktualisiert.
+
+## Staging-Nachweis vom 30.10.2026
+
+- Adresse: https://platform-status.57-153-7-126.sslip.io/
+- Pulumi-Stack: `organization/app-platform-status/staging`, Namespace `platform-status-staging`.
+- Release-Commit: `fbe2a019e6edc508119f0c8107357aeaa227622f`, Chart `0.1.1`, Image `sha256:52b48976e5433616416de5d4414544b8a82f9b47ded281f7b4dcac85963d3aad`.
+- [IaC-Rollout 41107859138](https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/41107859138) erfolgreich, ohne Break-glass. Laufender Stand entspricht dem Sollzustand; Smoke-Test auf `/status` erfolgreich.
+- Öffentliche HTTPS-Prüfung mit gültigem Zertifikat: `/`, `/healthz`, `/status` und JavaScript-Asset jeweils HTTP 200.
+- Live-Daten zum Prüfzeitpunkt: AFFiNE erreichbar, Operations-Datenbank lesbar; Operations-Agent nicht erreichbar und kein Worker-Heartbeat. Das ist der angezeigte Plattformzustand, kein Fehler des UI-Rollouts. Der vollständige Agenten-Rollout ist separat durch die fehlende Foundation-Ausgabe `githubAppPrivateKey` blockiert.
