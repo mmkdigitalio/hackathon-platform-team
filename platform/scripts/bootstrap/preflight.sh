@@ -96,7 +96,7 @@ if [[ -n "${NODE_VM_SIZE:-}" ]]; then
         fail "VM size $NODE_VM_SIZE in $LOCATION (restriction: $restrictions)"
     fi
 fi
-info "MANUAL: issue webhook to https://<operationsApiHost>/ once the event intake runs (bootstrap.md)."
+info "MANUAL: issue webhook to <publicScheme>://<operationsApiHost>/events/github once the event intake runs (bootstrap.md, step 8)."
 
 if [[ ${#missing[@]} -gt 0 ]]; then
     log "Preflight failed; nothing was created. Missing:"

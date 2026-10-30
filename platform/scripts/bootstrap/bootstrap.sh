@@ -96,7 +96,7 @@ Bootstrap complete for $ENVIRONMENT (no secret values shown).
   Pulumi backend:     azblob://$STATE_CONTAINER (account $STATE_STORAGE_ACCOUNT, resource group $STATE_RESOURCE_GROUP)
   Repository secrets: PULUMI_BACKEND_ACCOUNT, PULUMI_BACKEND_KEY, PULUMI_CONFIG_PASSPHRASE, OPS_GITHUB_TOKEN in $GITHUB_REPO
 
-Next (operations/foundation/bootstrap.md, steps 3 to 5):
+Next (operations/foundation/bootstrap.md, steps 4 and 5):
   platform/scripts/bootstrap/foundation.sh $config_file secrets
   platform/scripts/bootstrap/foundation.sh $config_file preview
   platform/scripts/bootstrap/foundation.sh $config_file up

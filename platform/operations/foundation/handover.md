@@ -125,7 +125,7 @@ There is no GitHub App. A fine-grained PAT (`opsGithubToken`, also repository se
 `hackathon-platform-affine`) with the repository permissions Issues, Contents, Pull
 requests and Actions, each read and write. Comments the
 agent writes carry the marker `<!-- mmk-ops-agent -->`; C ignores events that carry it.
-The GitHub webhook to `https://<operationsApiHost>/` with `githubWebhookSecret` is
+The GitHub webhook to `<publicScheme>://<operationsApiHost>/events/github` with `githubWebhookSecret` is
 created by a team member once C's receiver runs.
 
 ## Consumer checks (completion of task 1.3)
