@@ -41,9 +41,9 @@
       }
     },
     "checkRef": {
-      "description": "Smoke-Test-Image mit Digest",
+      "description": "Digest des Smoke-Test-Images (wie check_ref in C's VerificationEvidence)",
       "type": "string",
-      "pattern": "@sha256:[a-f0-9]{64}$"
+      "pattern": "^sha256:[a-f0-9]{64}$"
     },
     "startedAt": { "type": "string", "format": "date-time" },
     "finishedAt": { "type": "string", "format": "date-time" },

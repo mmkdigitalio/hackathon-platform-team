@@ -41,7 +41,7 @@ jobs:
             [[ "$code" == "$expected" ]] || { echo "::error::$name: Exit-Code $code, erwartet $expected"; exit 1; }
             set +e
             npx tsx src/cli.ts verification-result --smoke-output "$RUNNER_TEMP/$name.out" --exit-code "$code" \
-              --app smoke --env staging --check-ref "local/smoke-http@sha256:$(printf '0%.0s' {1..64})" \
+              --app smoke --env staging --check-ref "sha256:$(printf '0%.0s' {1..64})" \
               --running-git-sha x --running-image-digest x --running-chart-version x \
               --desired-git-sha x --desired-image-digest x --desired-chart-version x > "$RUNNER_TEMP/$name.json"
             result=$?; set -e

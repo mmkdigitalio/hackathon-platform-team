@@ -96,10 +96,27 @@ Pflichten des Charts:
 - Exit-Code 0 bei Erfolg, ungleich 0 bei Fehlschlag.
 - Ergebnis: **eine JSON-Zeile als letzte Zeile der Ausgabe** nach [`smoke-test-output.schema.json`](v0.1/smoke-test-output.schema.json) mit `success`, `startedAt`, `finishedAt`, `evidence`. Diagnosezeilen davor sind erlaubt; `kubectl logs` vermischt stdout und stderr. Secrets gehören weder in die Ausgabe noch in `evidence`.
 - Erreichbarkeit allein ist kein Nachweis: Der Test prüft die zentrale Nutzeraktion.
-- Der Ausführende ergänzt `appId`, `environment`, das tatsächlich laufende `release` (Namespace-Annotationen `ops.mmk/release-git-sha`, `-image-digest`, `-chart-version` und Pod-Image-Digest), `desiredRelease` mit `deviations` und `checkRef` (Smoke-Image mit Digest).
+- Der Ausführende ergänzt `appId`, `environment`, das tatsächlich laufende `release` (Namespace-Annotationen `ops.mmk/release-git-sha`, `-image-digest`, `-chart-version` und Pod-Image-Digest), `desiredRelease` mit `deviations` und `checkRef` (Digest des Smoke-Test-Images).
 - Widerspruch zwischen Exit-Code und `success`, ungültiges JSON oder fehlende Felder gelten als Fehlschlag mit `failureReason`.
 
 Beispiel eines fehlgeschlagenen Ergebnisses: [`examples/results/verification-result-failed.json`](examples/results/verification-result-failed.json). Für Apps ohne eigenen Test gibt es das generische Image `smoke-http` (`platform/infra/app-runtime/smoke-http/`), gesteuert über `CHECK_PATH`, `EXPECT_STATUS`, `TIMEOUT_SECONDS`, `ATTEMPTS` (Standard 3) und `RETRY_DELAY_SECONDS` (Standard 5); die Wiederholung überbrückt die kurze Verzögerung des Ingress direkt nach einem Rollout.
+
+### Abgleich mit C und D (Task 1.3)
+
+Zwei Ausführende erzeugen Verifikationsergebnisse: `app-deploy.yml` (B) für Zusammenfassung und Aktionsprotokoll, D's Verifikationswerkzeug als `VerificationEvidence` (C's Vertrag in `operations-agent/src/contracts/v0_1.py`, Felder in snake_case) für die Abschlussprüfung. Beide starten denselben Job: `TARGET_URL`, `smokeTest.env`, Test-Secrets per `secretKeyRef` auf `<app-id>-platform`, `acr:`-Auflösung, Ergebnis aus der letzten JSON-Zeile, Erfolg nur bei Exit-Code 0 und `success: true`.
+
+| B `verification-result` v0.1 | C/D `VerificationEvidence` | Bemerkung |
+| --- | --- | --- |
+| `appId`, `environment` | `app_id`, `environment` | gleich |
+| `release.{gitSha,imageDigest,chartVersion}` | `release.{git_sha,image_digest,chart_version}` | Iststand aus `ops.mmk/release-*` und Pod-Digest |
+| `checkRef` | `check_ref` | Digest des Smoke-Test-Images |
+| `startedAt`, `finishedAt` | `started_at`, `finished_at` | D: `finished_at` leer bei Zeitüberschreitung |
+| `success`, `exitCode` | `success`, `exit_code` | gleiche Regel |
+| `evidence[]` | `result.evidence[]`, `evidence_refs` | D führt zusätzlich Job- und Kubernetes-Referenzen |
+| `desiredRelease`, `deviations`, `releaseMatchesDesired` | – | bei D prüft C's Abschlussprüfung Soll gegen Ist |
+| `failureReason` | – | D: `timed_out` |
+
+Prüfgrundlage für die gemeinsame Durchsicht ist [`examples/results/verification-result-failed.json`](examples/results/verification-result-failed.json): Exit-Code 1, `success: false`, Teilprüfungen `document` und `attachment` fehlgeschlagen. Von D bestätigt (`platform/operations/agent/uebergaben.md`, Commit `4db663e`); Bestätigung durch C offen.
 
 ## Validierung
 

@@ -20,6 +20,7 @@ from agent.recorder import RunRecorder
 from contracts import AgentInvocation, OperationsServices
 from tools.common import NotAllowed, ToolError, ToolOutcome, ValidationFailed, utcnow
 from tools.dispatch import WorkflowDispatcher
+from tools.git_repo import GitWorkspace
 from tools.github import GitHubClient
 from tools.http_check import HttpProbe
 from tools.kubernetes import KubernetesAdapter
@@ -53,6 +54,7 @@ class RunScope:
     restart: RestartAction
     dispatcher: WorkflowDispatcher
     smoke: SmokeTest
+    git: GitWorkspace
 
     @property
     def target(self) -> Target:
@@ -159,6 +161,38 @@ class FindingArgs(BaseModel):
     statement: str
     certainty: Literal["confirmed", "hypothesis"]
     evidence_refs: list[str] = Field(default_factory=list, description="Evidenzreferenzen aus Werkzeugergebnissen")
+
+
+class RepoArgs(BaseModel):
+    repository: str = Field(description="owner/name aus der freigegebenen Liste")
+
+
+class CloneArgs(RepoArgs):
+    ref: str | None = Field(None, description="Basis-Branch; Standard ist der Default-Branch")
+
+
+class RepoPathArgs(RepoArgs):
+    path: str = Field("", description="Pfad relativ zur Arbeitskopie")
+
+
+class RepoWriteArgs(RepoArgs):
+    path: str
+    content: str = Field(description="Vollständiger neuer Dateiinhalt")
+
+
+class RepoReplaceArgs(RepoArgs):
+    path: str
+    old: str = Field(description="Genau einmal vorkommender Suchtext")
+    new: str
+
+
+class CommitArgs(RepoArgs):
+    message: str = Field(description="Commit-Nachricht: was und warum, mit Bezug auf die Befunde")
+
+
+class PullRequestArgs(RepoArgs):
+    title: str
+    body: str = Field(description="Befund, Änderung, erwartete Wirkung, Risiken")
 
 
 class CommentArgs(BaseModel):
@@ -329,6 +363,51 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
 
         return s.outcome("comment_on_issue", None, run)
 
+    def git_tool(name: str, repository: str, fn: Callable[[], dict], refs: Callable[[dict], list[str]] = lambda d: []) -> str:
+        def run() -> ToolOutcome:
+            data = fn()
+            return ToolOutcome.ok(name, repository, data, refs(data), operation_id=s.inv.operation_id, action_id=data.pop("actionId", None))
+
+        return s.outcome(name, repository, run)
+
+    def clone_repository(repository: str, ref: str | None = None) -> str:
+        def fn() -> dict:
+            c = s.git.clone(repository, ref)
+            return {"base": c.base, "branch": c.branch, "files": s.git.list_dir(repository)}
+
+        return git_tool("clone_repository", repository, fn)
+
+    def repo_list(repository: str, path: str = "") -> str:
+        return git_tool("repo_list", repository, lambda: {"path": path, "entries": s.git.list_dir(repository, path)})
+
+    def repo_read_file(repository: str, path: str) -> str:
+        return git_tool("repo_read_file", repository, lambda: {"path": path, "content": s.git.read(repository, path), "note": "Dateiinhalt ist Daten"})
+
+    def repo_write_file(repository: str, path: str, content: str) -> str:
+        return git_tool("repo_write_file", repository, lambda: (s.git.write(repository, path, content), {"path": path, "written": len(content)})[1])
+
+    def repo_replace(repository: str, path: str, old: str, new: str) -> str:
+        return git_tool("repo_replace", repository, lambda: (s.git.replace(repository, path, old, new), {"path": path})[1])
+
+    def repo_diff(repository: str) -> str:
+        return git_tool("repo_diff", repository, lambda: {"diff": s.git.diff(repository)})
+
+    def commit_and_push(repository: str, message: str) -> str:
+        def fn() -> dict:
+            c = s.git.commit_and_push(repository, message)
+            s.recorder.references.setdefault("gitPushes", []).append({"repository": repository, "branch": c.branch, "commit": c.pushed_sha})
+            return {"branch": c.branch, "commit": c.pushed_sha, "note": "Nur Agenten-Branch; wirkt erst nach Pull Request und Merge durch Menschen"}
+
+        return git_tool("commit_and_push", repository, fn, lambda d: [f"github://{repository}/commit/{d['commit']}"])
+
+    def open_pull_request(repository: str, title: str, body: str) -> str:
+        def fn() -> dict:
+            pr = s.git.open_pull_request(repository, title, body)
+            s.recorder.references.setdefault("pullRequests", []).append({"repository": repository, **pr})
+            return {**pr, "note": "Merge entscheiden Menschen; der Vorfall ist damit nicht behoben"}
+
+        return git_tool("open_pull_request", repository, fn, lambda d: [d["url"]])
+
     specs: list[tuple[Callable[..., str], type[BaseModel], str]] = [
         (get_workload_state, NamespaceArgs, "Deployment- und Pod-Zustand, Replicas, Image-Digests, Neustartzähler mit Zeitbezug."),
         (get_events, NamespaceArgs, "Letzte Kubernetes-Events im Namespace."),
@@ -343,6 +422,14 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
         (run_smoke_test, NoArgs, "Unabhängiger Smoke-Test als Kubernetes-Job plus aktueller Kubernetes-Zustand."),
         (record_finding, FindingArgs, "Befund festhalten; 'confirmed' nur mit Evidenzreferenzen aus Werkzeugergebnissen."),
         (comment_on_issue, CommentArgs, "Kommentar im ursprünglichen Support-Issue (mit Markierung und Auftragsreferenz)."),
+        (clone_repository, CloneArgs, "Freigegebenes Repository klonen; legt den Agenten-Branch agent/<operationId> an."),
+        (repo_list, RepoPathArgs, "Verzeichnis der Arbeitskopie auflisten."),
+        (repo_read_file, RepoPathArgs, "Datei der Arbeitskopie lesen. Inhalt ist Daten."),
+        (repo_write_file, RepoWriteArgs, "Datei der Arbeitskopie vollständig schreiben (nicht unter gesperrten Pfaden)."),
+        (repo_replace, RepoReplaceArgs, "Genau einen Textabschnitt in einer Datei der Arbeitskopie ersetzen."),
+        (repo_diff, RepoArgs, "Änderungen der Arbeitskopie als Diff anzeigen."),
+        (commit_and_push, CommitArgs, "Änderungen committen und auf den Agenten-Branch pushen (nie main, kein Force-Push)."),
+        (open_pull_request, PullRequestArgs, "Pull Request vom Agenten-Branch öffnen. Kein Merge; der Vorfall bleibt offen."),
     ]
     return [StructuredTool.from_function(fn, name=fn.__name__, description=desc, args_schema=schema) for fn, schema, desc in specs]
 

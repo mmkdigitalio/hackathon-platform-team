@@ -2,6 +2,19 @@
 
 Strang D hat gegen Lieferungen entwickelt, die es noch nicht gibt. Jede Annahme ist hier aufgeführt und im Code an einer Stelle gebündelt. Weicht eine Lieferung ab, wird nur diese Stelle angepasst.
 
+## GitHub App (Entscheidung vom 30.10.2026)
+
+Der Agent nutzt die GitHub App `hackathonplatformagent` (App-ID `5542094`, Installation `176901698` auf `hackathon-platform-team` und `hackathon-platform-affine`) und darf Änderungen als Pull Request vorschlagen. Das ersetzt E7 für den Agenten; der PAT bleibt Rückfall. Offen:
+
+| Strang | Lieferung |
+| --- | --- |
+| A | Neue geheime Foundation-Ausgabe `githubAppPrivateKey` (PEM), gesetzt wie `opsGithubToken` über `foundation.sh secrets`; additive Erweiterung, `contractVersion` bleibt 1 |
+| B | Im Katalog des Agenten unter `secrets` die Zeile `OPS_GITHUB_APP_PRIVATE_KEY: foundation:githubAppPrivateKey` |
+| C | Vertrag v0.1 additiv um die Aktionsarten `git_push` und `pull_request` erweitert (`contracts/v0_1.py`, von D geändert); bitte bestätigen. Die Tabelle `actions` hat keine Einschränkung auf `kind` |
+| alle | `PARALLEL-IMPLEMENTATION.md` E7 bei Gelegenheit anpassen: App statt PAT, Pull Requests durch den Agenten erlaubt, Merge nie |
+
+Der private Schlüssel liegt derzeit unverschlüsselt in `~/Downloads` (Dateirechte 644). Er gehört in die Stack-Konfiguration von A und danach aus dem Download-Ordner gelöscht.
+
 ## Strang C
 
 **Stand 30.10.2026: geliefert** (PR #1, `feat/operations-intake-and-state`). C hat den Vertrag v0.1 unverändert übernommen und um `contracts/actions.py`, `errors.py`, `states.py` ergänzt, die SDK-Migrationen in `ops migrate` aufgenommen und D's `agent.execute` an den Worker angebunden (`tests/state/test_agent_integration.py`, echte Datenbank und echter Checkpointer). Einstiegspunkte `ops`, `ops-api`, `ops-worker` passen zu den Chart-Standards. D hat daraufhin Katalog, Sollzustände und Ereignisschema ins Image aufgenommen (`OPS_PLATFORM_ROOT`), weil C's API sie aus dem Dateisystem liest.
@@ -27,6 +40,8 @@ Strang D hat gegen Lieferungen entwickelt, die es noch nicht gibt. Jede Annahme 
 - `runbook.path` darf ein Verzeichnis sein (Katalog des Agenten); D fügt dessen Markdown-Dateien zusammen, README zuerst, höchstens 20 000 Zeichen.
 - Haupt-Deployment: Name aus `ingress.service` bzw. App-ID, sonst eindeutig über das Label `app.kubernetes.io/instance: <app-id>`.
 - Chart-Werte: B übergibt zusätzlich `platform.*` (u. a. `replicas`); D's Chart steuert API und Worker weiter über `api.replicas`/`worker.replicas`.
+
+**Feldabgleich Verifikationsergebnis (B's README, Abschnitt „Abgleich mit C und D“, Commit `3f49334`): von D bestätigt.** D's `VerificationEvidence` entspricht der Tabelle: `check_ref` ist der Digest des Smoke-Test-Images (`tools/verification.py`), `release` kommt aus den Annotationen `ops.mmk/release-*` und dem Pod-Digest, `finished_at` ist bei Zeitüberschreitung leer (`timed_out: true`), Erfolg nur bei Exit-Code 0 und `success: true`.
 
 | Punkt | Ursprüngliche Annahme von D (bestätigt, wo nicht oben abweichend) |
 | --- | --- |

@@ -1,4 +1,4 @@
-"""GitHub-Adapter über den Fine-grained PAT aus ``opsGithubToken``."""
+"""GitHub-Adapter; Zugang über die GitHub App des Agenten oder den PAT aus ``opsGithubToken``."""
 
 from __future__ import annotations
 
@@ -9,25 +9,29 @@ from typing import Any
 import httpx
 
 from contracts import IssueRef
-from tools.common import NotFound, PermissionDenied, TimedOut, UpstreamError, ValidationFailed
+from tools.common import Conflict, NotFound, PermissionDenied, TimedOut, UpstreamError, ValidationFailed
+from tools.github_auth import StaticToken, TokenProvider
 
 AGENT_MARKER = "<!-- mmk-ops-agent -->"
 API = "https://api.github.com"
 
 
 class GitHubClient:
-    def __init__(self, token: str, repository: str, http: httpx.Client | None = None, timeout: float = 15.0) -> None:
+    def __init__(self, token: str | TokenProvider, repository: str, http: httpx.Client | None = None, timeout: float = 15.0) -> None:
         self.repository = repository
+        self.auth: TokenProvider = StaticToken(token) if isinstance(token, str) else token
         self._http = http or httpx.Client(base_url=API, timeout=timeout)
-        self._headers = {
-            "Authorization": f"Bearer {token}",
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.auth.token()}",
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         }
 
     def _request(self, method: str, path: str, what: str, **kw: Any) -> httpx.Response:
         try:
-            r = self._http.request(method, path, headers=self._headers, **kw)
+            r = self._http.request(method, path, headers=self._headers(), **kw)
         except httpx.TimeoutException as e:
             raise TimedOut(f"GitHub: {what} Zeitüberschreitung") from e
         except httpx.HTTPError as e:
@@ -45,6 +49,8 @@ class GitHubClient:
             )
         if r.status_code == 404:
             raise NotFound(f"GitHub: {what} nicht gefunden (oder PAT ohne Zugriff)", status=404)
+        if r.status_code == 409:
+            raise Conflict(f"GitHub: {what} Konflikt: {message}", status=409)
         if r.status_code == 422:
             raise ValidationFailed(f"GitHub lehnt {what} ab: {message}", status=422)
         raise UpstreamError(f"GitHub: {what} mit Status {r.status_code}", status=r.status_code, github_message=message)
@@ -122,6 +128,34 @@ class GitHubClient:
         r = self._request("POST", f"/repos/{self.repository}/issues/{issue.number}/comments", "Issue kommentieren", json={"body": body})
         c = r.json()
         return {"id": c["id"], "url": c.get("html_url")}
+
+    # Branches und Pull Requests (nur über tools.git_repo)
+
+    def default_branch(self, repository: str) -> str:
+        return self._request("GET", f"/repos/{repository}", f"Repository {repository} lesen").json()["default_branch"]
+
+    def branch_head(self, repository: str, branch: str) -> str | None:
+        try:
+            r = self._request("GET", f"/repos/{repository}/branches/{branch}", f"Branch {branch} lesen")
+        except NotFound:
+            return None
+        return r.json()["commit"]["sha"]
+
+    def find_pull_request(self, repository: str, branch: str) -> dict[str, Any] | None:
+        owner = repository.split("/")[0]
+        r = self._request("GET", f"/repos/{repository}/pulls", "Pull Requests lesen", params={"head": f"{owner}:{branch}", "state": "open"})
+        prs = r.json()
+        return {"number": prs[0]["number"], "url": prs[0]["html_url"]} if prs else None
+
+    def create_pull_request(self, repository: str, branch: str, base: str, title: str, body: str) -> dict[str, Any]:
+        r = self._request(
+            "POST",
+            f"/repos/{repository}/pulls",
+            "Pull Request anlegen",
+            json={"title": title, "head": branch, "base": base, "body": body, "draft": False},
+        )
+        pr = r.json()
+        return {"number": pr["number"], "url": pr["html_url"]}
 
     # Workflows
 

@@ -50,6 +50,13 @@ limits:
 
 agent:
   githubRepository: mmkdigitalio/hackathon-platform-team
+  # GitHub App des Agenten; der private Schlüssel kommt als OPS_GITHUB_APP_PRIVATE_KEY aus dem Secret.
+  # Leer: Zugang über den PAT OPS_GITHUB_TOKEN.
+  githubAppId: "5542094"
+  githubAppInstallationId: "176901698"
+  gitRepositories: mmkdigitalio/hackathon-platform-team,mmkdigitalio/hackathon-platform-affine
+  gitBranchPrefix: agent/
+  gitDeniedPaths: .github/workflows/
   dispatchWorkflows: app-deploy.yml
   dispatchRef: main
   appImagePullSecret: ""        # Pull-Secret in App-Namespaces für Smoke-Test-Jobs

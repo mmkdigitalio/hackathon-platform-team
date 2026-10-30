@@ -20,6 +20,15 @@ data:
   OPS_LIMIT_REPAIR_ATTEMPTS: {{ .Values.limits.repairAttempts | quote }}
   OPS_LIMIT_COST_USD: {{ .Values.limits.costUsd | quote }}
   OPS_GITHUB_REPOSITORY: {{ .Values.agent.githubRepository | quote }}
+  {{- with .Values.agent.githubAppId }}
+  OPS_GITHUB_APP_ID: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.agent.githubAppInstallationId }}
+  OPS_GITHUB_APP_INSTALLATION_ID: {{ . | quote }}
+  {{- end }}
+  OPS_GIT_REPOSITORIES: {{ .Values.agent.gitRepositories | quote }}
+  OPS_GIT_BRANCH_PREFIX: {{ .Values.agent.gitBranchPrefix | quote }}
+  OPS_GIT_DENIED_PATHS: {{ .Values.agent.gitDeniedPaths | quote }}
   OPS_DISPATCH_WORKFLOWS: {{ .Values.agent.dispatchWorkflows | quote }}
   OPS_DISPATCH_REF: {{ .Values.agent.dispatchRef | quote }}
   OPS_APP_IMAGE_PULL_SECRET: {{ .Values.agent.appImagePullSecret | quote }}

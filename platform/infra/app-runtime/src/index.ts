@@ -31,4 +31,6 @@ export = appStack({
   clusterIssuer: config.get("clusterIssuer"),
   publicScheme: config.get("publicScheme") as "https" | "http" | undefined,
   postgresSslMode: config.get("postgresSslMode") ?? "require",
+  postgresAdminHost: config.get("postgresAdminHost"),
+  postgresAdminPort: config.getNumber("postgresAdminPort"),
 });

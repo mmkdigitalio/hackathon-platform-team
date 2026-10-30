@@ -11,6 +11,7 @@ from typing import Literal
 from pydantic import SecretStr
 
 from contracts import RunLimits
+from tools.github_auth import GitHubAppAuth, StaticToken, TokenProvider
 
 Provider = Literal["anthropic", "azure-openai"]
 PROVIDERS: tuple[Provider, ...] = ("anthropic", "azure-openai")
@@ -123,13 +124,40 @@ class AgentSettings:
     post_issue_comment: bool
     smoke_timeout_seconds: int
     acr_login_server: str | None = None
+    github_app_id: str | None = None
+    github_app_private_key: SecretStr | None = field(default=None, repr=False)
+    github_app_installation_id: str | None = None
+    git_repositories: frozenset[str] = frozenset({"mmkdigitalio/hackathon-platform-team", "mmkdigitalio/hackathon-platform-affine"})
+    git_branch_prefix: str = "agent/"
+    git_denied_paths: tuple[str, ...] = (".github/workflows/",)
+    git_workdir: Path = Path("/tmp/ops-agent-git")
+
+    def github_auth(self) -> TokenProvider:
+        """GitHub App, wenn konfiguriert; sonst der PAT."""
+        if self.github_app_id and self.github_app_private_key:
+            return GitHubAppAuth(self.github_app_id, self.github_app_private_key, self.github_repository, self.github_app_installation_id)
+        return StaticToken(self.github_token.get_secret_value())
+
+
+def _app_private_key(env: dict[str, str]) -> SecretStr | None:
+    if env.get("OPS_GITHUB_APP_PRIVATE_KEY"):
+        # Secrets landen teils mit maskierten Zeilenumbrüchen in Umgebungsvariablen.
+        return SecretStr(env["OPS_GITHUB_APP_PRIVATE_KEY"].replace("\\n", "\n"))
+    if env.get("OPS_GITHUB_APP_PRIVATE_KEY_FILE"):
+        return SecretStr(Path(env["OPS_GITHUB_APP_PRIVATE_KEY_FILE"]).read_text())
+    return None
 
 
 def agent_settings(env: dict[str, str] | None = None) -> AgentSettings:
     env = dict(os.environ if env is None else env)
-    token = env.get("OPS_GITHUB_TOKEN")
-    if not token:
-        raise ConfigError("OPS_GITHUB_TOKEN (Foundation-Ausgabe opsGithubToken) fehlt")
+    token = env.get("OPS_GITHUB_TOKEN", "")
+    app_id, app_key = env.get("OPS_GITHUB_APP_ID") or None, _app_private_key(env)
+    if app_key and not app_id:
+        raise ConfigError("OPS_GITHUB_APP_PRIVATE_KEY ohne OPS_GITHUB_APP_ID")
+    if not app_key:
+        app_id = None  # App-ID aus dem Chart ohne Schlüssel im Secret: weiter über den PAT
+    if not token and not app_id:
+        raise ConfigError("GitHub-Zugang fehlt: OPS_GITHUB_APP_ID mit Schlüssel oder OPS_GITHUB_TOKEN (opsGithubToken)")
     base_domain = env.get("OPS_BASE_DOMAIN")
     if not base_domain:
         raise ConfigError("OPS_BASE_DOMAIN (Foundation-Ausgabe baseDomain) fehlt")
@@ -149,4 +177,15 @@ def agent_settings(env: dict[str, str] | None = None) -> AgentSettings:
         post_issue_comment=env.get("OPS_POST_ISSUE_COMMENT", "true").lower() == "true",
         smoke_timeout_seconds=int(env.get("OPS_SMOKE_TIMEOUT_SECONDS", "180")),
         acr_login_server=env.get("OPS_ACR_LOGIN_SERVER") or None,
+        github_app_id=app_id,
+        github_app_private_key=app_key,
+        github_app_installation_id=env.get("OPS_GITHUB_APP_INSTALLATION_ID") or None,
+        git_repositories=frozenset(
+            r.strip()
+            for r in env.get("OPS_GIT_REPOSITORIES", "mmkdigitalio/hackathon-platform-team,mmkdigitalio/hackathon-platform-affine").split(",")
+            if r.strip()
+        ),
+        git_branch_prefix=env.get("OPS_GIT_BRANCH_PREFIX", "agent/"),
+        git_denied_paths=tuple(p.strip() for p in env.get("OPS_GIT_DENIED_PATHS", ".github/workflows/").split(",") if p.strip()),
+        git_workdir=Path(env.get("OPS_GIT_WORKDIR", "/tmp/ops-agent-git")),
     )

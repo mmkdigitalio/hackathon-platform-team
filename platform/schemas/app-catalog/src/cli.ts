@@ -25,7 +25,7 @@ const USAGE = `Verwendung: app-catalog <befehl> [optionen]
       Setzt Image und Chart-Version im Sollzustand und erhält Kommentare.
   affected --changed <datei> [--mode plan|deploy]
       Ermittelt betroffene Stacks aus einer Liste "<status>\\t<pfad>" (git diff --name-status).
-  verification-result --smoke-output <f> --exit-code <n> --app <id> --env <env> --check-ref <ref>
+  verification-result --smoke-output <f> --exit-code <n> --app <id> --env <env> --check-ref <sha256:digest>
       --running-git-sha <sha> --running-image-digest <d> --running-chart-version <v>
       --desired-git-sha <sha> --desired-image-digest <d> --desired-chart-version <v>
       [--operation-id <id>] [--workflow-run <url>]

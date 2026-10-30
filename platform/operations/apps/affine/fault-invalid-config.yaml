@@ -1,7 +1,8 @@
 # Nicht reparierbares Fehlerszenario: schemagültiger, fachlich ungültiger AFFiNE-Konfigurationswert.
-# Pfad und Wert werden mit der AFFiNE-Lieferung festgelegt (Open Question im Design). Anforderungen:
-#   - der Wert liegt unter values in platform/environments/staging/affine.yaml und besteht values.schema.json des Charts
-#   - AFFiNE startet damit nicht oder wird nicht erreichbar; Neustart und erneutes Deployment ändern daran nichts
-#   - der Wert berührt weder Datenbank noch PVC noch Secrets
-path: []      # z. B. [affine, server, port]
-value: null   # z. B. 1
+# Festgelegt mit der AFFiNE-Lieferung (mmkdigitalio/hackathon-platform-affine, platform-delivery/fault-invalid-config.yaml):
+#   - values.affine.nodeOptions ist im values.schema.json des Charts ein String; Sollwert in staging ist --max-old-space-size=1536
+#   - mit 16 MB Heap bricht der Container affine bei jedem Start ab ("JavaScript heap out of memory", Exit 133,
+#     CrashLoopBackOff); restart und redeploy ändern daran nichts (in kind geprüft, auch nach Revert)
+#   - wirkt nur auf den Server-Container, nicht auf die Migrationen: Datenbank, PVC und Secrets bleiben unberührt
+path: [affine, nodeOptions]
+value: --max-old-space-size=16

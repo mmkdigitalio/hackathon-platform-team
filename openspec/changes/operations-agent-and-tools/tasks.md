@@ -29,7 +29,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 ## 4. Ändernde Aktionen und Workflow-Verfolgung, Anteil P1-07
 
 - [ ] 4.1 Kontrollierten Neustart über Annotation `ops.mmk/action-id` und C's Aktions-/Sperrclient implementieren; Abschluss durch protokollierten echten Neustart und abgewiesene Änderung ohne gültigen Besitz prüfen.
-- [ ] 4.2 Dispatch vorgegebener Workflows aus einer konfigurierten Liste mit Eingaben `operationId` und `actionId` anbinden, ohne Branches, Commits, Pull Requests oder Merges; Abschluss durch gestarteten, über `actionId` eindeutig zugeordneten Lauf von `app-deploy.yml` und abgelehnten nicht gelisteten Workflow prüfen.
+- [ ] 4.2 Dispatch vorgegebener Workflows aus einer konfigurierten Liste mit Eingaben `operationId` und `actionId` anbinden; Abschluss durch gestarteten, über `actionId` eindeutig zugeordneten Lauf von `app-deploy.yml` und abgelehnten nicht gelisteten Workflow prüfen.
 - [ ] 4.3 Tatsächlichen Workflow-Status und Abschluss abrufen; Abschluss durch laufenden Status ohne falsche Erfolgsmeldung und korrekt zugeordnetes Endergebnis prüfen.
 - [ ] 4.4 Abgleich nach Timeout oder Neustart für Neustart (Annotation) und Dispatch (Lauf-ID, `operationId`) implementieren; Abschluss durch Wiederfinden derselben Aktion, keine doppelte Ausführung und `needs_attention` bei mehreren passenden Läufen prüfen.
 - [ ] 4.5 Dispatch-, Sperr- und Abgleichverfahren in `platform/operations/agent/` dokumentieren; Abschluss durch Workflow-Warten ohne eigene Ziel-Sperre und gemeinsam mit C geprüfte Besitzverlustfälle prüfen.
@@ -56,3 +56,10 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 - [ ] 7.1 Abnahmeszenarien 4 und 5 federführend durchführen; Abschluss durch autonome AFFiNE-Reparatur sowie `needs_attention` im nicht reparierbaren Fall mit Smoke-Test-Nachweisen prüfen.
 - [ ] 7.2 C bei Szenarien 6, 7 und 8 unterstützen; Abschluss durch gezählte Aktionsaufrufe, wiedergefundenen Workflow-Lauf und Sperrkonflikt ohne zweiten Workflow oder parallele Zieländerung prüfen.
 - [ ] 7.3 Modellverbrauchs-, Werkzeug- und Evidenzdaten an C übergeben; Abschluss durch vollständigen Laufnachweis aus Szenario 10 ohne interne Modellgedanken als Pflichtnachweis prüfen.
+
+## 8. Repository-Änderungen über die GitHub App (Änderung vom 30.10.2026)
+
+- [x] 8.1 GitHub App als Zugang mit Installations-Token, Erneuerung vor Ablauf und PAT-Rückfall anbinden; Abschluss durch echten Token-Abruf für beide Repositories und Tests für Cache, Erneuerung und Fehler prüfen.
+- [x] 8.2 Git-Werkzeuge (klonen, lesen, ändern, Diff, Commit und Push auf `agent/<operationId>`, Pull Request) mit Allowlist, Pfadsperren, Aktionsdatensatz und Push-Abgleich liefern; Abschluss durch echten Push über die App auf einen Agenten-Branch sowie abgewiesenen Push auf `main` und abgewiesene Workflow-Änderung prüfen.
+- [ ] 8.3 App-ID, Installations-ID und privaten Schlüssel über Foundation-Ausgabe und App-Stack an den Agenten liefern (A, B); Abschluss durch Agenten-Pod, der ohne PAT ein Installations-Token erhält.
+- [ ] 8.4 Nicht reparierbaren Fall in Staging mit Pull Request des Agenten durchspielen; Abschluss durch `needs_attention` mit Commit-Verweis und geöffnetem, nicht gemergtem Pull Request prüfen.

@@ -4,7 +4,7 @@
 
 Motivation und Umfang stehen im [Proposal](proposal.md), Verhalten in [agent-execution](specs/agent-execution/spec.md) und [operational-tools](specs/operational-tools/spec.md). Deep Agents und LangGraph werden selbst gehostet; konkrete Bibliotheksintegration und Modellzugang werden im echten Prototyp geprüft. Die [gemeinsame Übersicht](../../PARALLEL-IMPLEMENTATION.md) definiert Übergaben, Verträge und die Hackathon-Entscheidungen E1 bis E10, die vor dem Produktdokument gelten.
 
-Rahmenbedingungen: ein Monorepo (E1), AFFiNE als einzige Fach-App (E2), nur Contributor ohne Rollenzuweisungen (E3), Zugänge über Schlüssel, ServiceAccount und PAT (E6, E7).
+Rahmenbedingungen: ein Monorepo (E1), AFFiNE als einzige Fach-App (E2), nur Contributor ohne Rollenzuweisungen (E3), Zugänge über Schlüssel, ServiceAccount und GitHub App (E6; E7 durch Entscheidung vom 30.10.2026 ersetzt, PAT nur noch Rückfall).
 
 ## Goals / Non-Goals
 
@@ -20,7 +20,7 @@ Non-Goals:
 - Keine zusätzliche Auftragsverwaltung, kein autonomer Datenbankabschluss und keine Sperrlogik im Prompt.
 - Keine Foundation-Bereitstellung, App-Pipeline oder frei ausführbare Infrastruktur-Shell als zweiter Rolloutpfad.
 - Kein Zugriff auf Azure Resource Manager, Azure-Messwerte oder Log Analytics.
-- Keine Pull Requests, Commits oder Merges durch den Agenten.
+- Keine Merges, keine Pushes auf Standard-Branches und keine Workflow-Änderungen durch den Agenten.
 - A, B und C liefern die im Proposal bezeichneten Infrastruktur-, App- und Zustandsdienste.
 
 ## Decisions
@@ -46,14 +46,14 @@ D integriert das SDK mit C's Checkpoint-Zugang. D besitzt Framework-Konfiguratio
 | Ziel | Zugang | Quelle |
 | --- | --- | --- |
 | Kubernetes | ServiceAccount `operations-agent` mit ClusterRole und ClusterRoleBinding | Agenten-Chart (D) |
-| GitHub | Fine-grained PAT | Foundation-Ausgabe `opsGithubToken` |
+| GitHub | GitHub App `hackathonplatformagent` (ID 5542094, Installation 176901698), Installations-Token 1 h | Schlüssel im Secret des Agenten (`OPS_GITHUB_APP_PRIVATE_KEY`); PAT `opsGithubToken` als Rückfall |
 | Modell | API-Key | Foundation-Ausgabe `modelApiKeys` |
 | PostgreSQL | Admin-Login mit Passwort | Foundation-Ausgaben über C's Client |
 | Diagnose-Storage | Storage-Key | Foundation-Ausgabe `diagnosticsStorageKey` |
 
 Die ClusterRole erlaubt Lesen von Deployments, ReplicaSets, Pods, Pod-Logs, Events und Jobs, `patch` auf Deployments für den Neustart sowie Anlegen und Löschen von Jobs für Smoke-Tests. Weil die Bindung clusterweit gilt, beschränken die Adapter Ziele im Code auf Namespaces `<app-id>-<env>` aus dem Katalog.
 
-Kommentare erscheinen unter dem Teammitglied, dem der PAT gehört (E7). Jeder Agentenkommentar enthält `<!-- mmk-ops-agent -->`, damit C's Schleifenschutz ihn ignoriert.
+Kommentare, Commits und Pull Requests erscheinen unter `hackathonplatformagent[bot]`; nur im PAT-Rückfall unter dem Teammitglied, dem der PAT gehört. Jeder Agentenkommentar und jeder Pull Request enthält `<!-- mmk-ops-agent -->`, damit C's Schleifenschutz ihn unabhängig vom Autor ignoriert. Die App hat `contents`, `pull_requests`, `issues` und `actions` mit Schreibrecht, aber kein `workflows`-Recht.
 
 **Abweichung von P1-07 und Produktdokument:** P1-07 verlangt „Monitor abfragen“. Ohne Rollenzuweisungen bekommt der Agent keinen Lesezugriff auf Azure Resource Manager, Messwerte oder Log Analytics (E6). Phase 1 ersetzt diese Quelle durch die Alarm-Payload im Auftrag (Common Alert Schema mit Regel, Zeitpunkt und Testergebnis), Kubernetes-Zustand, Events und Logs sowie eigene HTTP-Prüfungen. Container-Logs in Log Analytics bleiben Menschen vorbehalten.
 
@@ -66,6 +66,7 @@ Werkzeuggruppen in Phase 1:
 - Kubernetes: Workload-Zustand, Events, begrenzte Logs, Neustart, Smoke-Test-Job.
 - HTTP: Prüfung von `<app-id>.<baseDomain><Prüfpfad>` mit Status, Dauer und Zeitpunkt.
 - GitHub: Dateien und Commits lesen, Issues kommentieren, vorgegebene Workflows starten und verfolgen.
+- Git: freigegebene Repositories klonen, Dateien ändern, auf `agent/<operationId>` pushen, Pull Request öffnen.
 - Kontext: Katalog, Sollzustand, tatsächlicher Release, Runbook, Alarm-Payload und frühere Aktionen.
 
 Grenzen liegen in ausführbarem Code um Agenten- und Werkzeugausführung. Startwerte, je Lauf konfigurierbar:
@@ -81,9 +82,9 @@ Ein Reparaturversuch ist eine ändernde Maßnahme mit anschließender Verifikati
 
 Tickettext, Logs und Alarm-Payload sind Daten. Betriebsregeln stammen aus `platform/operations/agent/` und dem versionierten Katalog. Ein gespeicherter Runbook-Verbesserungsvorschlag enthält Herkunft und wird nicht automatisch zu einer bestätigten Regel.
 
-### 6. Keine Repository-Änderungen durch den Agenten
+### 6. Repository-Änderungen nur als Pull Request (geändert am 30.10.2026)
 
-Der Agent erstellt in Phase 1 keine Branches, Commits, Pull Requests oder Merges. Er startet ausschließlich Workflows aus einer konfigurierten Liste und übergibt `operationId` und `actionId`. Pulumi und Helm laufen nicht aus der Agentensitzung. Braucht eine Lösung eine Änderung am Sollzustand, endet der Lauf mit `needs_attention` und benennt die nötige Änderung.
+Ursprünglich durfte der Agent keine Branches, Commits oder Pull Requests erzeugen. Auf Wunsch des Teams kann er jetzt Änderungen vorschlagen: freigegebene Repositories (Standard: dieses Monorepo und `hackathon-platform-affine`) flach klonen, Dateien ändern, auf `agent/<operationId>` pushen und einen Pull Request gegen den Standard-Branch öffnen. Grenzen im Code (`tools/git_repo.py`): Repository-Allowlist, Pfade nur innerhalb der Arbeitskopie, gesperrte Pfade (`.github/workflows/`, zusätzlich fehlt der App das `workflows`-Recht), kein Push auf den Standard-Branch, kein Force-Push, kein Merge. Das Token gelangt nur über `GIT_CONFIG_*`-Umgebungsvariablen an git, nie in argv oder `.git/config`. Push und Pull Request sind Aktionen mit Datensatz vor dem Aufruf; nach einem verlorenen Push gleicht der Adapter den Remote-Stand ab. Ein Pull Request gilt nie als Behebung: Merge und Rollout entscheiden Menschen, der Lauf endet weiter mit `needs_attention`. Workflows startet der Agent weiterhin nur aus der konfigurierten Liste; Pulumi und Helm laufen nicht aus der Agentensitzung.
 
 ### 7. Bekannte Reparatur und nicht reparierbarer Fall
 
@@ -138,7 +139,8 @@ Der Chart legt keine Secrets und keine Ingress-Regel an. Beides liefert B's App-
 - Modell oder SDK unterstützt den geplanten Tool-/Persistenzpfad nicht ausreichend. Der echte Prototyp und gepinnte Versionen klären das vor größerer Integration.
 - Ohne Azure-Messwerte sieht der Agent keine Verlaufsdaten. Alarm-Payload, Kubernetes-Events und eigene HTTP-Prüfungen reichen für die beiden Phase-1-Fälle.
 - Die ClusterRoleBinding gilt clusterweit. Die Zielbeschränkung liegt im Adaptercode; eine Bindung je App-Namespace wäre enger, erfordert aber Objekte in fremden App-Stacks.
-- Der PAT gehört einer Person; Kommentare tragen deren Namen. Der Schleifenschutz hängt deshalb an der Markierung.
+- Im PAT-Rückfall tragen Kommentare den Namen einer Person; der Schleifenschutz hängt deshalb an der Markierung, nicht am Autor.
+- Schreibende Repository-Werkzeuge vergrößern die Wirkung eingeschleuster Anweisungen. Begrenzung: Änderungen landen nur auf Agenten-Branches, wirken erst nach menschlichem Merge, Workflows bleiben gesperrt.
 - Ein Deploy-Workflow kann länger als die Laufzeitgrenze dauern. Dann endet der Lauf mit `needs_attention` und Laufreferenz; der Startwert wird nach dem ersten gemessenen Lauf angepasst.
 - Helm-Hooks laufen nur, wenn B den Chart als Helm-Release ausrollt und nicht nur rendert.
 - Externe Dienste liefern nach Timeout keinen eindeutigen Status. Stabile Korrelation und Adapterabgleich reduzieren die Unsicherheit; verbleibende Fälle bleiben offen.
