@@ -1,0 +1,110 @@
+# Strang D: Tests, Image und Chart des Betriebsagenten; Übergabe an den Sollzustand.
+# Keine Azure-Anmeldung: ACR über den Admin-User aus den Foundation-Ausgaben (E6).
+name: agent-build
+
+on:
+  pull_request:
+    paths:
+      - operations-agent/**
+      - platform/operations/agent/**
+      - .github/workflows/agent-build.yml
+  push:
+    branches: [main]
+    paths:
+      - operations-agent/**
+      - platform/operations/agent/**
+      - .github/workflows/agent-build.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: agent-build-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: operations-agent
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.13.5"
+      - name: Installation aus der Lockdatei
+        run: uv sync --frozen
+      - name: Tests
+        run: uv run --frozen pytest -q
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.18.4
+      - name: Chart prüfen
+        run: |
+          helm lint deploy -f deploy/ci-values.yaml
+          helm template operations-agent deploy -f deploy/ci-values.yaml -n operations-agent-staging > /dev/null
+
+  publish:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      chart-version: ${{ steps.chart.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Foundation-Ausgaben lesen
+        id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.foundation.outputs.acrLoginServer }}
+          username: ${{ steps.foundation.outputs.acrUsername }}
+          password: ${{ steps.foundation.outputs.acrPassword }}
+      - name: Image bauen und pushen
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: operations-agent/Dockerfile
+          target: runtime
+          push: true
+          tags: ${{ steps.foundation.outputs.acrLoginServer }}/operations-agent:${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.18.4
+      - name: Chart veröffentlichen
+        id: chart
+        env:
+          ACR: ${{ steps.foundation.outputs.acrLoginServer }}
+          ACR_USER: ${{ steps.foundation.outputs.acrUsername }}
+          ACR_PASSWORD: ${{ steps.foundation.outputs.acrPassword }}
+        run: |
+          base=$(awk '/^version:/ {print $2}' operations-agent/deploy/Chart.yaml)
+          version="${base%.*}.${GITHUB_RUN_NUMBER}"
+          helm package operations-agent/deploy --version "$version" --app-version "$GITHUB_SHA" -d dist
+          echo "$ACR_PASSWORD" | helm registry login "$ACR" --username "$ACR_USER" --password-stdin
+          helm push "dist/operations-agent-${version}.tgz" "oci://${ACR}/helm"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Agentenpaket"
+            echo "- Image: \`${ACR}/operations-agent@${{ steps.build.outputs.digest }}\`"
+            echo "- Chart: \`oci://${ACR}/helm/operations-agent\` Version \`$version\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  desired-state:
+    needs: publish
+    uses: ./.github/workflows/app-update-desired-state.yml
+    with:
+      appId: operations-agent
+      environment: staging
+      imageDigest: ${{ needs.publish.outputs.image-digest }}
+      chartVersion: ${{ needs.publish.outputs.chart-version }}
+    secrets: inherit
