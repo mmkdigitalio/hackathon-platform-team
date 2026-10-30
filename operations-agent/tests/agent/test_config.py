@@ -24,14 +24,20 @@ def test_provider_switch_by_configuration_only() -> None:
         }
     )
     assert isinstance(build_chat_model(a), ChatAnthropic)
-    assert isinstance(build_chat_model(z), AzureChatOpenAI)
+    azure = build_chat_model(z)
+    assert isinstance(azure, AzureChatOpenAI) and azure.use_responses_api and z.api_version == "2025-04-01-preview"
     assert a.api_key.get_secret_value() == "sk-ant-secret" and z.api_key.get_secret_value() == "az-secret"
 
 
 def test_local_key_from_env_and_no_secret_in_output() -> None:
-    s = model_settings({"ANTHROPIC_API_KEY": "sk-local"})
+    s = model_settings({"OPS_MODEL_PROVIDER": "anthropic", "ANTHROPIC_API_KEY": "sk-local"})
     assert s.model == "claude-sonnet-5-5"
     assert "sk-local" not in repr(s) and "sk-local" not in json.dumps(s.public())
+
+
+def test_azure_is_default_provider() -> None:
+    s = model_settings({"OPS_MODEL_NAME": "gpt-6.1-terra", "OPS_MODEL_ENDPOINT": "https://x.openai.azure.com", "AZURE_OPENAI_API_KEY": "k"})
+    assert s.provider == "azure-openai" and s.responses_api
 
 
 def test_missing_key_and_bad_provider() -> None:

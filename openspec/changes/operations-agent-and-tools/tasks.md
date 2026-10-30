@@ -5,9 +5,9 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 ## 1. Echter Framework-Nachweis, P1-02
 
 - [x] 1.1 Deep-Agents-, Modelladapter- und Persistenzpakete in Manifest und Lockdatei unter `operations-agent/` pinnen; Abschluss durch reproduzierbare Installation aus der Lockdatei prüfen.
-- [ ] 1.2 Modellanbieter Azure OpenAI und Anthropic konfigurierbar anbinden, Keys aus `modelApiKeys` bzw. lokal aus Umgebungsvariablen; Abschluss durch echten Tool-Calling-Lauf mit typisiertem Diagnosewerkzeug und Anbieterwechsel allein per Konfiguration prüfen.
+- [x] 1.2 Modellanbieter Azure OpenAI und Anthropic konfigurierbar anbinden, Keys aus `modelApiKeys` bzw. lokal aus Umgebungsvariablen; Abschluss durch echten Tool-Calling-Lauf mit typisiertem Diagnosewerkzeug und Anbieterwechsel allein per Konfiguration prüfen.
 - [x] 1.3 SDK-Checkpoint-/Store-Anbindung mit den gepinnten Versionen erproben und den Befund an C übergeben; Abschluss durch ein dokumentiertes Persistenzbeispiel ohne konkurrierende Initialisierung prüfen.
-- [ ] 1.4 Prototypstart, Modellkonfiguration und Ergebnisse in `platform/operations/agent/` dokumentieren; Abschluss durch ausgeführten lokalen Start aus der Anleitung prüfen.
+- [x] 1.4 Prototypstart, Modellkonfiguration und Ergebnisse in `platform/operations/agent/` dokumentieren; Abschluss durch ausgeführten lokalen Start aus der Anleitung prüfen.
 
 ## 2. Aufrufbare Agentenausführung
 

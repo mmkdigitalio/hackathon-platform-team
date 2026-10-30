@@ -95,7 +95,7 @@ def run(url: str, thread_id: str, dsn: str | None) -> dict[str, Any]:
     messages = out["messages"][len(before):]
     calls = [{"name": c["name"], "args": c["args"]} for m in messages if isinstance(m, AIMessage) for c in m.tool_calls]
     results = [json.loads(m.content) for m in messages if isinstance(m, ToolMessage) and m.name == "http_probe"]
-    final = next((m.content for m in reversed(messages) if isinstance(m, AIMessage) and not m.tool_calls), "")
+    final = next((m.text for m in reversed(messages) if isinstance(m, AIMessage) and not m.tool_calls), "")
     return {
         "recordedAt": utcnow().isoformat(),
         "packages": {p: version(p) for p in PINNED},
@@ -103,7 +103,7 @@ def run(url: str, thread_id: str, dsn: str | None) -> dict[str, Any]:
         "checkpoint": {**cp_info, "threadId": thread_id, "messagesBefore": len(before), "messagesAfter": len(out["messages"])},
         "toolCalls": calls,
         "toolResults": results,
-        "answer": final if isinstance(final, str) else json.dumps(final, ensure_ascii=False),
+        "answer": final,
         "usage": budget.usage().model_dump(),
     }
 

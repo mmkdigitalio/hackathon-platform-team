@@ -1,0 +1,220 @@
+{
+  "beschreibung": "P1-02: echter Tool-Calling-Lauf über Azure OpenAI (Responses API), Deploymentwechsel nur per OPS_MODEL_NAME, Checkpoint-Fortsetzung über PostgreSQL. Keine Secret-Werte.",
+  "aufruf": "OPS_MODEL_ENDPOINT=https://mmk-hackathon-openai.openai.azure.com/ OPS_MODEL_NAME=<deployment> AZURE_OPENAI_API_KEY=… uv run ops-agent-prototype --url https://example.com [--checkpoint-dsn … --thread-id …]",
+  "laeufe": {
+    "gpt-6.1-terra": {
+      "recordedAt": "2026-10-30T12:06:46.730597+00:00",
+      "packages": {
+        "deepagents": "0.7.32",
+        "langchain": "1.4.7",
+        "langchain-anthropic": "1.7.7",
+        "langchain-openai": "1.7.3",
+        "langgraph": "1.2.18",
+        "langgraph-checkpoint-postgres": "3.2.0",
+        "psycopg": "3.3.6"
+      },
+      "model": {
+        "provider": "azure-openai",
+        "model": "gpt-6.1-terra",
+        "endpoint": "https://mmk-hackathon-openai.openai.azure.com/",
+        "apiVersion": "2025-04-01-preview",
+        "responsesApi": true,
+        "priceInputPerMTok": 2.5,
+        "priceOutputPerMTok": 10.0
+      },
+      "checkpoint": {
+        "type": "memory",
+        "threadId": "p1-02",
+        "messagesBefore": 0,
+        "messagesAfter": 4
+      },
+      "toolCalls": [
+        {
+          "name": "http_probe",
+          "args": {
+            "url": "https://example.com"
+          }
+        }
+      ],
+      "toolResults": [
+        {
+          "url": "https://example.com/",
+          "status_code": 200,
+          "duration_ms": 363,
+          "checked_at": "2026-10-30T12:06:45.256536+00:00",
+          "error_type": null
+        }
+      ],
+      "answer": "https://example.com antwortete mit Status 200 in 363 ms.",
+      "usage": {
+        "provider": "azure-openai",
+        "model": "gpt-6.1-terra",
+        "model_calls": 2,
+        "input_tokens": 321,
+        "output_tokens": 40,
+        "cost_usd": 0.001203
+      }
+    },
+    "gpt-6-luna": {
+      "recordedAt": "2026-10-30T12:06:52.865821+00:00",
+      "packages": {
+        "deepagents": "0.7.32",
+        "langchain": "1.4.7",
+        "langchain-anthropic": "1.7.7",
+        "langchain-openai": "1.7.3",
+        "langgraph": "1.2.18",
+        "langgraph-checkpoint-postgres": "3.2.0",
+        "psycopg": "3.3.6"
+      },
+      "model": {
+        "provider": "azure-openai",
+        "model": "gpt-6-luna",
+        "endpoint": "https://mmk-hackathon-openai.openai.azure.com/",
+        "apiVersion": "2025-04-01-preview",
+        "responsesApi": true,
+        "priceInputPerMTok": 2.5,
+        "priceOutputPerMTok": 10.0
+      },
+      "checkpoint": {
+        "type": "memory",
+        "threadId": "p1-02",
+        "messagesBefore": 0,
+        "messagesAfter": 4
+      },
+      "toolCalls": [
+        {
+          "name": "http_probe",
+          "args": {
+            "url": "https://example.com"
+          }
+        }
+      ],
+      "toolResults": [
+        {
+          "url": "https://example.com/",
+          "status_code": 200,
+          "duration_ms": 123,
+          "checked_at": "2026-10-30T12:06:50.888745+00:00",
+          "error_type": null
+        }
+      ],
+      "answer": "https://example.com antwortete mit Status 200; die Prüfung dauerte 123 ms.",
+      "usage": {
+        "provider": "azure-openai",
+        "model": "gpt-6-luna",
+        "model_calls": 2,
+        "input_tokens": 321,
+        "output_tokens": 44,
+        "cost_usd": 0.001243
+      }
+    },
+    "postgres-lauf-1": {
+      "recordedAt": "2026-10-30T12:07:20.269554+00:00",
+      "packages": {
+        "deepagents": "0.7.32",
+        "langchain": "1.4.7",
+        "langchain-anthropic": "1.7.7",
+        "langchain-openai": "1.7.3",
+        "langgraph": "1.2.18",
+        "langgraph-checkpoint-postgres": "3.2.0",
+        "psycopg": "3.3.6"
+      },
+      "model": {
+        "provider": "azure-openai",
+        "model": "gpt-6.1-terra",
+        "endpoint": "https://mmk-hackathon-openai.openai.azure.com/",
+        "apiVersion": "2025-04-01-preview",
+        "responsesApi": true,
+        "priceInputPerMTok": 2.5,
+        "priceOutputPerMTok": 10.0
+      },
+      "checkpoint": {
+        "type": "postgres",
+        "sdkSchemaVersion": 9,
+        "threadId": "demo-80090",
+        "messagesBefore": 0,
+        "messagesAfter": 4
+      },
+      "toolCalls": [
+        {
+          "name": "http_probe",
+          "args": {
+            "url": "https://example.com"
+          }
+        }
+      ],
+      "toolResults": [
+        {
+          "url": "https://example.com/",
+          "status_code": 200,
+          "duration_ms": 337,
+          "checked_at": "2026-10-30T12:07:18.696388+00:00",
+          "error_type": null
+        }
+      ],
+      "answer": "https://example.com ist erreichbar (HTTP 200); die Anfrage dauerte 337 ms.",
+      "usage": {
+        "provider": "azure-openai",
+        "model": "gpt-6.1-terra",
+        "model_calls": 2,
+        "input_tokens": 321,
+        "output_tokens": 44,
+        "cost_usd": 0.001243
+      }
+    },
+    "postgres-lauf-2": {
+      "recordedAt": "2026-10-30T12:07:26.375145+00:00",
+      "packages": {
+        "deepagents": "0.7.32",
+        "langchain": "1.4.7",
+        "langchain-anthropic": "1.7.7",
+        "langchain-openai": "1.7.3",
+        "langgraph": "1.2.18",
+        "langgraph-checkpoint-postgres": "3.2.0",
+        "psycopg": "3.3.6"
+      },
+      "model": {
+        "provider": "azure-openai",
+        "model": "gpt-6.1-terra",
+        "endpoint": "https://mmk-hackathon-openai.openai.azure.com/",
+        "apiVersion": "2025-04-01-preview",
+        "responsesApi": true,
+        "priceInputPerMTok": 2.5,
+        "priceOutputPerMTok": 10.0
+      },
+      "checkpoint": {
+        "type": "postgres",
+        "sdkSchemaVersion": 9,
+        "threadId": "demo-80090",
+        "messagesBefore": 4,
+        "messagesAfter": 8
+      },
+      "toolCalls": [
+        {
+          "name": "http_probe",
+          "args": {
+            "url": "https://example.com"
+          }
+        }
+      ],
+      "toolResults": [
+        {
+          "url": "https://example.com/",
+          "status_code": 200,
+          "duration_ms": 321,
+          "checked_at": "2026-10-30T12:07:24.942924+00:00",
+          "error_type": null
+        }
+      ],
+      "answer": "https://example.com ist erreichbar (HTTP 200); die Anfrage dauerte 321 ms.",
+      "usage": {
+        "provider": "azure-openai",
+        "model": "gpt-6.1-terra",
+        "model_calls": 2,
+        "input_tokens": 571,
+        "output_tokens": 64,
+        "cost_usd": 0.002067
+      }
+    }
+  }
+}

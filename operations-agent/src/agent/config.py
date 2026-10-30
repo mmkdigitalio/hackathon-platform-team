@@ -30,6 +30,8 @@ class ModelSettings:
     api_key: SecretStr = field(repr=False)
     endpoint: str | None = None
     api_version: str | None = None
+    # Azure: Responses API; die GPT-6-Deployments erlauben Function Tools nicht über Chat Completions.
+    responses_api: bool = True
     price_input_per_mtok: float = 0.0
     price_output_per_mtok: float = 0.0
 
@@ -40,6 +42,7 @@ class ModelSettings:
             "model": self.model,
             "endpoint": self.endpoint,
             "apiVersion": self.api_version,
+            "responsesApi": self.responses_api if self.provider == "azure-openai" else None,
             "priceInputPerMTok": self.price_input_per_mtok,
             "priceOutputPerMTok": self.price_output_per_mtok,
         }
@@ -64,7 +67,7 @@ def _api_key(provider: Provider, env: dict[str, str]) -> SecretStr:
 
 def model_settings(env: dict[str, str] | None = None) -> ModelSettings:
     env = dict(os.environ if env is None else env)
-    provider = env.get("OPS_MODEL_PROVIDER", "anthropic")
+    provider = env.get("OPS_MODEL_PROVIDER", "azure-openai")
     if provider not in PROVIDERS:
         raise ConfigError(f"OPS_MODEL_PROVIDER muss einer von {PROVIDERS} sein, nicht '{provider}'")
     model = env.get("OPS_MODEL_NAME") or ("claude-sonnet-5-5" if provider == "anthropic" else "")
@@ -79,7 +82,8 @@ def model_settings(env: dict[str, str] | None = None) -> ModelSettings:
         model=model,
         api_key=_api_key(provider, env),
         endpoint=endpoint,
-        api_version=env.get("OPS_MODEL_API_VERSION", "2024-10-21") if provider == "azure-openai" else None,
+        api_version=env.get("OPS_MODEL_API_VERSION", "2025-04-01-preview") if provider == "azure-openai" else None,
+        responses_api=env.get("OPS_MODEL_RESPONSES_API", "true").lower() == "true",
         price_input_per_mtok=float(env.get("OPS_MODEL_PRICE_INPUT_PER_MTOK", pin)),
         price_output_per_mtok=float(env.get("OPS_MODEL_PRICE_OUTPUT_PER_MTOK", pout)),
     )

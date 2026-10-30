@@ -12,6 +12,7 @@ data:
   {{- with .Values.model.apiVersion }}
   OPS_MODEL_API_VERSION: {{ . | quote }}
   {{- end }}
+  OPS_MODEL_RESPONSES_API: {{ .Values.model.responsesApi | quote }}
   OPS_MODEL_PRICE_INPUT_PER_MTOK: {{ .Values.model.priceInputPerMTok | quote }}
   OPS_MODEL_PRICE_OUTPUT_PER_MTOK: {{ .Values.model.priceOutputPerMTok | quote }}
   OPS_LIMIT_RUNTIME_SECONDS: {{ .Values.limits.runtimeSeconds | quote }}

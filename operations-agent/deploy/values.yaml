@@ -34,12 +34,13 @@ migrate:
   activeDeadlineSeconds: 600
 
 model:
-  provider: anthropic           # anthropic | azure-openai
-  name: claude-sonnet-5-5       # Modell bzw. Azure-Deploymentname
-  endpoint: ""                  # nur azure-openai
-  apiVersion: ""                # nur azure-openai
-  priceInputPerMTok: "3"
-  priceOutputPerMTok: "15"
+  provider: azure-openai        # azure-openai | anthropic
+  name: gpt-6.1-terra           # Azure-Deploymentname bzw. Anthropic-Modell-ID
+  endpoint: https://mmk-hackathon-openai.openai.azure.com/   # nur azure-openai
+  apiVersion: 2025-04-01-preview                            # nur azure-openai
+  responsesApi: true            # GPT-6-Deployments: Function Tools nur über die Responses API
+  priceInputPerMTok: "2.5"      # Platzhalter, vor Betrieb mit der Preisliste abgleichen
+  priceOutputPerMTok: "10"
 
 limits:
   runtimeSeconds: 600

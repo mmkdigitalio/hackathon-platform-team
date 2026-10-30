@@ -21,6 +21,9 @@ def build_chat_model(s: ModelSettings) -> BaseChatModel:
         api_key=s.api_key,
         timeout=120,
         max_retries=2,
+        use_responses_api=s.responses_api,
+        # Keine Speicherung bei Azure; Reasoning-Zustand reist verschlüsselt im Verlauf mit.
+        **({"store": False, "include": ["reasoning.encrypted_content"]} if s.responses_api else {}),
     )
 
 
