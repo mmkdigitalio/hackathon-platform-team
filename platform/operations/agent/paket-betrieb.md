@@ -55,6 +55,8 @@ Werden über die `secrets:`-Zuordnung in `platform/catalog/operations-agent/app.
 | `OPS_MODEL_API_KEYS` | `modelApiKeys` | D |
 | `OPS_GITHUB_TOKEN` | `opsGithubToken` | D |
 | `OPS_BASE_DOMAIN` | `baseDomain` | D |
+| `OPS_PUBLIC_SCHEME` | `publicScheme` | D (HTTP-Fallback nach E8; fehlt noch im Katalog, siehe uebergaben.md) |
+| `OPS_ACR_LOGIN_SERVER` | `acrLoginServer` | D (Auflösung von `acr:`-Smoke-Images) |
 | `OPS_ACR_LOGIN_SERVER` | `acrLoginServer` | D (löst `acr:`-Smoke-Test-Images aus dem Katalog auf) |
 | `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE` | `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase` | C (Namen legt C fest) |
 | `ALERT_WEBHOOK_KEY`, `MAINTENANCE_API_KEY`, `GITHUB_WEBHOOK_SECRET` | gleichnamige Ausgaben | C (Namen legt C fest) |
@@ -84,7 +86,7 @@ kubectl --context <staging> auth can-i create pods/exec -n affine-staging --as $
 `.github/workflows/agent-build.yml`:
 
 1. Pull Request und `main`: `uv sync --frozen`, Tests, `helm lint`/`helm template`.
-2. Nur `main`: Foundation-Ausgaben über `.github/actions/foundation-outputs`, Login mit dem ACR-Admin-User, Image mit Tag Git-SHA bauen und pushen, Digest ermitteln, Chart als `<major>.<minor>.<run_number>` nach `oci://<acr>/helm` pushen.
+2. Nur `main`, sobald die Repo-Secrets des State-Backends existieren (sonst wird der Schritt mit Hinweis in der Zusammenfassung übersprungen): Foundation-Ausgaben über `.github/actions/foundation-outputs` (Vertragsversion 1), Login mit dem ACR-Admin-User, Image mit Tag Git-SHA bauen und pushen, Digest ermitteln, Chart als `<major>.<minor>.<run_number>` nach `oci://<acr>/helm` pushen.
 3. B's `app-update-desired-state.yml` schreibt Digest und Chart-Version in `platform/environments/staging/operations-agent.yaml`. Den Rollout übernimmt `app-deploy.yml`.
 
 Keine Azure-Anmeldung, nur Repo-Secrets des State-Backends und `OPS_GITHUB_TOKEN` (über `secrets: inherit`).

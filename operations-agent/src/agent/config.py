@@ -133,7 +133,8 @@ def agent_settings(env: dict[str, str] | None = None) -> AgentSettings:
     base_domain = env.get("OPS_BASE_DOMAIN")
     if not base_domain:
         raise ConfigError("OPS_BASE_DOMAIN (Foundation-Ausgabe baseDomain) fehlt")
-    scheme = env.get("OPS_HTTP_SCHEME", "https")
+    # Foundation-Ausgabe publicScheme (http nur im dokumentierten Fallback, E8) hat Vorrang vor dem Chart-Wert.
+    scheme = env.get("OPS_PUBLIC_SCHEME") or env.get("OPS_HTTP_SCHEME", "https")
     if scheme not in ("https", "http"):
         raise ConfigError("OPS_HTTP_SCHEME muss https oder http sein")
     return AgentSettings(
