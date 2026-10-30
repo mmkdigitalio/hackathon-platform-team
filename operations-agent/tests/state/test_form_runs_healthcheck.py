@@ -152,3 +152,12 @@ def test_complete_run_evidence_without_secrets(db_url, platform_root, monkeypatc
     assert cli.main(["runs", "show", job_id]) == 0
     out = capsys.readouterr().out
     assert json.loads(out)["job"]["id"] == job_id and secret not in out
+
+
+def test_private_keys_are_redacted(monkeypatch):
+    from persistence.runs import known_secrets, redact
+
+    pem = "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0geheim\nabc\n-----END RSA PRIVATE KEY-----"
+    monkeypatch.setenv("OPS_GITHUB_APP_PRIVATE_KEY", pem)
+    out = redact({"note": f"Schlüssel: {pem}", "other": pem.replace("\n", "\r\n")}, known_secrets())
+    assert "MIIEowIBAAKCAQEA0geheim" not in str(out)
