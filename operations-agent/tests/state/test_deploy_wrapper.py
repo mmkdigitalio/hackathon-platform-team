@@ -58,6 +58,17 @@ def test_full_deploy_cycle(db_url, tmp_path):
     assert action["id"] == "act-deploy-777-1-affine-staging"
     assert action["status"] == "succeeded" and action["external_refs"]["runUrl"] == RUN_URL
     assert action["detail"]["result"]["success"] is True
+    with connect(db_url) as conn:
+        operation = conn.execute("SELECT status, finished_at FROM operations").fetchone()
+    assert operation["status"] == "completed" and operation["finished_at"] is not None
+
+
+def test_failed_deploy_closes_own_operation_as_failed(db_url, tmp_path):
+    env = env_for(db_url, tmp_path)
+    for step in (("acquire",), ("record", "started"), ("record", "failed"), ("release",)):
+        assert sh(env, *step).returncode == 0, step
+    with connect(db_url) as conn:
+        assert conn.execute("SELECT status FROM operations").fetchone()["status"] == "failed"
 
 
 def test_dispatched_run_correlates_with_agent_action(db_url, tmp_path):
@@ -68,7 +79,11 @@ def test_dispatched_run_correlates_with_agent_action(db_url, tmp_path):
         action = conn.execute("SELECT * FROM actions").fetchone()
     assert action["operation_id"] == "op-agent-1"
     assert action["correlation"] == {"agentActionId": "act-agent-dispatch"}
+    assert sh(env, "record", "succeeded").returncode == 0
     assert sh(env, "release").returncode == 0
+    with connect(db_url) as conn:
+        # Die Operation gehört dem Agenten; der Workflow lässt sie offen.
+        assert conn.execute("SELECT status FROM operations").fetchone()["status"] == "active"
 
 
 def test_lost_lock_fails_check(db_url, tmp_path):

@@ -1,6 +1,7 @@
 # Wiederverwendbar: setzt Image-Digest und Chart-Version im Sollzustand und legt einen Pull Request
-# mit Auto-Merge an. Commit, Push und PR laufen mit OPS_GITHUB_TOKEN, weil mit GITHUB_TOKEN
-# ausgelöste Ereignisse weder app-plan.yml noch nach dem Merge app-deploy.yml starten würden.
+# mit Auto-Merge an. Commit, Push und PR laufen mit einem Installations-Token der GitHub App des
+# Agenten (Schlüssel aus den Foundation-Ausgaben), ersatzweise mit OPS_GITHUB_TOKEN. Mit GITHUB_TOKEN
+# ausgelöste Ereignisse würden weder app-plan.yml noch nach dem Merge app-deploy.yml starten.
 #
 # Aufruf (z. B. aus agent-build.yml):
 #   uses: ./.github/workflows/app-update-desired-state.yml
@@ -42,8 +43,15 @@ on:
         required: false
         default: ""
     secrets:
-      OPS_GITHUB_TOKEN:
+      PULUMI_BACKEND_ACCOUNT:
         required: true
+      PULUMI_BACKEND_KEY:
+        required: true
+      PULUMI_CONFIG_PASSPHRASE:
+        required: true
+      OPS_GITHUB_TOKEN:
+        description: Rückfall, solange githubAppPrivateKey in den Foundation-Ausgaben leer ist
+        required: false
     outputs:
       pullRequestUrl:
         value: ${{ jobs.update.outputs.pullRequestUrl }}
@@ -74,7 +82,37 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: main
-          token: ${{ secrets.OPS_GITHUB_TOKEN }}
+          persist-credentials: false
+      - name: Foundation outputs
+        id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          environment: ${{ inputs.environment }}
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      - name: Token der GitHub App
+        id: app-token
+        if: steps.foundation.outputs.githubAppPrivateKey != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          # GitHub App des Agenten, wie in staging.env und deploy/values.yaml
+          app-id: "5542094"
+          private-key: ${{ steps.foundation.outputs.githubAppPrivateKey }}
+      - name: Schreibzugang festlegen
+        id: token
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          PAT: ${{ secrets.OPS_GITHUB_TOKEN }}
+        run: |
+          token="${APP_TOKEN:-$PAT}"
+          if [[ -z "$token" ]]; then
+            echo "::error::Kein Schreibzugang: githubAppPrivateKey in den Foundation-Ausgaben ist leer und OPS_GITHUB_TOKEN fehlt"
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+          git config --global url."https://x-access-token:${token}@github.com/".insteadOf "https://github.com/"
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -94,7 +132,7 @@ jobs:
         id: pr
         if: steps.set.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.OPS_GITHUB_TOKEN }}
+          GH_TOKEN: ${{ steps.token.outputs.token }}
         run: |
           digest="${IMAGE##*@sha256:}"
           branch="desired-state/$APP_ID-$ENVIRONMENT-${digest:0:12}"

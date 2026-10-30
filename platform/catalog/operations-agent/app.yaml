@@ -18,6 +18,8 @@ dataBlocks: []
 secrets:
   OPS_MODEL_API_KEYS: foundation:modelApiKeys
   OPS_GITHUB_TOKEN: foundation:opsGithubToken
+  OPS_GITHUB_APP_PRIVATE_KEY: foundation:githubAppPrivateKey
+  OPS_PUBLIC_SCHEME: foundation:publicScheme
   OPS_BASE_DOMAIN: foundation:baseDomain
   OPS_ACR_LOGIN_SERVER: foundation:acrLoginServer
   POSTGRES_HOST: foundation:postgresHost

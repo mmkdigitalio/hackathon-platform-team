@@ -5,7 +5,7 @@
 #   ops-lock.sh acquire        Sperre erwerben (max. 15 Minuten warten) oder Break-glass prüfen
 #   ops-lock.sh renew-loop     Sperre im Hintergrund jede Minute erneuern
 #   ops-lock.sh check          Besitz prüfen; Exit != 0 bei verlorenem Besitz
-#   ops-lock.sh release        Sperre freigeben
+#   ops-lock.sh release        Sperre freigeben; eigene Operation (ohne ACTION_ID) abschließen
 #   ops-lock.sh record <status> [ergebnisdatei]   Aktion mit Lauf-URL protokollieren
 #
 # Umgebung: APP_ID, ENVIRONMENT, OPERATION_ID, ACTION_ID (optional), RUN_URL, FORCE (true|false),
@@ -93,7 +93,13 @@ case "${1:?Befehl fehlt}" in
     break_glass && exit 0
     [[ -f "$state_dir/acquired" ]] || exit 0
     owned
-    ops lock release "${target[@]}" "${owned_args[@]}"
+    # Ohne actionId gehört die Operation dem Lauf und wird mit der Sperre abgeschlossen;
+    # bei einem Dispatch des Agenten schließt der Agent seine Operation selbst.
+    finish=()
+    if [[ -z "${ACTION_ID:-}" ]]; then
+      [[ "$(cat "$state_dir/last-status" 2>/dev/null)" == "succeeded" ]] && finish=(--status completed) || finish=(--status failed)
+    fi
+    ops lock release "${target[@]}" "${owned_args[@]}" ${finish[@]+"${finish[@]}"}
     ;;
   record)
     break_glass && exit 0
@@ -111,6 +117,7 @@ case "${1:?Befehl fehlt}" in
           --external-ref "runUrl=$RUN_URL")
     [[ -n "${3:-}" ]] && args+=(--result-file "$3")
     ops actions update "${args[@]}"
+    echo "$status" > "$state_dir/last-status"
     ;;
   *)
     echo "unbekannter Befehl: $1" >&2

@@ -15,4 +15,6 @@ export const FOUNDATION: Record<string, unknown> = {
   postgresAdminUser: "platformadmin",
   postgresAdminPassword: "pg-secret",
   postgresOperationsDatabase: "operations",
+  modelApiKeys: { "azure-openai": "model-secret" },
+  githubAppPrivateKey: "-----BEGIN RSA PRIVATE KEY-----\nabc\n-----END RSA PRIVATE KEY-----\n",
 };

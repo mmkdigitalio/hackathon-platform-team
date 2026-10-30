@@ -130,6 +130,9 @@ describe("App-Stack affine (Platzhalter-Ausgaben)", () => {
   it("legt Datenbank und Login nach App-ID sowie PVC managed-csi an", () => {
     assert.equal(ofType("index/role:Role")[0].inputs.name, "affine");
     assert.equal(ofType("index/database:Database")[0].inputs.name, "affine");
+    const grant = ofType("index/grant:Grant")[0].inputs;
+    assert.deepEqual([grant.database, grant.role, grant.schema, grant.objectType], ["affine", "affine", "public", "schema"]);
+    assert.deepEqual(grant.privileges, ["CREATE", "USAGE"]);
     const pvc = ofType("core/v1:PersistentVolumeClaim")[0].inputs;
     assert.equal(pvc.metadata.name, "affine-data");
     assert.equal(pvc.spec.storageClassName, "managed-csi");
@@ -176,6 +179,9 @@ describe("App-Stack operations-agent (Platzhalter-Ausgaben)", () => {
     assert.equal(release.values.image.repository, "mmkplatformstaging.azurecr.io/operations-agent");
     const secret = ofType("core/v1:Secret").find((r) => r.name === "operations-agent-platform")!.inputs.stringData;
     assert.equal(secret.POSTGRES_PASSWORD, "pg-secret");
+    assert.deepEqual(JSON.parse(secret.OPS_MODEL_API_KEYS), { "azure-openai": "model-secret" });
+    assert.match(secret.OPS_GITHUB_APP_PRIVATE_KEY, /^-----BEGIN RSA PRIVATE KEY-----/);
+    assert.equal(secret.OPS_PUBLIC_SCHEME, "https");
   });
 });
 

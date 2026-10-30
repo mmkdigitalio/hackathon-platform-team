@@ -64,9 +64,12 @@ export function appStack(opts: AppStackOptions) {
     }
     return v;
   });
-  // Jede Ausgabe läuft über die Versionsprüfung, damit bei falschem Vertrag nichts angelegt wird
+  // Jede Ausgabe läuft über die Versionsprüfung, damit bei falschem Vertrag nichts angelegt wird.
+  // Objekte wie modelApiKeys gehen als JSON weiter, nicht als "[object Object]".
   const out = (name: string) =>
-    pulumi.all([contractVersion, foundation.requireOutput(name)]).apply(([, v]) => String(v));
+    pulumi
+      .all([contractVersion, foundation.requireOutput(name)])
+      .apply(([, v]) => (typeof v === "object" && v !== null ? JSON.stringify(v) : String(v)));
   const baseDomain = out("baseDomain");
   const host = pulumi.interpolate`${appId}.${baseDomain}`;
   const acr = { server: out("acrLoginServer"), username: out("acrUsername"), password: pulumi.secret(out("acrPassword")) };

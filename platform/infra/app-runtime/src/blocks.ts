@@ -47,6 +47,13 @@ function postgresDatabase(ctx: BlockContext): BlockResult {
     { name, owner: role.name },
     { provider: ctx.postgres, protect: true },
   );
+  // Auf Azure Flexible Server gehört das Schema public azure_pg_admin; der Datenbankbesitzer darf dort
+  // ohne diese Berechtigung keine Tabellen anlegen ("permission denied for schema public").
+  const schemaGrant = new postgresql.Grant(
+    `${ctx.appId}-postgres-schema-public`,
+    { database: database.name, role: role.name, schema: "public", objectType: "schema", privileges: ["CREATE", "USAGE"] },
+    { provider: ctx.postgres },
+  );
   const url = pulumi.interpolate`postgresql://${name}:${password.result}@${ctx.postgresHost}:5432/${name}?sslmode=${ctx.postgresSslMode}`;
   return {
     secrets: {
@@ -56,7 +63,7 @@ function postgresDatabase(ctx: BlockContext): BlockResult {
       "postgres-password": password.result,
       "postgres-url": pulumi.secret(url),
     },
-    resources: [role, database],
+    resources: [role, database, schemaGrant],
   };
 }
 
