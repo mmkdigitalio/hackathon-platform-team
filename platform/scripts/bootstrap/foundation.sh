@@ -4,6 +4,7 @@
 # the state backend from the bootstrap and passes secrets only through stdin.
 #
 #   foundation.sh <env-file> secrets     store model keys, webhook secret and GitHub App key as stack secrets
+#   foundation.sh <env-file> app-key     store or rotate only the GitHub App key (GITHUB_APP_PRIVATE_KEY_FILE)
 #   foundation.sh <env-file> preview [pulumi args, e.g. --expect-no-changes]
 #   foundation.sh <env-file> up          deploy after confirmation, then print the summary
 #   foundation.sh <env-file> outputs     non-secret view of the output contract
@@ -20,8 +21,8 @@ config_file="${1:-}"
 command="${2:-}"
 load_bootstrap_env "$config_file"
 require_tools az pulumi npm node git
-[[ "$command" =~ ^(secrets|preview|up|outputs|ingress-check)$ ]] ||
-    die "Usage: $0 <env-file> secrets|preview|up|outputs|ingress-check"
+[[ "$command" =~ ^(secrets|app-key|preview|up|outputs|ingress-check)$ ]] ||
+    die "Usage: $0 <env-file> secrets|app-key|preview|up|outputs|ingress-check"
 [[ -n "${PULUMI_CONFIG_PASSPHRASE:-}" ]] || die "PULUMI_CONFIG_PASSPHRASE is not set (team password manager)."
 
 az account set --subscription "$SUBSCRIPTION_ID"
@@ -112,15 +113,19 @@ MANIFEST
     die "Neither https nor http://$host/ answers: check Traefik and the load balancer."
 }
 
+check_app_key_file() {
+    [[ -n "${GITHUB_APP_PRIVATE_KEY_FILE:-}" ]] ||
+        die "GITHUB_APP_PRIVATE_KEY_FILE is not set: path to the private key (.pem) of the agent's GitHub App."
+    require_tools openssl
+    # The agent signs without a passphrase; an encrypted or broken key would fail only there.
+    openssl pkey -in "$GITHUB_APP_PRIVATE_KEY_FILE" -noout -passin pass: >/dev/null 2>&1 ||
+        die "$GITHUB_APP_PRIVATE_KEY_FILE is not an unencrypted PEM private key."
+}
+
 case "$command" in
     secrets)
         [[ -n "${GITHUB_WEBHOOK_SECRET:-}" ]] || die "GITHUB_WEBHOOK_SECRET is not set."
-        [[ -n "${GITHUB_APP_PRIVATE_KEY_FILE:-}" ]] ||
-            die "GITHUB_APP_PRIVATE_KEY_FILE is not set: path to the private key (.pem) of the agent's GitHub App."
-        require_tools openssl
-        # The agent signs without a passphrase; an encrypted or broken key would fail only there.
-        openssl pkey -in "$GITHUB_APP_PRIVATE_KEY_FILE" -noout -passin pass: >/dev/null 2>&1 ||
-            die "$GITHUB_APP_PRIVATE_KEY_FILE is not an unencrypted PEM private key."
+        check_app_key_file
         [[ -n "${MODEL_KEY_ANTHROPIC:-}${MODEL_KEY_AZURE_OPENAI:-}" ]] ||
             die "Set MODEL_KEY_ANTHROPIC and/or MODEL_KEY_AZURE_OPENAI; the agent needs at least one model key."
         set_secret_config githubWebhookSecret "$GITHUB_WEBHOOK_SECRET"
@@ -136,6 +141,11 @@ case "$command" in
             set_secret_config 'modelApiKeys["azure-openai"]' "$MODEL_KEY_AZURE_OPENAI"
         fi
         log "Stored encrypted in Pulumi.$ENVIRONMENT.yaml; commit that file. Run 'up' to pass them on as outputs, then delete the downloaded .pem."
+        ;;
+    app-key)
+        check_app_key_file
+        set_secret_config githubAppPrivateKey "$(<"$GITHUB_APP_PRIVATE_KEY_FILE")"
+        log "Stored encrypted in Pulumi.$ENVIRONMENT.yaml; commit that file. Run 'up' to pass it on as output githubAppPrivateKey, then delete the downloaded .pem."
         ;;
     preview)
         pulumi preview --diff --stack "$FOUNDATION_STACK" "${@:3}"

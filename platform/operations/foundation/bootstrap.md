@@ -241,6 +241,14 @@ GITHUB_APP_PRIVATE_KEY_FILE=<path to the .pem file> \
 platform/scripts/bootstrap/foundation.sh platform/scripts/bootstrap/staging.env up
 ```
 
+To store or rotate only the key, without the other values, use `app-key` instead of
+`secrets`:
+
+```bash
+GITHUB_APP_PRIVATE_KEY_FILE=<path to the .pem file> \
+  platform/scripts/bootstrap/foundation.sh platform/scripts/bootstrap/staging.env app-key
+```
+
 `secrets` needs the other values as well ([stack secrets](#stack-secrets)); commit
 `Pulumi.staging.yaml` through a pull request before `up`
 ([step 5](#step-5-preview-and-deploy)). After `up`, delete the downloaded `.pem` file.
