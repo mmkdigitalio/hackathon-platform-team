@@ -27,8 +27,8 @@ export = appStack({
   gitSha: config.get("gitSha") ?? "local",
   operationId: config.get("operationId") ?? `local-${Date.now()}`,
   storageClass: config.get("storageClass") ?? "managed-csi",
-  ingressClassName: config.get("ingressClassName") ?? "nginx",
-  clusterIssuer: config.get("clusterIssuer") ?? "letsencrypt",
-  tls: config.getBoolean("tls") ?? true,
+  ingressClassName: config.get("ingressClassName"),
+  clusterIssuer: config.get("clusterIssuer"),
+  publicScheme: config.get("publicScheme") as "https" | "http" | undefined,
   postgresSslMode: config.get("postgresSslMode") ?? "require",
 });

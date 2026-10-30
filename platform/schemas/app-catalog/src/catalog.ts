@@ -28,6 +28,9 @@ export interface ValidationResult {
 /** Verträge aus Strang A, gegen die der Katalog geprüft wird. */
 export interface Contracts {
   appIdPattern: RegExp;
+  /** Zweites Muster aus conventions.json (Host-Label endet nicht mit Bindestrich) */
+  appIdEndPattern?: RegExp;
+  reservedAppIds: Set<string>;
   environments: string[];
   foundationOutputs: Set<string>;
 }
@@ -101,7 +104,7 @@ export interface ContractPaths {
 
 /**
  * Lädt die Verträge aus A's Bereich. Erwartete Form:
- * - conventions: JSON mit `appId.pattern` und `environments` (Liste)
+ * - conventions: JSON mit `appId.pattern`, optional `appId.endPattern` und `appId.reserved`, sowie `environments`
  * - foundationOutputs: JSON-Schema mit einer Eigenschaft je Ausgabe unter `properties`
  * Fehlen die Dateien, ist das ein Lieferpunkt von A und die Validierung bricht ab.
  */
@@ -124,7 +127,10 @@ export function loadContracts(repoRoot: string = findRepoRoot(), paths: Contract
     }
   }
 
-  const conventions = readJson<{ appId?: { pattern?: string }; environments?: string[] }>(conventionsFile);
+  const conventions = readJson<{
+    appId?: { pattern?: string; endPattern?: string; reserved?: string[] };
+    environments?: string[];
+  }>(conventionsFile);
   if (!conventions.appId?.pattern || !Array.isArray(conventions.environments)) {
     throw new Error(`${conventionsFile}: erwartet appId.pattern und environments`);
   }
@@ -133,6 +139,8 @@ export function loadContracts(repoRoot: string = findRepoRoot(), paths: Contract
 
   return {
     appIdPattern: new RegExp(conventions.appId.pattern),
+    appIdEndPattern: conventions.appId.endPattern ? new RegExp(conventions.appId.endPattern) : undefined,
+    reservedAppIds: new Set(conventions.appId.reserved ?? []),
     environments: conventions.environments,
     foundationOutputs: new Set(Object.keys(outputs.properties)),
   };
@@ -231,6 +239,11 @@ export function validateCatalogEntry(
 
   if (!contracts.appIdPattern.test(expectedAppId)) {
     errors.push({ file, path: "/", message: `App-ID '${expectedAppId}' verletzt die Konvention ${contracts.appIdPattern}` });
+  } else if (contracts.appIdEndPattern && !contracts.appIdEndPattern.test(expectedAppId)) {
+    errors.push({ file, path: "/", message: `App-ID '${expectedAppId}' verletzt die Konvention ${contracts.appIdEndPattern}` });
+  }
+  if (contracts.reservedAppIds.has(expectedAppId)) {
+    errors.push({ file, path: "/", message: `App-ID '${expectedAppId}' ist laut Konvention reserviert` });
   }
   if (typeof entry.appId === "string" && entry.appId !== expectedAppId) {
     errors.push({ file, path: "/appId", message: `appId '${entry.appId}' passt nicht zum Verzeichnis '${expectedAppId}'` });

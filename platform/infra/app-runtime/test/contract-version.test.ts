@@ -6,8 +6,6 @@ import { FOUNDATION } from "./foundation-fixture";
 
 const repoRoot = path.resolve(__dirname, "../../../..");
 const catalogDir = path.join(repoRoot, "platform/schemas/app-catalog");
-process.env.APP_CATALOG_CONVENTIONS = path.join(catalogDir, "test/fixtures/conventions.json");
-process.env.APP_CATALOG_FOUNDATION_OUTPUTS = path.join(catalogDir, "test/fixtures/foundation-outputs.schema.json");
 
 // Fehlgeschlagene Registrierungen erscheinen als unbehandelte Ablehnungen; hier sind sie das erwartete Ergebnis
 const rejections: string[] = [];
@@ -45,9 +43,6 @@ it("bricht bei anderer contractVersion ab, bevor eine Kubernetes- oder Datenbank
     gitSha: "local",
     operationId: "op-test",
     storageClass: "managed-csi",
-    ingressClassName: "nginx",
-    clusterIssuer: "letsencrypt",
-    tls: true,
     postgresSslMode: "require",
   });
   await new Promise((r) => setTimeout(r, 500));

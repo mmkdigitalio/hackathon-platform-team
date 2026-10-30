@@ -24,9 +24,10 @@ export interface AppStackOptions {
   /** Rollout-Markierung; ändert sich je Lauf und erzwingt so ein Helm-Upgrade mit Drei-Wege-Merge. */
   operationId: string;
   storageClass: string;
-  ingressClassName: string;
-  clusterIssuer: string;
-  tls: boolean;
+  /** Lokale Übersteuerungen; sonst gelten die Foundation-Ausgaben ingressClassName, clusterIssuerName, publicScheme. */
+  ingressClassName?: string;
+  clusterIssuer?: string;
+  publicScheme?: "https" | "http";
   postgresSslMode: string;
 }
 
@@ -152,7 +153,11 @@ export function appStack(opts: AppStackOptions) {
 
   const image = acr.server.apply((server) => resolveImage(app.desired.image, server));
   const release = { gitSha: opts.gitSha, imageDigest: imageDigest(app.desired.image), chartVersion: app.desired.chart.version };
-  const scheme = opts.tls ? "https" : "http";
+  // http nur, solange A den dokumentierten Let's-Encrypt-Fallback (E8) aktiviert hat
+  const scheme = opts.publicScheme ? pulumi.output(opts.publicScheme) : out("publicScheme");
+  const tls = scheme.apply((s) => s === "https");
+  const ingressClassName = opts.ingressClassName ?? out("ingressClassName");
+  const clusterIssuer = opts.clusterIssuer ?? out("clusterIssuerName");
 
   // Werte-Vertrag mit den Charts, siehe platform/schemas/app-catalog/README.md
   const desiredValues = app.desired.values ?? {};
@@ -204,11 +209,13 @@ export function appStack(opts: AppStackOptions) {
         name: appId,
         namespace: ns,
         labels,
-        annotations: opts.tls ? { "cert-manager.io/cluster-issuer": opts.clusterIssuer } : {},
+        annotations: pulumi
+          .all([tls, clusterIssuer])
+          .apply(([t, issuer]): Record<string, string> => (t ? { "cert-manager.io/cluster-issuer": issuer } : {})),
       },
       spec: {
-        ingressClassName: opts.ingressClassName,
-        tls: opts.tls ? [{ hosts: [host], secretName: `${appId}-tls` }] : undefined,
+        ingressClassName,
+        tls: pulumi.all([tls, host]).apply(([t, h]) => (t ? [{ hosts: [h], secretName: `${appId}-tls` }] : [])),
         rules: [
           {
             host,

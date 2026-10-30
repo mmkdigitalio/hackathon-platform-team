@@ -141,6 +141,8 @@ jobs:
           backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
           backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
           config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          environment: ${{ matrix.environment }}
+          expected-contract-version: ${{ env.FOUNDATION_CONTRACT_VERSION }}
       - name: Vertragsversion der Foundation-Ausgaben
         id: contract
         env:

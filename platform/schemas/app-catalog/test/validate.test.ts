@@ -6,10 +6,8 @@ import { formatIssues, loadContracts, validateTree } from "../src/catalog";
 
 const base = path.resolve(__dirname, "..");
 const repoRoot = path.resolve(base, "../../..");
-const contracts = loadContracts(repoRoot, {
-  conventions: path.join(base, "test/fixtures/conventions.json"),
-  foundationOutputs: path.join(base, "test/fixtures/foundation-outputs.schema.json"),
-});
+// A's Verträge unter platform/schemas/conventions/ und platform/schemas/foundation-outputs/
+const contracts = loadContracts(repoRoot);
 const tree = (dir: string) => ({ catalogDir: path.join(dir, "catalog"), environmentsDir: path.join(dir, "environments") });
 
 describe("gültige Beispiele", () => {
