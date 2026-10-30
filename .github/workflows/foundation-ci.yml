@@ -7,13 +7,17 @@ on:
     paths:
       - platform/**
       - .github/actions/foundation-outputs/**
-      - .github/workflows/foundation-*.yml
+      - .github/CODEOWNERS
+      # The contract tests check every workflow that uses the foundation-outputs action.
+      - .github/workflows/**
   push:
     branches: [main]
     paths:
       - platform/**
       - .github/actions/foundation-outputs/**
-      - .github/workflows/foundation-*.yml
+      - .github/CODEOWNERS
+      # The contract tests check every workflow that uses the foundation-outputs action.
+      - .github/workflows/**
 
 permissions:
   contents: read
@@ -36,6 +40,8 @@ jobs:
           cache: npm
           cache-dependency-path: platform/package-lock.json
       - run: npm ci
+      - name: Shellcheck bootstrap scripts
+        run: shellcheck -x scripts/bootstrap/*.sh
       - name: Build and test
         run: npm test
       - name: Placeholder outputs through the composite action

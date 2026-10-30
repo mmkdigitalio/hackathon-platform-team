@@ -4,8 +4,8 @@ A startet sofort. B, C und D brauchen früh die Konventionen und das Ausgabe-Sch
 
 ## 1. Monorepo und Konventionen, P1-01
 
-- [ ] 1.1 Monorepo-Gerüst mit `platform/`, `operations-agent/`, `.github/` und `CODEOWNERS` gemäß Dateizuständigkeit anlegen; Abschluss durch Zuordnung jedes Verzeichnisses zu einem Strang prüfen.
-- [ ] 1.2 Konventionen für App-ID, Umgebungen, abgeleitete Namen, Tags und Release-Referenz unter `platform/schemas/conventions/` mit Prüfskript veröffentlichen; Abschluss durch abgelehnte App-ID `Demo_App` und korrekt abgeleitete Namen für `affine` prüfen.
+- [x] 1.1 Monorepo-Gerüst mit `platform/`, `operations-agent/`, `.github/` und `CODEOWNERS` gemäß Dateizuständigkeit anlegen; Abschluss durch Zuordnung jedes Verzeichnisses zu einem Strang prüfen.
+- [x] 1.2 Konventionen für App-ID, Umgebungen, abgeleitete Namen, Tags und Release-Referenz unter `platform/schemas/conventions/` mit Prüfskript veröffentlichen; Abschluss durch abgelehnte App-ID `Demo_App` und korrekt abgeleitete Namen für `affine` prüfen.
 - [ ] 1.3 Ausgabe-Schema v0 unter `platform/schemas/foundation-outputs/` mit Platzhalterwerten veröffentlichen; Abschluss durch Bestätigung von B, C und D, dass sie dagegen entwickeln können.
 
 ## 2. Bootstrap und Zugänge, P1-03

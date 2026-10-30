@@ -29,6 +29,15 @@ test("spec: baseDomain is the ingress IP with dashes under sslip.io", () => {
     assert.deepEqual(run.outputs.modelApiKeys, { "azure-openai": "aoai-test-key" });
 });
 
+test("platformVersions reports the configured component versions", () => {
+    assert.deepEqual(run.outputs.platformVersions, {
+        kubernetes: "1.34.0",
+        traefikChart: "42.1.3",
+        certManagerChart: "v1.21.3",
+        postgres: "16",
+    });
+});
+
 test("program exports every contract output", () => {
     for (const key of Object.keys(schema.properties)) {
         assert.ok(key in run.program, `missing export ${key}`);
@@ -130,6 +139,8 @@ test("data: 7 days of backups, open firewall with TLS, operations database, 30-d
     assert.deepEqual([firewall.inputs.startIpAddress, firewall.inputs.endIpAddress], ["0.0.0.0", "255.255.255.255"]);
     assert.equal(one("azure-native:dbforpostgresql:Configuration", "postgres-require-tls").inputs.value, "on");
     assert.equal(one("azure-native:dbforpostgresql:Database", "operations").inputs.databaseName, "operations");
+    const password = one("random:index/randomPassword:RandomPassword", "postgres-admin");
+    assert.deepEqual([password.inputs.minUpper, password.inputs.minLower, password.inputs.minNumeric], [1, 1, 1]);
     const policy = one("azure-native:storage:ManagementPolicy", "diagnostics-retention");
     assert.equal(policy.inputs.policy.rules[0].definition.actions.baseBlob.delete.daysAfterModificationGreaterThan, 30);
 });
@@ -143,6 +154,8 @@ test("ingress: Traefik without HTTPS redirect, Let's Encrypt HTTP-01 issuer on t
     assert.equal(issuer.inputs.spec.acme.email, "platform-team@example.org");
     assert.equal(run.outputs.clusterIssuerName, "letsencrypt");
     assert.equal(run.outputs.ingressClassName, "traefik");
+    const service = run.resources.find((r) => r.type === "kubernetes:core/v1:Service" && r.read);
+    assert.equal(service.id, "platform-ingress/traefik", "baseDomain comes from the chart's LoadBalancer service");
 });
 
 test("container insights is enabled through a data collection rule without role assignment", () => {

@@ -16,7 +16,10 @@ inputs:
     description: Pulumi passphrase (secret PULUMI_CONFIG_PASSPHRASE).
     required: false
   expected-contract-version:
-    description: Contract version the caller was written against.
+    description: >
+      Contract version the caller was written against. The default stays "1" when the
+      contract moves on, so callers without this input fail on a new version instead of
+      reading it unchecked; new callers should set it explicitly.
     required: false
     default: "1"
   environment:
@@ -126,6 +129,9 @@ outputs:
   publicScheme:
     description: See foundation-outputs.schema.json.
     value: ${{ steps.read.outputs.publicScheme }}
+  platformVersions:
+    description: Optional; JSON object of component versions. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.platformVersions }}
 runs:
   using: composite
   steps:

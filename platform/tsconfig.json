@@ -13,5 +13,5 @@
     "sourceMap": true,
     "types": ["node"]
   },
-  "include": ["infra/**/*.ts", "schemas/**/*.ts"]
+  "include": ["infra/foundation/**/*.ts", "infra/components/**/*.ts", "schemas/conventions/**/*.ts"]
 }

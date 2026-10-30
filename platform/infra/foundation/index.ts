@@ -88,3 +88,9 @@ export const maintenanceApiKey = pulumi.secret(maintenanceKey);
 export const githubWebhookSecret = pulumi.secret(cfg.githubWebhookSecret);
 export const modelApiKeys = pulumi.secret(cfg.modelApiKeys);
 export const opsGithubToken = pulumi.secret(cfg.opsGithubToken);
+export const platformVersions = {
+    kubernetes: cfg.kubernetesVersion,
+    traefikChart: cfg.traefikChartVersion,
+    certManagerChart: cfg.certManagerChartVersion,
+    postgres: cfg.postgres.version,
+};

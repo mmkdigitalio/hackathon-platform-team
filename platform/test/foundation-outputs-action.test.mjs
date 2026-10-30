@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -26,10 +26,18 @@ const example = JSON.parse(
 
 const kubeconfig = [
     "apiVersion: v1",
+    "kind: Config",
     "clusters:",
     "- cluster:",
     "    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0t",
     "    server: https://mmk-platform-staging.hcp.germanywestcentral.azmk8s.io:443",
+    "  name: aks-mmk-platform-staging",
+    "contexts:",
+    "- context:",
+    "    cluster: aks-mmk-platform-staging",
+    "    user: clusterAdmin_rg-mmk-platform-staging_aks-mmk-platform-staging",
+    "  name: aks-mmk-platform-staging",
+    "current-context: aks-mmk-platform-staging",
     "users:",
     "- name: clusterAdmin",
     "  user:",
@@ -72,9 +80,16 @@ test("secrets are masked whole, per line and per embedded YAML value", () => {
     ]) {
         assert.ok(masks.includes(`::add-mask::${expected}`), expected);
     }
-    assert.ok(!masks.includes("::add-mask::v1"), "short YAML values are not masked on their own");
+    for (const visible of ["v1", "apiVersion: v1", "kind: Config", "users:", "aks-mmk-platform-staging"]) {
+        assert.ok(!masks.includes(`::add-mask::${visible}`), `${visible} stays visible`);
+    }
     assert.ok(!masks.some((m) => m.includes("\n")), "a mask command never spans lines");
     assert.ok(!masks.some((m) => m.includes("acrmmkplatform")), "non-secret values stay visible");
+});
+
+test("mask values are escaped like @actions/core, so the runner registers the real value", () => {
+    const masks = maskCommands({ githubWebhookSecret: "abc%25def\rx" }, ["githubWebhookSecret"]);
+    assert.deepEqual(masks, ["::add-mask::abc%2525def%0Dx"]);
 });
 
 test("multi-line values use the heredoc step-output form", () => {
@@ -151,8 +166,41 @@ test("spec scenario: the action reads the placeholder outputs end to end", () =>
             GITHUB_OUTPUT: outputFile,
         },
     });
-    assert.match(stdout, /Read 30 foundation outputs \(placeholder\)/);
+    assert.match(stdout, /Read 31 foundation outputs \(placeholder\)/);
     assert.match(readFileSync(outputFile, "utf8"), /^baseDomain=203-0-113-10\.sslip\.io$/m);
+});
+
+test("source stack masks every output Pulumi holds as secret, also ones unknown to the schema", () => {
+    const bin = mkdtempSync(join(tmpdir(), "fake-pulumi-"));
+    const full = { ...outputs, futureSecret: "future-secret-value-123" };
+    const plain = Object.fromEntries(
+        Object.entries(full).map(([name, value]) => [name, name === "futureSecret" || secretOutputNames(schema).includes(name) ? "[secret]" : value]),
+    );
+    writeFileSync(join(bin, "full.json"), JSON.stringify(full));
+    writeFileSync(join(bin, "plain.json"), JSON.stringify(plain));
+    writeFileSync(
+        join(bin, "pulumi"),
+        `#!/bin/sh\ncase "$*" in\n  "stack output --json --show-secrets --stack organization/foundation/staging") cat "${bin}/full.json" ;;\n  "stack output --json --stack organization/foundation/staging") cat "${bin}/plain.json" ;;\n  *) exit 99 ;;\nesac\n`,
+    );
+    chmodSync(join(bin, "pulumi"), 0o755);
+    const outputFile = tempFile();
+    const stdout = execFileSync(process.execPath, [new URL("read-outputs.mjs", actionDir).pathname], {
+        encoding: "utf8",
+        env: {
+            PATH: `${bin}:${process.env.PATH}`,
+            OUTPUTS_SOURCE: "stack",
+            FOUNDATION_STACK: "organization/foundation/staging",
+            EXPECTED_CONTRACT_VERSION: "1",
+            GITHUB_OUTPUT: outputFile,
+            AZURE_STORAGE_ACCOUNT: "stmmkstate",
+            AZURE_STORAGE_KEY: "state-key",
+            PULUMI_CONFIG_PASSPHRASE: "passphrase",
+        },
+    });
+    assert.match(stdout, /^::add-mask::future-secret-value-123$/m);
+    assert.match(stdout, /^::add-mask::pg-secret$/m);
+    assert.match(stdout, /Read 32 foundation outputs \(stack\)/);
+    assert.match(readFileSync(outputFile, "utf8"), /^futureSecret=future-secret-value-123$/m);
 });
 
 test("spec scenario: a wrong expected contract version fails the action", () => {
@@ -178,9 +226,26 @@ test("action.yml declares one output per contract property and the inputs consum
     for (const [name, output] of Object.entries(action.outputs)) {
         assert.equal(output.value, `\${{ steps.read.outputs.${name} }}`, name);
     }
-    // Inputs used by .github/workflows/agent-build.yml (strand D).
-    for (const input of ["backend-account", "backend-key", "config-passphrase"]) {
-        assert.ok(input in action.inputs, input);
-    }
     assert.equal(action.inputs["expected-contract-version"].default, "1");
+});
+
+test("every workflow in the repository uses only inputs and outputs the action declares", () => {
+    const action = YAML.parse(readFileSync(new URL("action.yml", actionDir), "utf8"));
+    const workflowsDir = new URL("../../.github/workflows/", import.meta.url);
+    let consumers = 0;
+    for (const file of readdirSync(workflowsDir).filter((name) => /\.ya?ml$/.test(name))) {
+        const text = readFileSync(new URL(file, workflowsDir), "utf8");
+        const steps = Object.values(YAML.parse(text).jobs ?? {}).flatMap((job) => job.steps ?? []);
+        for (const step of steps.filter((s) => s.uses === "./.github/actions/foundation-outputs")) {
+            consumers += 1;
+            for (const input of Object.keys(step.with ?? {})) {
+                assert.ok(input in action.inputs, `${file}: unknown input ${input}`);
+            }
+            if (!step.id) continue;
+            for (const [, name] of text.matchAll(new RegExp(`steps\\.${step.id}\\.outputs\\.([A-Za-z]+)`, "g"))) {
+                assert.ok(name in action.outputs, `${file}: unknown output ${name}`);
+            }
+        }
+    }
+    assert.ok(consumers >= 2, "the foundation workflows use the action");
 });

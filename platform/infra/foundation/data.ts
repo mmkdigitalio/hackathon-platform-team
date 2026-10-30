@@ -25,6 +25,10 @@ export function createData({ cfg, resourceGroupName, suffix, tags }: DataArgs) {
         length: 32,
         special: true,
         overrideSpecial: "-_",
+        // Azure requires three of four character classes; guarantee them.
+        minUpper: 1,
+        minLower: 1,
+        minNumeric: 1,
     });
 
     const postgres = new azure.dbforpostgresql.Server(

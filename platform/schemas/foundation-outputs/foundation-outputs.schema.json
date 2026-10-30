@@ -79,6 +79,18 @@
     "publicScheme": {
       "enum": ["https", "http"],
       "description": "Addition: scheme of availability tests and the ops-intake webhook; http only while the documented Let's Encrypt fallback is active."
+    },
+    "platformVersions": {
+      "type": "object",
+      "description": "Addition, optional: component versions configured for the last foundation run (Kubernetes, Traefik and cert-manager charts, PostgreSQL) for run summaries and upgrade notes.",
+      "required": ["kubernetes", "traefikChart", "certManagerChart", "postgres"],
+      "properties": {
+        "kubernetes": { "type": "string", "minLength": 1 },
+        "traefikChart": { "type": "string", "minLength": 1 },
+        "certManagerChart": { "type": "string", "minLength": 1 },
+        "postgres": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": { "type": "string", "minLength": 1 }
     }
   },
   "additionalProperties": true

@@ -52,15 +52,26 @@ known only after the first foundation run and is read from the output contract.
 ```bash
 cd platform
 npm ci
-npm test                                   # compile, unit tests, Pulumi mock tests
+npm test                                   # compile, unit tests, Pulumi mock tests, script tests
 npm run conventions -- app-id Demo_App     # exits 1: invalid app ID
 npm run conventions -- names affine staging
+shellcheck -x scripts/bootstrap/*.sh
 ```
 
-Nothing here touches Azure or GitHub. Consumers can develop against the placeholder
+The script tests run the bootstrap scripts against stub commands and need bash >= 4.4
+(macOS: `brew install bash`); without it they are skipped. Nothing here touches Azure or
+GitHub. Consumers can develop against the placeholder
 outputs in [`schemas/foundation-outputs/example.staging.json`](schemas/foundation-outputs/example.staging.json)
 or with `source: placeholder` in the composite action.
 
 ## Documentation
 
+- [Bootstrap](operations/foundation/bootstrap.md): prerequisites, preflight, state backend,
+  first foundation run and access check
+- [Operations](operations/foundation/operations.md): upgrades, stop and start, recovery of
+  cluster, state and database, accepted staging risks
+- [Monitoring](operations/foundation/monitoring.md): alert routing, agent health signal,
+  budget, Container Insights, test notifications
 - [Handover](operations/foundation/handover.md): output contract and how B, C and D read it
+- [Decisions](operations/foundation/decisions.md): implementation decisions of strand A
+  (proposed, pending owner decision)

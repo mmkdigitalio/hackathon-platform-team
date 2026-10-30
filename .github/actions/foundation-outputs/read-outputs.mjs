@@ -14,9 +14,13 @@ const schemaDir = join(here, "../../../platform/schemas/foundation-outputs");
 export const defaultSchemaPath = join(schemaDir, "foundation-outputs.schema.json");
 export const placeholderPath = join(schemaDir, "example.staging.json");
 
-// Values shorter than this inside a multi-line secret (YAML keys, "apiVersion: v1") are
+// Lines shorter than this inside a multi-line secret (YAML keys, "apiVersion: v1") are
 // not worth masking and would black out unrelated log text.
 const minEmbeddedValueLength = 16;
+
+// Embedded YAML values are masked on their own only under keys that carry credentials,
+// so that plain values such as the cluster name in a kubeconfig stay visible.
+const credentialKey = /(-data|token|password|secret|key)$/i;
 
 export class ContractError extends Error {}
 
@@ -40,18 +44,21 @@ function asText(value) {
     return typeof value === "string" ? value : JSON.stringify(value);
 }
 
-/** Every string worth masking in one secret value: the value, each line, and YAML values (kubeconfig). */
+/** Every string worth masking in one secret value: the value, long lines, and credential YAML values (kubeconfig). */
 function maskValues(text) {
     const values = new Set([text]);
     for (const line of text.split(/\r?\n/)) {
         const trimmed = line.trim();
-        if (trimmed === "") continue;
+        if (trimmed.length < minEmbeddedValueLength) continue;
         values.add(trimmed);
-        const yamlValue = trimmed.match(/^[\w.-]+:\s+(.+)$/)?.[1]?.trim();
-        if (yamlValue && yamlValue.length >= minEmbeddedValueLength) values.add(yamlValue);
+        const [, key, value] = trimmed.match(/^-?\s*([\w.-]+):\s+(.+)$/) ?? [];
+        if (key && credentialKey.test(key) && value.trim().length >= minEmbeddedValueLength) values.add(value.trim());
     }
     return [...values].filter((value) => value.trim() !== "" && !value.includes("\n"));
 }
+
+/** Workflow-command escaping as in @actions/core, so the runner registers the exact value. */
+const escapeCommandData = (value) => value.replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 
 /** Workflow commands that mask every secret value, line by line, including object members. */
 export function maskCommands(outputs, secretNames) {
@@ -64,7 +71,7 @@ export function maskCommands(outputs, secretNames) {
         const texts = isObject ? [asText(raw), ...Object.values(raw).map(asText)] : [asText(raw)];
         for (const text of texts) maskValues(text).forEach((value) => values.add(value));
     }
-    return [...values].map((value) => `::add-mask::${value}`);
+    return [...values].map((value) => `::add-mask::${escapeCommandData(value)}`);
 }
 
 /** Step-output file content; multi-line values use the heredoc form. */

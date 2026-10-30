@@ -1,0 +1,53 @@
+# File ownership per openspec/PARALLEL-IMPLEMENTATION.md ("Dateizuständigkeit im Monorepo").
+# The last matching pattern wins. Changes to another strand's area are handed to its owner.
+#
+# Strand A: @juergAIn91        platform-foundation
+# Strand B: @WHOAFTS           app-delivery-and-onboarding
+# Strand C: @ConstantinSilb    operations-intake-and-state
+# Strand D: @FlyWieEinAirplane operations-agent-and-tools
+#
+# Owners follow the strand markers in the commit history; update the header and the
+# rules together when a strand changes hands (platform/test/codeowners.test.mjs).
+
+# A integrates root changes and owns everything not listed below.
+*                                               @juergAIn91
+
+# Strand A: foundation, conventions, output contract, access check
+/platform/infra/foundation/                     @juergAIn91
+/platform/infra/components/                     @juergAIn91
+/platform/scripts/bootstrap/                    @juergAIn91
+/platform/operations/foundation/                @juergAIn91
+/platform/schemas/conventions/                  @juergAIn91
+/platform/schemas/foundation-outputs/           @juergAIn91
+/.github/actions/foundation-outputs/            @juergAIn91
+/.github/workflows/foundation-*.yml             @juergAIn91
+/openspec/changes/platform-foundation/          @juergAIn91
+
+# Strand B: catalog, app stacks, releases
+/platform/infra/app-runtime/                    @WHOAFTS
+/platform/schemas/app-catalog/                  @WHOAFTS
+/platform/catalog/                              @WHOAFTS
+/platform/environments/                         @WHOAFTS
+/platform/operations/apps/                      @WHOAFTS
+/.github/workflows/app-*.yml                    @WHOAFTS
+/openspec/changes/app-delivery-and-onboarding/  @WHOAFTS
+
+# Strand D: agent execution, tools, image and chart (operations-agent/ default)
+/operations-agent/                              @FlyWieEinAirplane
+/operations-agent/tests/agent/                  @FlyWieEinAirplane
+/platform/operations/agent/                     @FlyWieEinAirplane
+/.github/workflows/agent-*.yml                  @FlyWieEinAirplane
+/openspec/changes/operations-agent-and-tools/   @FlyWieEinAirplane
+
+# Strand C: event contracts, intake, state, persistence, heartbeat
+/operations-agent/src/contracts/                @ConstantinSilb
+/operations-agent/src/api/                      @ConstantinSilb
+/operations-agent/src/persistence/              @ConstantinSilb
+/operations-agent/src/worker/                   @ConstantinSilb
+/operations-agent/tests/state/                  @ConstantinSilb
+/platform/schemas/events/                       @ConstantinSilb
+/platform/operations/state/                     @ConstantinSilb
+/.github/ISSUE_TEMPLATE/                        @ConstantinSilb
+/.github/workflows/health-check.yml             @ConstantinSilb
+/.github/workflows/ops-migrate.yml              @ConstantinSilb
+/openspec/changes/operations-intake-and-state/  @ConstantinSilb

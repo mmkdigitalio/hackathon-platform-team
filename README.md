@@ -8,6 +8,15 @@ This README summarises the concept discussion up to 2026-10-30. Everything below
 is a proposal; nothing has been decided yet (see [Open decisions](#open-decisions)).
 What we can use is listed under [Available resources](#available-resources).
 
+The implementation plan has since moved on (AKS, Pulumi, GitHub Actions, own agent
+service). For the current state see:
+
+- [openspec/PARALLEL-IMPLEMENTATION.md](openspec/PARALLEL-IMPLEMENTATION.md): decisions,
+  the four strands and who owns which directory (also in
+  [.github/CODEOWNERS](.github/CODEOWNERS))
+- [platform/](platform/README.md): foundation, app runtime, catalog, schemas, runbooks
+- [operations-agent/](operations-agent/): intake API, state and the operations agent
+
 ## Problem
 
 As an IT consultancy we build a lot with AI and could build many of the SaaS tools

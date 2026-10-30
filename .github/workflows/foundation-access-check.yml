@@ -1,0 +1,60 @@
+# Strand A: proves every access path from CI after a foundation run (task 5.1). Uses no
+# Azure identity: state through the storage key, everything else through the keys in the
+# output contract. A run with break-category must fail exactly that category; a broken
+# foundation-state leaves no outputs, so the other categories are reported as skipped.
+name: foundation-access-check
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Platform environment
+        type: choice
+        options: [staging]
+        default: staging
+      break-category:
+        description: Use an invalid credential for one category (red run)
+        type: choice
+        options: [none, foundation-state, kubernetes, acr, postgres, diagnostics-storage, github, github-workflow-token]
+        default: none
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundation-access-check-${{ inputs.environment }}
+
+jobs:
+  access-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Foundation outputs
+        id: foundation
+        continue-on-error: true
+        uses: ./.github/actions/foundation-outputs
+        with:
+          environment: ${{ inputs.environment }}
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          # Base64 of "invalid-access-check-key" for the deliberately red foundation-state run.
+          backend-key: ${{ inputs.break-category == 'foundation-state' && 'aW52YWxpZC1hY2Nlc3MtY2hlY2sta2V5' || secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      - name: Access check
+        env:
+          FOUNDATION_STATE_OUTCOME: ${{ steps.foundation.outcome }}
+          BREAK_CATEGORY: ${{ inputs.break-category }}
+          KUBECONFIG_CONTENT: ${{ steps.foundation.outputs.kubeconfig }}
+          ACR_LOGIN_SERVER: ${{ steps.foundation.outputs.acrLoginServer }}
+          ACR_USERNAME: ${{ steps.foundation.outputs.acrUsername }}
+          ACR_PASSWORD: ${{ steps.foundation.outputs.acrPassword }}
+          POSTGRES_HOST: ${{ steps.foundation.outputs.postgresHost }}
+          POSTGRES_USER: ${{ steps.foundation.outputs.postgresAdminUser }}
+          POSTGRES_PASSWORD: ${{ steps.foundation.outputs.postgresAdminPassword }}
+          POSTGRES_DATABASE: ${{ steps.foundation.outputs.postgresOperationsDatabase }}
+          DIAGNOSTICS_ACCOUNT: ${{ steps.foundation.outputs.diagnosticsStorageAccount }}
+          DIAGNOSTICS_CONTAINER: ${{ steps.foundation.outputs.diagnosticsContainer }}
+          DIAGNOSTICS_KEY: ${{ steps.foundation.outputs.diagnosticsStorageKey }}
+          AGENT_GITHUB_TOKEN: ${{ steps.foundation.outputs.opsGithubToken }}
+          WORKFLOW_GITHUB_TOKEN: ${{ secrets.OPS_GITHUB_TOKEN }}
+          PAT_REPOS: mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine
+        run: platform/scripts/bootstrap/access-check.sh

@@ -105,7 +105,7 @@ export async function runFoundation(overrides = {}) {
             newResource(args) {
                 const nameKey = nameInputs[args.type];
                 const name = (nameKey && args.inputs[nameKey]) || args.name;
-                resources.push({ type: args.type, logicalName: args.name, name, inputs: unwrap(args.inputs), read: Boolean(args.id) });
+                resources.push({ type: args.type, logicalName: args.name, name, inputs: unwrap(args.inputs), read: Boolean(args.id), id: args.id });
                 const id = args.id || `/subscriptions/${subscriptionId}/resourceGroups/rg-mmk-platform-staging/providers/${args.type}/${name}`;
                 return { id, state: { ...args.inputs, name, ...computedOutputs(args.type, name) } };
             },
