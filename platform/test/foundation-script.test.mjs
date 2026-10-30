@@ -117,6 +117,24 @@ test("secrets stores the GitHub App key without a PAT; a missing or invalid key 
     }
 });
 
+test("app-key stores only the GitHub App key; a missing key stops before any write", { skip }, () => {
+    const box = sandbox(stubs);
+    const result = box.run("foundation.sh", [box.config, "app-key"], {
+        PULUMI_CONFIG_PASSPHRASE: secretEnv.PULUMI_CONFIG_PASSPHRASE,
+        GITHUB_APP_PRIVATE_KEY_FILE: secretEnv.GITHUB_APP_PRIVATE_KEY_FILE,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(box.read("config-githubAppPrivateKey"), app.privateKey.trimEnd());
+    const writes = result.calls.filter((call) => call.includes("config set"));
+    assert.equal(writes.length, 1);
+    assert.ok(writes[0].includes("githubAppPrivateKey"));
+    const strict = sandbox(stubs);
+    const stopped = strict.run("foundation.sh", [strict.config, "app-key"], { PULUMI_CONFIG_PASSPHRASE: secretEnv.PULUMI_CONFIG_PASSPHRASE });
+    assert.equal(stopped.status, 1);
+    assert.match(stopped.stderr, /GITHUB_APP_PRIVATE_KEY_FILE is not set/);
+    assert.ok(!stopped.calls.some((call) => call.includes("config set")), "nothing written");
+});
+
 test("secrets without any model key stops before writing stack config", { skip }, () => {
     const box = sandbox(stubs);
     const result = box.run("foundation.sh", [box.config, "secrets"], secretEnv);
@@ -147,7 +165,7 @@ test("an unknown command and a missing passphrase are rejected before any change
     const box = sandbox(stubs);
     const unknown = box.run("foundation.sh", [box.config, "destroy"], secretEnv);
     assert.equal(unknown.status, 1);
-    assert.match(unknown.stderr, /Usage: .* secrets\|preview\|up\|outputs\|ingress-check/);
+    assert.match(unknown.stderr, /Usage: .* secrets\|app-key\|preview\|up\|outputs\|ingress-check/);
     const noPassphrase = box.run("foundation.sh", [box.config, "up"], {});
     assert.equal(noPassphrase.status, 1);
     assert.match(noPassphrase.stderr, /PULUMI_CONFIG_PASSPHRASE is not set/);
