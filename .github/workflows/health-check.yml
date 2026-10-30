@@ -23,13 +23,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Liefert maintenanceApiKey maskiert; Ein-/Ausgabenamen gemäß Foundation-Ausgabevertrag (Strang A).
+      # Liefert maintenanceApiKey maskiert; Foundation-Ausgabevertrag v1 (Strang A).
       - id: foundation
         uses: ./.github/actions/foundation-outputs
         with:
           backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
           backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
           config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          expected-contract-version: "1"
 
       - uses: actions/setup-python@v5
         with:
