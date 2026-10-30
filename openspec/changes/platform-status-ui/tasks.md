@@ -24,12 +24,15 @@
 
 - [x] 4.1 Relevante Backend- und Routingtests, JavaScript-Prüfung und Chart-Prüfung abschließen.
 - [x] 4.2 Journeys mit realer Vorschau und gezielten Testdaten visuell prüfen.
-- [ ] 4.3 Runbook und Datenlimits aktualisieren, Änderungen committen und pushen.
+- [x] 4.3 Runbook und Datenlimits aktualisieren, Änderungen committen und pushen.
 
 ## Prüfnachweise
 
-- Vollständige CI-Agenten-Suite für `a41ad00`: 303 bestanden, einer übersprungen. Zusätzliche Image-Prüfstufe: 191 bestanden, 113 übersprungen.
+- Vollständige CI-Agenten-Suite für `7988e96`: 304 bestanden, einer übersprungen. Zusätzliche Image-Prüfstufe: 192 bestanden, 113 übersprungen.
 - Abschließende gezielte Status-/Admin-Suite: 20 bestanden, einschließlich Quellen, jüngster Verifikation, Datenschutz, Umgebung, 100er-Limit, Sieben-Tage-Grenze, Rollout-Nachweisen, nichtschreibenden Routen und Cache-Wechsel nach Deployment.
 - JavaScript-Syntax, Helm-Lint und OpenSpec-Validierung erfolgreich.
 - Browser-Journeys mit ausdrücklich als QA-Testdaten markierter Vorschau: Störung zur App-Analyse, Suche/Filter und Browser-Zurück, Behebungsfilter mit 7-Tage-URL, Filtererhalt beim Aktualisieren, Verbindungsfehler und Erholung.
 - Mobile Prüfung bei 390 × 844: Navigation sichtbar, kein Seitenüberlauf auf Aktivitäten und App-Details. Screenshots im Chat: `admin-before.jpg`, `admin-detail-qa.jpg`, `admin-activity-qa.jpg`, `admin-mobile-qa.jpg`. Screenshots bestätigen Layout und getestete Wege, keine vollständige Accessibility-Zertifizierung.
+- Finaler Azure-Rollout [41125342717](https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/41125342717) erfolgreich, Smoke-Test erfolgreich, Release entspricht dem Sollzustand, kein Break-glass.
+- Live-Journeys am 30.10.2026: vorhandenen Browser-Tab normal neu geladen, Dashboard mit drei erreichbaren Apps, App-Suche → AFFiNE-Details → Zurück mit erhaltenem Filter, Monitoring-/Rollout-Nachweise und Systemaktivitäten für AFFiNE geprüft. Statusprojektion verfügbar, elf reale Aktivitäten zum Prüfzeitpunkt. Screenshots: `admin-status-azure.jpg`, `admin-activity-azure.jpg`.
+- Alle Seiten, `/healthz` und `/status` über gültiges HTTPS mit HTTP 200 geprüft; `/docs`, `/redoc` und `/openapi.json` des eigenständigen Dienstes liefern HTTP 404. OpenSpec mit `--strict` ohne Warnungen gültig.

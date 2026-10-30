@@ -58,7 +58,7 @@ Monitoring-Konfiguration aus der Foundation-IaC, Live-HTTP-Prüfungen und empfan
 
 Der eigenständige Statusdienst bietet `/docs`, `/redoc` und `/openapi.json` nicht mehr an. Die Dokumentations-Endpunkte der Agenten-API bleiben unverändert.
 
-Das Design übernimmt Farben, Typografie und Abstände aus `new-website/src/design-system/tokens/` sowie dessen lokal gehostete Schriften Bricolage Grotesque, Hanken Grotesk und JetBrains Mono. Die UI benötigt keinen Node-Build und keine zusätzlichen Python-Abhängigkeiten. CSS, JavaScript und Fonts liegen im Python-Paket unter `api/static/` und damit im bestehenden Container-Image.
+Das Design übernimmt Farben, Typografie und Abstände aus `new-website/src/design-system/tokens/` sowie dessen lokal gehostete Schriften Bricolage Grotesque, Hanken Grotesk und JetBrains Mono. Die UI benötigt keinen Node-Build und keine zusätzlichen Python-Abhängigkeiten. CSS- und JavaScript-URLs enthalten einen Inhalts-Hash, damit bestehende Browser nach einem Deployment keine alten Assets mit neuer HTML-Struktur kombinieren. CSS, JavaScript und Fonts liegen im Python-Paket unter `api/static/` und damit im bestehenden Container-Image.
 
 ## Deployment
 
@@ -74,7 +74,9 @@ Bei ausgefallenem gemeinsamem Ingress ist auch die Status-UI nicht erreichbar; s
 
 - Adresse: https://platform-status.57-153-7-126.sslip.io/
 - Pulumi-Stack: `organization/app-platform-status/staging`, Namespace `platform-status-staging`.
-- Release-Commit: `fbe2a019e6edc508119f0c8107357aeaa227622f`, Chart `0.1.1`, Image `sha256:52b48976e5433616416de5d4414544b8a82f9b47ded281f7b4dcac85963d3aad`.
-- [IaC-Rollout 41107859138](https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/41107859138) erfolgreich, ohne Break-glass. Laufender Stand entspricht dem Sollzustand; Smoke-Test auf `/status` erfolgreich.
-- Öffentliche HTTPS-Prüfung mit gültigem Zertifikat: `/`, `/healthz`, `/status` und JavaScript-Asset jeweils HTTP 200.
-- Live-Daten zum Prüfzeitpunkt: AFFiNE erreichbar, Operations-Datenbank lesbar; Operations-Agent nicht erreichbar und kein Worker-Heartbeat. Das ist der angezeigte Plattformzustand, kein Fehler des UI-Rollouts. Der vollständige Agenten-Rollout ist separat durch die fehlende Foundation-Ausgabe `githubAppPrivateKey` blockiert.
+- Release-Commit: `08abf33731ad2a8bc8cc9416c2fb7287024e871b`, Chart `0.1.2`, Image `sha256:0f0fea7efe8e921c7eff347e85490d7eab27720a28b2ce57f1fa68e1bd924b1a`.
+- [IaC-Rollout 41125342717](https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/41125342717) erfolgreich, ohne Break-glass. Laufender Stand entspricht dem Sollzustand; Smoke-Test auf `/status` erfolgreich.
+- Öffentliche HTTPS-Prüfung mit gültigem Zertifikat: `/`, `/applications`, `/applications/affine`, `/activity`, `/healthz` und `/status` jeweils HTTP 200. Die Dokumentations-Endpunkte des eigenständigen Dienstes liefern HTTP 404.
+- Live-Daten zum Prüfzeitpunkt 21:46 MEZ: drei Apps erreichbar, Datenbank lesbar, Worker-Heartbeat vorhanden, keine aktiven oder eskalierten Aufträge. Elf strukturierte Aktivitäten und verifizierte Rollout-Nachweise für alle drei Apps verfügbar. Das ist eine Momentaufnahme, keine Uptime-Zusage.
+- Browserprüfung im bereits geöffneten Tab nach normalem Neuladen erfolgreich. App-Suche, Detailanalyse, Monitoring, Browser-Zurück mit erhaltenem Suchfilter und appbezogener Systemaktivitätenfilter geprüft. Die Asset-Versionierung behebt dabei den im ersten Rollout festgestellten Konflikt mit alten Browser-Caches.
+- CI des ausgelieferten Images: 304 Tests bestanden, einer übersprungen; Image-Prüfstufe: 192 bestanden, 113 übersprungen. Lokale Status-/Admin-Suite: 20 bestanden. OpenSpec-Validierung mit `--strict` erfolgreich.
