@@ -2,9 +2,9 @@
 # Quell-Commit a756060be01ab1a88986db8863cb3bceb56e0075, einschließlich Status-UI.
 # Image und Chart sind in ACR veröffentlicht; app-deploy.yml rollt diesen Stand per Pulumi aus.
 schemaVersion: "0.1"
-image: acr:operations-agent@sha256:52b48976e5433616416de5d4414544b8a82f9b47ded281f7b4dcac85963d3aad
+image: acr:operations-agent@sha256:6e681a6aa548bc7ebc9349153e2ccb893092a9707c5745e858d0d3dde719f9b6
 chart:
-  version: 0.1.18
+  version: 0.1.21
 sizes:
   replicas: 1
 values:
