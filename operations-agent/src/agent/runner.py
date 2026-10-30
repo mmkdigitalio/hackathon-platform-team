@@ -14,14 +14,14 @@ from langgraph.errors import GraphRecursionError
 
 from agent.config import AgentSettings, ModelSettings, agent_settings, model_settings
 from agent.context import ContextLoader, OperationalContext, assess_drift
-from agent.limits import BudgetMiddleware, LimitReached, RunBudget
+from agent.limits import BudgetMiddleware, LimitReached, RunBudget, UsageCallback
 from agent.model import build_chat_model
 from agent.outcome import Stop, valid_verification, verification_failed
 from agent.prompts import context_files, system_prompt, task_message
 from agent.recorder import RunRecorder
 from agent.toolset import VERIFY_RESERVE_SECONDS, RunScope, TransitionRejected, build_tools, tool_names
 from contracts import AgentInvocation, AgentResult, OperationsServices, OwnershipLost, ResultProposal
-from tools.common import LockBusy, ToolError, UnclearOutcome, github_ref, k8s_ref
+from tools.common import LockBusy, ToolError, UnclearOutcome, github_ref, k8s_ref, register_secret
 from tools.dispatch import WorkflowDispatcher
 from tools.github import GitHubClient
 from tools.http_check import HttpProbe
@@ -33,6 +33,10 @@ from tools.verification import SmokeTest
 log = logging.getLogger("operations_agent.agent")
 
 MUTATING = ("restart", "workflow_dispatch")
+
+
+class OpenRun(Exception):
+    """Eigener Workflow-Lauf ist noch offen; der Lauf endet ohne Erfolgsvorschlag."""
 
 
 @dataclass
@@ -61,6 +65,8 @@ def execute(
     deps = deps or Dependencies()
     budget = RunBudget(invocation.limits, model, deps.clock)
     rec = RunRecorder()
+    register_secret(settings.github_token.get_secret_value())
+    register_secret(model.api_key.get_secret_value())
     gh = deps.github or GitHubClient(settings.github_token.get_secret_value(), settings.github_repository)
     loader_k8s: KubernetesAdapter | None = None
     stop: Stop | None = None
@@ -99,6 +105,8 @@ def execute(
             _ensure_verification(scope)
     except LimitReached as e:
         stop = Stop("limit", str(e), e.limit)
+    except OpenRun as e:
+        stop = Stop("open_run", str(e), "runtime")
     except LockBusy as e:
         stop = Stop("lock", str(e))
     except UnclearOutcome as e:
@@ -168,13 +176,15 @@ def _resume(s: RunScope) -> bool:
             wr = s.dispatcher.wait(wr, s.budget.deadline - s.settings.smoke_timeout_seconds - VERIFY_RESERVE_SECONDS)
             if wr.state not in ("success", "failure"):
                 s.recorder.references["openRun"] = wr.run
-                raise LimitReached("runtime", f"Workflow-Lauf {wr.run['id'] if wr.run else '?'} noch nicht abgeschlossen")
+                raise OpenRun(f"Workflow-Lauf {wr.run['id'] if wr.run else '?'} noch nicht abgeschlossen")
             s.recorder.mutation(a.action_id)
             reconciled = True
         s.recorder.finding(f"Aktion {a.action_id} ({a.kind}) nach Wiederaufnahme abgeglichen", "code:reconcile", [])
+    s.ctx.previous_actions = s.services.actions.list_for_operation(s.inv.operation_id)
+    # Erst nach dem Abgleich ist bekannt, welche geplanten Maßnahmen tatsächlich liefen.
+    s.budget.repair_attempts = max(s.budget.repair_attempts, _previous_repairs(s.ctx.previous_actions))
     if reconciled:
-        s.ctx.previous_actions = s.services.actions.list_for_operation(s.inv.operation_id)
-        s.verify()
+        s.runner_verify()
         return valid_verification(s.recorder, s.ctx) is not None
     return False
 
@@ -192,6 +202,7 @@ def _run_model(s: RunScope, chat_model: BaseChatModel) -> None:
     config = {
         "configurable": {"thread_id": s.inv.resume.thread_id},
         "recursion_limit": 4 * s.inv.limits.max_tool_calls + 20,
+        "callbacks": [UsageCallback(s.budget)],
     }
     try:
         agent.invoke({"messages": [HumanMessage(task_message(s.inv, s.ctx))], "files": context_files(s.inv, s.ctx)}, config=config)
@@ -201,14 +212,14 @@ def _run_model(s: RunScope, chat_model: BaseChatModel) -> None:
 
 def _ensure_verification(s: RunScope) -> None:
     """Ohne Nachweis nach der letzten Maßnahme verifiziert der Runner selbst."""
+    for a in s.services.actions.list_for_operation(s.inv.operation_id):
+        if a.action_id in s.recorder.action_ids and a.kind == "workflow_dispatch" and a.status in ("planned", "started", "unclear"):
+            s.recorder.references["openRun"] = a.external_refs
+            raise OpenRun(f"Workflow-Aktion {a.action_id} noch nicht abgeschlossen")
     baseline = s.recorder.last_mutation_at or s.recorder.started_at
     if any(v.started_at >= baseline for v in s.recorder.verification):
         return
-    for a in s.services.actions.list_for_operation(s.inv.operation_id):
-        if a.action_id in s.recorder.action_ids and a.kind == "workflow_dispatch" and a.status == "started":
-            s.recorder.references["openRun"] = a.external_refs
-            raise LimitReached("runtime", f"Workflow-Aktion {a.action_id} noch nicht abgeschlossen")
-    s.verify()
+    s.runner_verify()
 
 
 def _enrich_unrepairable(s: RunScope) -> str | None:

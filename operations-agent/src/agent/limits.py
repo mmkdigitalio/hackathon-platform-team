@@ -7,7 +7,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from langchain.agents.middleware import AgentMiddleware, ModelRequest, ModelResponse
+from langchain_core.callbacks import BaseCallbackHandler
 from langchain_core.messages import AIMessage, ToolMessage
+from langchain_core.outputs import LLMResult
 
 from agent.config import ModelSettings
 from agent.model import cost_usd
@@ -86,6 +88,20 @@ class RunBudget:
         )
 
 
+class UsageCallback(BaseCallbackHandler):
+    """Erfasst Tokens aller Modellaufrufe im Graphen, auch solcher außerhalb der Middleware-Kette."""
+
+    def __init__(self, budget: RunBudget) -> None:
+        self.budget = budget
+
+    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
+        for gens in response.generations:
+            for g in gens:
+                msg = getattr(g, "message", None)
+                if isinstance(msg, AIMessage) and msg.usage_metadata:
+                    self.budget.add_usage(msg.usage_metadata.get("input_tokens", 0), msg.usage_metadata.get("output_tokens", 0))
+
+
 def _tool_name(tool: Any) -> str:
     return tool.get("name", "") if isinstance(tool, dict) else getattr(tool, "name", "")
 
@@ -105,9 +121,7 @@ class BudgetMiddleware(AgentMiddleware):
         return request.override(tools=[t for t in request.tools if _tool_name(t) in self.allowed])
 
     def _account(self, response: ModelResponse) -> None:
-        for msg in response.result:
-            if isinstance(msg, AIMessage) and msg.usage_metadata:
-                self.budget.add_usage(msg.usage_metadata.get("input_tokens", 0), msg.usage_metadata.get("output_tokens", 0))
+        # Verbrauch erfasst ``UsageCallback`` für jeden Modellaufruf, auch für die SDK-Zusammenfassung.
         self.budget.check_cost()
 
     def wrap_model_call(self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]) -> ModelResponse:

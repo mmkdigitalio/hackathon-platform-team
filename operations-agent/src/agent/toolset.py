@@ -78,6 +78,11 @@ class RunScope:
         self.recorder.tool_call(result, started)
         return result.model_dump_json()
 
+    def runner_verify(self) -> None:
+        """Verifikation durch den Code: zählt als Werkzeugaufruf und wird protokolliert."""
+        self.budget.before_tool("run_smoke_test")
+        self.outcome("run_smoke_test", str(self.target), self.verify)
+
     def verify(self) -> ToolOutcome:
         """Smoke-Test plus Kubernetes-Zustand; auch ohne Modell vom Runner aufrufbar."""
         timeout = min(self.settings.smoke_timeout_seconds, int(self.budget.remaining_seconds()) - 5)
@@ -231,6 +236,7 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
                 raise NotAllowed("Aktion 'restart' ist im Katalog nicht erlaubt", allowed=sorted(s.ctx.allowed_actions))
             s.budget.begin_repair()
             s.transition("acting", reason)
+            s.recorder.mutation_attempt()
             res = s.restart.run(s.target, s.ctx.deployment, s.inv.operation_id, s.budget.deadline - VERIFY_RESERVE_SECONDS)
             s.recorder.mutation(res.action.action_id)
             return ToolOutcome.ok(
@@ -259,6 +265,7 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
             s.budget.begin_repair()
             s.transition("acting", reason)
             wait_until = s.budget.deadline - s.settings.smoke_timeout_seconds - VERIFY_RESERVE_SECONDS
+            s.recorder.mutation_attempt()
             wr = s.dispatcher.dispatch(s.target, workflow, s.inv.operation_id, wait_until)
             s.recorder.mutation(wr.action.action_id)
             wr = s.dispatcher.wait(wr, wait_until)

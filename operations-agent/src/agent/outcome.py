@@ -22,16 +22,16 @@ def valid_verification(rec: RunRecorder, ctx: OperationalContext) -> Verificatio
     """Positiver Test nach der letzten Maßnahme mit danach erfasstem, passendem Kubernetes-Zustand."""
     baseline = rec.last_mutation_at or rec.started_at
     want = desired_digest(ctx.desired.value)
-    for v in reversed(rec.verification):
-        k = v.kubernetes
-        if not (v.success and v.started_at >= baseline and k is not None):
-            continue
-        if k.captured_at < v.started_at or not k.rollout_complete or k.ready_replicas < 1:
-            continue
-        if want and want not in k.image_digests:
-            continue
-        return v
-    return None
+    after = [v for v in rec.verification if v.started_at >= baseline]
+    if not after:
+        return None
+    v = max(after, key=lambda x: x.started_at)
+    k = v.kubernetes
+    if not v.success or k is None or k.captured_at < v.started_at or not k.rollout_complete or k.ready_replicas < 1:
+        return None
+    if want and want not in k.image_digests:
+        return None
+    return v
 
 
 def verification_failed(rec: RunRecorder) -> bool:

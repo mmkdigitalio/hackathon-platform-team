@@ -90,7 +90,9 @@ class FakeGitHub:
                 raise httpx.ReadTimeout("lost response", request=request)
             return httpx.Response(204)
         if re.fullmatch(r"/repos/[^/]+/[^/]+/actions/workflows/([^/]+)/runs", path):
-            return httpx.Response(200, json={"workflow_runs": [self._public(r) for r in self.runs]})
+            per_page, page = int(request.url.params.get("per_page", 30)), int(request.url.params.get("page", 1))
+            batch = self.runs[(page - 1) * per_page : page * per_page]
+            return httpx.Response(200, json={"total_count": len(self.runs), "workflow_runs": [self._public(r) for r in batch]})
         if m := re.fullmatch(r"/repos/[^/]+/[^/]+/actions/runs/(\d+)", path):
             run = next(r for r in self.runs if r["id"] == int(m.group(1)))
             run["_polls"] += 1

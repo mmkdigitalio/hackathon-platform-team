@@ -22,7 +22,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel, Field, HttpUrl
 
 from agent.config import model_settings
-from agent.limits import BudgetMiddleware, RunBudget
+from agent.limits import BudgetMiddleware, RunBudget, UsageCallback
 from agent.model import build_chat_model
 from contracts import RunLimits
 from tools.common import utcnow
@@ -89,7 +89,7 @@ def run(url: str, thread_id: str, dsn: str | None) -> dict[str, Any]:
         checkpointer=saver,
         name="p1-02-prototype",
     )
-    config = {"configurable": {"thread_id": thread_id}}
+    config = {"configurable": {"thread_id": thread_id}, "callbacks": [UsageCallback(budget)]}
     before = agent.get_state(config).values.get("messages", [])
     out = agent.invoke({"messages": [HumanMessage(f"Prüfe {url}")]}, config=config)
     messages = out["messages"][len(before):]

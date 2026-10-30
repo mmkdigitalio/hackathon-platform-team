@@ -20,6 +20,7 @@ from tools.common import (
     UpstreamError,
     ValidationFailed,
     k8s_ref,
+    redact,
     utcnow,
 )
 from tools.targets import Target, TargetPolicy
@@ -183,7 +184,7 @@ class KubernetesAdapter:
                     _request_timeout=self.timeout,
                 ),
             )
-            text = (text or "")[-budget:]
+            text = redact(text or "")[-budget:]
             budget -= len(text)
             out.append({"pod": p.metadata.name, "lines": text.splitlines(), "sinceSeconds": since_seconds, "until": at})
             refs.append(k8s_ref(t.namespace, "pod-log", p.metadata.name, at))

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Literal
 
 from contracts import ActionRecord, OperationsServices, OwnershipLost
-from tools.common import LockBusy, ToolError
+from tools.common import LockBusy, ToolError, UnclearOutcome
 from tools.kubernetes import KubernetesAdapter
 from tools.targets import Target
 
@@ -54,9 +54,20 @@ class RestartAction:
             try:
                 generation = self.k8s.patch_restart(t, deployment, action.action_id)
             except ToolError as e:
-                status = "unclear" if e.kind in ("timeout", "upstream") else "failed"
-                self.s.actions.update(action.action_id, status, {"error": str(e)})
-                raise
+                if e.kind not in ("timeout", "upstream"):
+                    self.s.actions.update(action.action_id, "failed", {"error": str(e)})
+                    raise
+                # Antwort verloren: am Template ablesen, ob der Patch angekommen ist.
+                action = self.s.actions.update(action.action_id, "unclear", {"error": str(e)})
+                try:
+                    applied = self.k8s.template_action_id(t, deployment) == action.action_id
+                except ToolError as e2:
+                    raise UnclearOutcome(f"Neustart {action.action_id} unklar: {e2}", action.action_id) from e
+                if not applied:
+                    self.s.actions.update(action.action_id, "failed", {"reconciled": "annotation fehlt, nicht ausgeführt"})
+                    raise
+                action = self.s.actions.update(action.action_id, "started", {"deployment": deployment, "reconciled": "annotation gesetzt"})
+                return self._observe(t, deployment, action, deadline)
             action = self.s.actions.update(
                 action.action_id, "started", {"deployment": deployment, "generation": str(generation)}
             )

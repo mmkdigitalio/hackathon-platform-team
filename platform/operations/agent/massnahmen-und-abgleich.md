@@ -22,7 +22,9 @@ Startwerte, je Auftrag über `RunLimits` von C und ohne Codeänderung über `OPS
 | Reparaturversuche | 2 | `RunBudget.begin_repair` vor jeder ändernden Maßnahme; frühere Maßnahmen derselben Operation zählen mit | keine dritte ändernde Maßnahme |
 | Modellkosten | 1,00 USD | nach jedem Modellaufruf aus `usage_metadata` und konfigurierten Preisen | kein weiterer Modellaufruf |
 
-Ein Reparaturversuch ist eine ändernde Maßnahme (Neustart oder Dispatch) mit anschließender Verifikation. Bei erreichter Grenze enthält das Ergebnis die Grenze, alle Befunde und die Aktionsreferenzen. Liegt trotz Grenze ein gültiger positiver Nachweis vor, lautet der Vorschlag `resolved`.
+Ein Reparaturversuch ist eine ändernde Maßnahme (Neustart oder Dispatch) mit anschließender Verifikation. Der Zähler wird nach dem Abgleich offener Aktionen neu berechnet, damit wiedergefundene, zuvor nur geplante Maßnahmen mitzählen. Bei erreichter Grenze enthält das Ergebnis die Grenze, alle Befunde und die Aktionsreferenzen. Liegt trotz Grenze ein gültiger positiver Nachweis vor, lautet der Vorschlag `resolved`.
+
+Die Kosten erfasst ein Callback (`UsageCallback`) für jeden Modellaufruf im Graphen, auch für die automatische Zusammenfassung des SDK, die außerhalb der Middleware-Kette läuft. Die Verifikation durch den Code zählt wie ein Werkzeugaufruf und erscheint in `tool_calls`.
 
 ## Bekannte Reparatur: AFFiNE auf 0 Replicas
 
@@ -30,7 +32,8 @@ Ein Reparaturversuch ist eine ändernde Maßnahme (Neustart oder Dispatch) mit a
 2. `redeploy_desired_state` prüft Workflow-Liste, Katalogaktion `redeploy`, Abweichung und Sperre, legt die Aktion an und startet `app-deploy.yml` mit `appId`, `environment`, `operationId`, `actionId`, `force=false`.
 3. Der Lauf wird über die `actionId` im `run-name` zugeordnet und bis zum echten Abschluss verfolgt. Ein laufender Workflow ist kein Erfolg.
 4. `run_smoke_test` startet den Smoke-Test-Job und erfasst danach den Kubernetes-Zustand.
-5. `resolved` nur bei positivem Test nach der Maßnahme, abgeschlossenem Rollout, mindestens einem bereiten Replica und dem Image-Digest des Sollzustands.
+5. `resolved` nur, wenn der **jüngste** Test nach der Maßnahme positiv ist, der Rollout abgeschlossen ist, mindestens ein Replica bereit ist und der Image-Digest dem Sollzustand entspricht. Ein späterer negativer Test entwertet einen früheren positiven. Jede angestoßene Maßnahme verschiebt den Bezugszeitpunkt schon vor dem externen Aufruf.
+6. Ist ein eigener Workflow-Lauf noch offen, endet der Lauf mit `needs_attention` und Laufreferenz, auch wenn ein Zwischentest positiv war.
 
 ## Nicht reparierbarer Fall: ungültiger Konfigurationswert
 
@@ -57,7 +60,7 @@ Belegt eine andere Operation die Sperre, endet der Lauf sofort mit `needs_attent
 Vor jedem ändernden externen Aufruf legt der Adapter über C einen Aktionsdatensatz an (`record_planned`) und erhält die `actionId`.
 
 - **Neustart:** Annotation `ops.mmk/action-id=<actionId>` am Pod-Template. Die Template-Änderung löst den Rollout aus.
-- **Dispatch:** Eingaben `operationId` und `actionId`; B's `run-name` enthält beide. Zugeordnet wird nur über gespeicherte Lauf-ID oder die `actionId` im Titel. Gibt die API beim Dispatch eine Lauf-ID zurück (`return_run_details`), wird sie direkt übernommen.
+- **Dispatch:** Eingaben `operationId` und `actionId`; B's `run-name` enthält beide. Zugeordnet wird nur über gespeicherte Lauf-ID oder die `actionId` als ganzes Token im Titel (`act-1` passt nicht auf `act-1-x`). Gibt die API beim Dispatch eine Lauf-ID zurück (`return_run_details`), wird sie direkt übernommen.
 
 ## Abgleich nach Timeout oder Neustart
 
@@ -65,11 +68,13 @@ Vor jedem ändernden externen Aufruf legt der Adapter über C einen Aktionsdaten
 | --- | --- |
 | Neustart, Template trägt die `actionId` | lief bereits: nur Rollout beobachten, nicht erneut patchen |
 | Neustart, Template trägt sie nicht | lief nicht: Aktion als nicht ausgeführt markieren; neue Maßnahme nur unter gültigem Besitz |
+| Neustart, Patch-Antwort verloren | sofort Template lesen: `actionId` vorhanden → Rollout beobachten; fehlt sie → nicht ausgeführt; Template nicht lesbar → `needs_attention` |
 | Dispatch mit gespeicherter Lauf-ID | denselben Lauf weiterverfolgen, keinen Ersatzlauf starten |
 | Dispatch-Antwort verloren | Lauf mit der `actionId` suchen; genau einer: übernehmen |
 | mehrere Läufe mit derselben `actionId` | `needs_attention` mit den Lauf-IDs |
 | keine `actionId`-Treffer, aber nicht zugeordnete Läufe derselben `operationId` | `needs_attention` mit den Lauf-IDs, kein Dispatch |
-| nur geplant, nach 3 Minuten kein Lauf | als nicht ausgeführt markieren; ein neuer Dispatch braucht eine neue `actionId` und zählt als Reparaturversuch |
+| nur geplant, nach 3 Minuten kein Lauf in der **vollständig** gelesenen Laufliste | als nicht ausgeführt markieren; ein neuer Dispatch braucht eine neue `actionId` und zählt als Reparaturversuch |
+| Laufliste unvollständig (mehr als 500 Läufe im Zeitraum) | `needs_attention`, kein Dispatch |
 | gestartet oder unklar, kein Lauf auffindbar | `needs_attention`, keine Wiederholung |
 | Workflow läuft beim Fristende noch | `needs_attention` mit Laufreferenz (`references.openRun`); ein späterer Lauf setzt die Beobachtung fort |
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, datetime
 from typing import Any, Literal
 
@@ -16,6 +17,28 @@ ErrorKind = Literal[
     "upstream",
     "not_allowed",
 ]
+
+
+_SECRET_PATTERNS = [
+    (re.compile(r"(://[^:/@\s]+:)[^@\s]+@"), r"\1***@"),
+    (re.compile(r"(?i)\b(password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key)(\s*[=:]\s*)[^\s,;'\"]+"), r"\1\2***"),
+    (re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~+/=-]+"), r"\1***"),
+]
+_KNOWN_SECRETS: set[str] = set()
+
+
+def register_secret(value: str | None) -> None:
+    """Bekannte Secret-Werte, die in keinem Ergebnis und keinem Modellkontext erscheinen dürfen."""
+    if value and len(value) >= 8:
+        _KNOWN_SECRETS.add(value)
+
+
+def redact(text: str) -> str:
+    for secret in _KNOWN_SECRETS:
+        text = text.replace(secret, "***")
+    for pattern, repl in _SECRET_PATTERNS:
+        text = pattern.sub(repl, text)
+    return text
 
 
 def utcnow() -> datetime:

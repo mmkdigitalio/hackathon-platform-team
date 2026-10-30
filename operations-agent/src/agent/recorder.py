@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from contracts import Finding, ToolCallRecord, VerificationEvidence
-from tools.common import ToolOutcome, utcnow
+from tools.common import ToolOutcome, redact, utcnow
 
 
 class RunRecorder:
@@ -58,6 +58,10 @@ class RunRecorder:
         self.findings.append(f)
         return f
 
+    def mutation_attempt(self) -> None:
+        """Vor jedem ändernden Aufruf: ältere Nachweise gelten danach nicht mehr."""
+        self.last_mutation_at = utcnow()
+
     def mutation(self, action_id: str) -> None:
         if action_id not in self.action_ids:
             self.action_ids.append(action_id)
@@ -72,6 +76,7 @@ class RunRecorder:
     def suspicious_log_lines(self, lines: list[str]) -> None:
         keys = ("error", "fatal", "invalid", "exception", "panic", "failed")
         for line in lines:
+            line = redact(line)[:500]
             if any(k in line.lower() for k in keys) and line not in self.log_lines:
-                self.log_lines.append(line[:500])
+                self.log_lines.append(line)
         del self.log_lines[:-20]

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -23,6 +24,11 @@ class WorkflowRun:
     action: ActionRecord
     state: RunState
     run: dict[str, Any] | None
+
+
+def mentions(title: str, ident: str) -> bool:
+    """``ident`` als ganzes Token im ``run-name``, nicht als Teil einer längeren ID."""
+    return re.search(rf"(?<![\w-]){re.escape(ident)}(?![\w-])", title) is not None
 
 
 def run_state(run: dict[str, Any] | None) -> RunState:
@@ -120,19 +126,19 @@ class WorkflowDispatcher:
             return self.status(action)
         workflow = action.correlation.get("workflow") or action.external_refs.get("workflow")
         self.check_allowed(workflow)
-        runs = self.gh.dispatch_runs(workflow, action.created_at - timedelta(minutes=1))
-        mine = [r for r in runs if action.action_id in r["title"]]
+        runs, complete = self.gh.dispatch_runs(workflow, action.created_at - timedelta(minutes=1))
+        mine = [r for r in runs if mentions(r["title"], action.action_id)]
         if len(mine) == 1:
             return self._adopt(action, workflow, mine[0])
         if len(mine) > 1:
             self._unclear(action, "mehrere Läufe tragen dieselbe actionId", [str(r["id"]) for r in mine])
         known = {a.action_id for a in self.s.actions.list_for_operation(action.operation_id)}
         orphans = [
-            r for r in runs if action.operation_id in r["title"] and not any(k in r["title"] for k in known)
+            r for r in runs if mentions(r["title"], action.operation_id) and not any(mentions(r["title"], k) for k in known)
         ]
         if orphans:
             self._unclear(action, "nicht zugeordnete Läufe derselben operationId", [str(r["id"]) for r in orphans])
-        if action.status == "planned" and utcnow() - action.created_at > PLANNED_GRACE:
+        if complete and action.status == "planned" and utcnow() - action.created_at > PLANNED_GRACE:
             self.s.actions.update(action.action_id, "failed", {"reconciled": "kein Lauf gefunden, nicht ausgeführt"})
             return None
         self._unclear(action, "kein zuordenbarer Lauf gefunden", [])
@@ -140,8 +146,8 @@ class WorkflowDispatcher:
     def _correlate_or_fail(self, t: Target, workflow: str, action: ActionRecord, deadline: float) -> WorkflowRun:
         since = action.created_at - timedelta(minutes=1)
         while True:
-            runs = self.gh.dispatch_runs(workflow, since)
-            mine = [r for r in runs if action.action_id in r["title"]]
+            runs, _ = self.gh.dispatch_runs(workflow, since)
+            mine = [r for r in runs if mentions(r["title"], action.action_id)]
             if len(mine) == 1:
                 return self._adopt(action, workflow, mine[0])
             if len(mine) > 1:
