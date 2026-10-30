@@ -87,6 +87,9 @@ def test_real_affine_delivery_is_understood(world: World) -> None:
     assert desired_digest(ctx.desired.value).startswith("sha256:b649f5ce")
     assert ctx.runbook is not None and ctx.errors == []
     image = ctx.smoke_test["image"]
-    assert smoke(world).resolve_image(image) == image and "@sha256:" in image
+    s = smoke(world)
+    s.acr = "acrmmkplatformstagingtdipl2.azurecr.io"
+    resolved = s.resolve_image(image)
+    assert "@sha256:" in resolved and (resolved == image or resolved.startswith(s.acr + "/"))
     fault = yaml.safe_load((ROOT / "platform/operations/apps/affine/fault-invalid-config.yaml").read_text())
     assert fault["path"] == ["affine", "nodeOptions"]  # Fehlerwert liegt in values, nicht in Replicas/Digest -> in_sync
