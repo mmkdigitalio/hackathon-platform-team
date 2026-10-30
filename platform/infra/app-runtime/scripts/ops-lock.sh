@@ -17,6 +17,8 @@ state_dir="${RUNNER_TEMP:-/tmp}/ops-lock-$APP_ID-$ENVIRONMENT"
 mkdir -p "$state_dir"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stderr}"
 target=(--app "$APP_ID" --env "$ENVIRONMENT" --operation-id "$OPERATION_ID")
+# Sperrbesitz = Besitzer (Lauf-URL) + Sperrversion aus dem Erwerb (C: platform/operations/state/locks.md).
+owned() { echo --owner "$RUN_URL" --lock-version "$(cat "$state_dir/lock-version")"; }
 
 break_glass() { [[ -f "$state_dir/break-glass" ]]; }
 
@@ -50,27 +52,30 @@ case "${1:?Befehl fehlt}" in
     if [[ "${FORCE:-false}" == "true" ]]; then
       echo "::notice::force abgelehnt: PostgreSQL ist erreichbar, es gilt die normale Sperre"
     fi
-    if ! ops lock acquire "${target[@]}" --owner "$RUN_URL" --wait-seconds 900 2>"$state_dir/acquire-error"; then
+    # Konfliktregel: höchstens 15 Minuten warten. Ausgaben (lock-version) in eine eigene Datei.
+    if ! GITHUB_OUTPUT="$state_dir/acquire.out" ops lock acquire "${target[@]}" --owner "$RUN_URL" \
+        --wait-timeout 900 2>"$state_dir/acquire-error"; then
       cat "$state_dir/acquire-error" >&2
-      holder="$(grep -o 'operation[^ ]*[[:space:]]*[A-Za-z0-9_.:-]*' "$state_dir/acquire-error" | head -1 || true)"
-      echo "::error::Sperre für $APP_ID/$ENVIRONMENT nach 15 Minuten nicht erhalten: ${holder:-siehe Log}"
-      echo "Abbruch ohne Zieländerung: Sperre für $APP_ID/$ENVIRONMENT belegt (${holder:-siehe Log})." >> "$summary"
+      holder="$(grep -o 'gesperrt durch Operation [^ ]*\|ungeklärte Aktionen [^;]*' "$state_dir/acquire-error" | head -1 || true)"
+      echo "::error::Sperre für $APP_ID/$ENVIRONMENT nicht erhalten: ${holder:-siehe Log}"
+      echo "Abbruch ohne Zieländerung: Sperre für $APP_ID/$ENVIRONMENT nicht erhalten (${holder:-siehe Log})." >> "$summary"
       exit 1
     fi
+    sed -n 's/^lock-version=//p' "$state_dir/acquire.out" > "$state_dir/lock-version"
     touch "$state_dir/acquired"
     ;;
   renew-loop)
     break_glass && exit 0
     (
       while sleep 60; do
-        ops lock renew "${target[@]}" || { touch "$state_dir/lost"; exit 1; }
+        ops lock renew "${target[@]}" $(owned) || { touch "$state_dir/lost"; exit 1; }
       done
     ) >/dev/null 2>&1 &
     echo $! > "$state_dir/renew-pid"
     ;;
   check)
     break_glass && exit 0
-    if [[ -f "$state_dir/lost" ]] || ! ops lock check "${target[@]}"; then
+    if [[ -f "$state_dir/lost" ]] || ! ops lock check "${target[@]}" $(owned); then
       echo "::error::Sperrbesitz für Operation $OPERATION_ID verloren; keine weitere Zieländerung"
       exit 1
     fi
@@ -79,15 +84,23 @@ case "${1:?Befehl fehlt}" in
     [[ -f "$state_dir/renew-pid" ]] && kill "$(cat "$state_dir/renew-pid")" 2>/dev/null || true
     break_glass && exit 0
     [[ -f "$state_dir/acquired" ]] || exit 0
-    ops lock release "${target[@]}"
+    ops lock release "${target[@]}" $(owned)
     ;;
   record)
     break_glass && exit 0
     status="${2:?Status fehlt}"
-    args=("${target[@]}" --kind deploy --status "$status" --external-ref "$RUN_URL")
-    [[ -n "${ACTION_ID:-}" ]] && args+=(--action-id "$ACTION_ID")
+    # Eigene Aktion des Laufs; die actionId des Agenten (Dispatch) ist nur Korrelation.
+    if [[ ! -f "$state_dir/action-id" ]]; then
+      action_id="act-deploy-${GITHUB_RUN_ID:-$(date +%s)}-${GITHUB_RUN_ATTEMPT:-1}-$APP_ID-$ENVIRONMENT"
+      args=("${target[@]}" $(owned) --kind deploy --target "$APP_ID/$ENVIRONMENT" --action-id "$action_id")
+      [[ -n "${ACTION_ID:-}" ]] && args+=(--agent-action-id "$ACTION_ID")
+      GITHUB_OUTPUT=/dev/null ops actions record "${args[@]}" >/dev/null
+      echo "$action_id" > "$state_dir/action-id"
+    fi
+    args=("${target[@]}" $(owned) --action-id "$(cat "$state_dir/action-id")" --status "$status"
+          --external-ref "runUrl=$RUN_URL")
     [[ -n "${3:-}" ]] && args+=(--result-file "$3")
-    ops action record "${args[@]}"
+    ops actions update "${args[@]}"
     ;;
   *)
     echo "unbekannter Befehl: $1" >&2

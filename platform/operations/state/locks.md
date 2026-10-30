@@ -26,6 +26,8 @@ Begriffe:
   run: ops lock acquire …
 ```
 
+B's `app-deploy.yml` ruft den Client ausschließlich über [`platform/infra/app-runtime/scripts/ops-lock.sh`](../../infra/app-runtime/scripts/ops-lock.sh) auf (Erwerb mit 15 Minuten Wartezeit, Erneuerung jede Minute, Besitzprüfung, eigene Aktion `act-deploy-<run>-<attempt>-<app>-<env>` mit `agentActionId` als Korrelation, Freigabe); C testet das Skript in `tests/state/test_deploy_wrapper.py`.
+
 Keine Azure-Anmeldung. Fehlt das Schema, bricht jeder Befehl mit Exit-Code 3 und Verweis auf `ops-migrate.yml` ab, ohne Zieländerung.
 
 ## CLI
@@ -35,7 +37,7 @@ Keine Azure-Anmeldung. Fehlt das Schema, bricht jeder Befehl mit Exit-Code 3 und
 | `ops lock acquire --app A --env E [--operation-id O] [--force]` | Erwerb, wartet bis 15 min | 0, 4 belegt, 5 DB weg, 6 ungeklärt |
 | `ops lock renew --app A --env E --lock-version V [--ttl S]` | Erneuern | 0, 7 |
 | `ops lock check --app A --env E --lock-version V` | Besitzprüfung, z. B. vor `pulumi up` und vor dem Smoke-Job | 0, 7 |
-| `ops lock release --app A --env E --lock-version V [--status failed]` | Freigabe, nur durch den Besitzer | 0, 7 |
+| `ops lock release --app A --env E --lock-version V [--status completed\|failed]` | Freigabe, nur durch den Besitzer; `--status` schließt zusätzlich die Operation ab (nicht bei der Operation eines Agenten-Dispatchs) | 0, 7 |
 | `ops lock status --app A --env E` | Wer hält die Sperre? | 0 |
 | `ops lock backfill …` | Nachtrag nach Break-glass | 0 |
 | `ops actions record --operation-id O --kind K [--action-id X] [--agent-action-id A] [--correlation K=V …] --lock-version V …` | Aktion vor dem Aufruf speichern | 0, 7 |

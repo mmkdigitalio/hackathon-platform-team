@@ -51,7 +51,9 @@ def test_issue_form_options_match_catalog():
     apps = sorted(p.parent.name for p in catalog.glob("*/app.yaml") if p.parent.name != "operations-agent")
     form = yaml.safe_load(FORM.read_text())
     options = next(i for i in form["body"] if i.get("id") == "app")["attributes"]["options"]
-    assert sorted(options) == apps
+    # Jede Katalog-App ist auswählbar; noch nicht katalogisierte Optionen (affine bis zur
+    # Lieferung) führen beim Eingang zu einem sichtbaren Zuordnungsfehler.
+    assert set(apps) <= set(options)
 
 
 @pytest.mark.parametrize("body,expected", [

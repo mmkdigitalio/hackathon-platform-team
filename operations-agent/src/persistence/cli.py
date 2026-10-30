@@ -270,10 +270,14 @@ def cmd_actions_record(args) -> int:
 
 
 def cmd_actions_update(args) -> int:
+    detail = None
+    if args.result_file:
+        with open(args.result_file, encoding="utf-8") as f:
+            detail = {"result": json.load(f)}
     with _connect_checked(args) as conn:
         snap = actions.update_status(
             conn, _handle_from(args), args.action_id, args.status, reason=args.reason,
-            external_refs=_pairs(args.external_ref),
+            external_refs=_pairs(args.external_ref), detail=detail,
         )
     print(f"Aktion {snap.action_id}: {snap.status}")
     return 0
@@ -358,7 +362,8 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "renew":
             p.add_argument("--ttl", type=int, default=locks.DEFAULT_LOCK_TTL_SECONDS)
         if name == "release":
-            p.add_argument("--status", choices=["completed", "failed"], default="completed")
+            # Ohne Angabe bleibt die Operation unverändert, z. B. die des Agenten bei einem Dispatch.
+            p.add_argument("--status", choices=["completed", "failed"], help="Operation abschließen")
         p.set_defaults(fn=fn)
 
     p = lock.add_parser("status", help="aktuellen Sperrbesitz anzeigen")
@@ -395,6 +400,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--status", required=True, choices=[s.value for s in ActionStatus if s != ActionStatus.PLANNED])
     p.add_argument("--reason")
     p.add_argument("--external-ref", action="append", metavar="SCHLÜSSEL=WERT", help="z. B. runUrl=https://…")
+    p.add_argument("--result-file", help="JSON-Datei, z. B. Verifikationsergebnis; landet unter detail.result")
     p.set_defaults(fn=cmd_actions_update)
 
     p = act.add_parser("resolve", help="ungeklärte Aktion nach Prüfung abschließen")

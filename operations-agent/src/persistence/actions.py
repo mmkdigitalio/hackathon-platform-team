@@ -107,8 +107,9 @@ def update_status(
     *,
     reason: str | None = None,
     external_refs: dict[str, str] | None = None,
+    detail: dict | None = None,
 ) -> ActionSnapshot:
-    """Ergänzt Status und externe Referenzen unter derselben actionId.
+    """Ergänzt Status, externe Referenzen und Details unter derselben actionId.
 
     ``guard=None`` ist nur für die Klärung durch Menschen gedacht (``ops actions resolve``).
     """
@@ -130,13 +131,13 @@ def update_status(
             """
             UPDATE actions
                SET status = %s, status_reason = coalesce(%s, status_reason),
-                   external_refs = external_refs || %s, updated_at = now(),
+                   external_refs = external_refs || %s, detail = detail || %s, updated_at = now(),
                    finished_at = CASE WHEN %s THEN now() ELSE finished_at END
              WHERE id = %s
             RETURNING *
             """,
             (status.value, reason, Jsonb({k: str(v) for k, v in (external_refs or {}).items()}),
-             status in _FINAL, action_id),
+             Jsonb(detail or {}), status in _FINAL, action_id),
         ).fetchone()
     return snapshot(row)
 

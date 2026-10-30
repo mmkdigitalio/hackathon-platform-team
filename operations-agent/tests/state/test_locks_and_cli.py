@@ -122,7 +122,7 @@ def test_cli_lock_cycle(db_url, capsys, tmp_path, monkeypatch):
     assert cli.main(["actions", "update", *base, "--operation-id", op, "--action-id", "act-wf-1",
                      "--status", "succeeded", "--external-ref", "runUrl=https://github.com/x/y/actions/runs/7"]) == 0
     assert cli.main(["lock", "release", *base, "--owner", "someone-else"]) == 7
-    assert cli.main(["lock", "release", *base]) == 0
+    assert cli.main(["lock", "release", *base, "--status", "completed"]) == 0
     with connect(db_url) as conn:
         assert conn.execute("SELECT status FROM operations WHERE id = %s", (op,)).fetchone()["status"] == "completed"
         action = actions.get_action(conn, "act-wf-1")
