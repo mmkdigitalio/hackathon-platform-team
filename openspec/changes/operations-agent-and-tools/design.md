@@ -131,7 +131,7 @@ Der Chart legt keine Secrets und keine Ingress-Regel an. Beides liefert B's App-
 
 ### 12. Image-Build ohne Azure-Identität
 
-`.github/workflows/agent-build.yml` prüft Änderungen unter `operations-agent/`. Auf `main` liest er über `.github/actions/foundation-outputs` ACR-Login-Server und Admin-User, baut und pusht das Image mit Git-SHA als Tag, ermittelt den Digest und veröffentlicht den Chart als OCI-Artefakt in derselben Registry. Danach ruft er B's wiederverwendbaren Workflow auf, der `platform/environments/staging/operations-agent.yaml` mit Digest und Chart-Version aktualisiert. Den Rollout übernimmt B's Deploy-Workflow. Bei einem Agenten-Update kann der bisherige Worker enden, während GitHub Actions den Release und der neue Worker später die Beobachtung fortsetzen.
+`.github/workflows/agent-build.yml` prüft Änderungen unter `operations-agent/`. Auf `main` liest er über `.github/actions/foundation-outputs` ACR-Login-Server und Admin-User, baut und pusht das Image mit Git-SHA als Tag, ermittelt den Digest und veröffentlicht den Chart als OCI-Artefakt in derselben Registry. Danach ruft er B's wiederverwendbaren Workflow `app-update-desired-state.yml` auf, der `platform/environments/staging/operations-agent.yaml` mit Digest und Chart-Version aktualisiert. Den Rollout übernimmt `app-deploy.yml`. Bei einem Agenten-Update kann der bisherige Worker enden, während GitHub Actions den Release und der neue Worker später die Beobachtung fortsetzen.
 
 ## Risks / Trade-offs
 

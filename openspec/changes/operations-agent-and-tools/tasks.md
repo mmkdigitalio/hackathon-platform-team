@@ -29,7 +29,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 ## 4. Ändernde Aktionen und Workflow-Verfolgung, Anteil P1-07
 
 - [ ] 4.1 Kontrollierten Neustart über Annotation `ops.mmk/action-id` und C's Aktions-/Sperrclient implementieren; Abschluss durch protokollierten echten Neustart und abgewiesene Änderung ohne gültigen Besitz prüfen.
-- [ ] 4.2 Dispatch vorgegebener Workflows aus einer konfigurierten Liste mit Eingabe `operationId` anbinden, ohne Branches, Commits, Pull Requests oder Merges; Abschluss durch gestarteten, eindeutig zugeordneten App-Deploy-Workflow und abgelehnten nicht gelisteten Workflow prüfen.
+- [ ] 4.2 Dispatch vorgegebener Workflows aus einer konfigurierten Liste mit Eingaben `operationId` und `actionId` anbinden, ohne Branches, Commits, Pull Requests oder Merges; Abschluss durch gestarteten, über `actionId` eindeutig zugeordneten Lauf von `app-deploy.yml` und abgelehnten nicht gelisteten Workflow prüfen.
 - [ ] 4.3 Tatsächlichen Workflow-Status und Abschluss abrufen; Abschluss durch laufenden Status ohne falsche Erfolgsmeldung und korrekt zugeordnetes Endergebnis prüfen.
 - [ ] 4.4 Abgleich nach Timeout oder Neustart für Neustart (Annotation) und Dispatch (Lauf-ID, `operationId`) implementieren; Abschluss durch Wiederfinden derselben Aktion, keine doppelte Ausführung und `needs_attention` bei mehreren passenden Läufen prüfen.
 - [ ] 4.5 Dispatch-, Sperr- und Abgleichverfahren in `platform/operations/agent/` dokumentieren; Abschluss durch Workflow-Warten ohne eigene Ziel-Sperre und gemeinsam mit C geprüfte Besitzverlustfälle prüfen.
@@ -38,7 +38,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 
 - [ ] 5.1 Smoke-Test-Image aus dem Katalog als Kubernetes-Job mit `TARGET_URL` starten und Exit-Code sowie JSON auf stdout auswerten; Abschluss durch echten Lauf gegen AFFiNE in Staging und gemeldete Zeitüberschreitung bei hängendem Job prüfen.
 - [ ] 5.2 Nachweis um aktuellen Kubernetes-Zustand ergänzen und an C liefern; Abschluss durch Nachweis mit Release, `checkRef` und Zeitraum nach der Maßnahme prüfen.
-- [ ] 5.3 AFFiNE auf 0 Replicas erkennen und Sollzustand per App-Deploy-Workflow wiederherstellen; Abschluss durch verfolgten Lauf und positiven Smoke-Test über echte Staging-Schnittstellen prüfen.
+- [ ] 5.3 AFFiNE auf 0 Replicas erkennen und Sollzustand per `app-deploy.yml` wiederherstellen; Abschluss durch verfolgten Lauf und positiven Smoke-Test über echte Staging-Schnittstellen prüfen.
 - [ ] 5.4 Ungültigen Konfigurationswert im Sollzustand als nicht reparierbar behandeln; Abschluss durch `needs_attention` mit Verweis auf den Sollzustands-Commit statt behauptetem Erfolg prüfen.
 - [ ] 5.5 Maßnahmen, Grenzen und Verifikation in `platform/operations/agent/` dokumentieren; Abschluss durch nachvollziehbaren positiven und negativen Lauf prüfen.
 
@@ -48,7 +48,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 - [ ] 6.2 Helm-Chart unter `operations-agent/deploy/` mit Deployments `api` und `worker`, Service und Werten für Image-Digest, Secret-Name und Image-Pull-Secret-Name liefern; Abschluss durch `helm lint`, Template-Prüfung und Start gegen ein vom App-Stack angelegtes Secret prüfen.
 - [ ] 6.3 Helm-Hook-Job (`pre-install,pre-upgrade`) mit C's Migrations-CLI und Schema-Versionsprüfung in API und Worker einbinden; Abschluss durch Upgrade mit neuer Migration ohne konkurrierende Schemaänderung prüfen.
 - [ ] 6.4 ServiceAccount `operations-agent`, ClusterRole und ClusterRoleBinding im Chart liefern; Abschluss durch `kubectl auth can-i` für erlaubte und verweigerte Verben prüfen.
-- [ ] 6.5 `.github/workflows/agent-build.yml` mit Tests, Image-Push und Chart-Veröffentlichung über den ACR-Admin-User aus `foundation-outputs` sowie Aufruf von B's Sollzustands-Workflow anlegen; Abschluss durch aktualisiertes `platform/environments/staging/operations-agent.yaml` ohne Azure-Anmeldung prüfen.
+- [ ] 6.5 `.github/workflows/agent-build.yml` mit Tests, Image-Push und Chart-Veröffentlichung über den ACR-Admin-User aus `foundation-outputs` sowie Aufruf von `app-update-desired-state.yml` anlegen; Abschluss durch aktualisiertes `platform/environments/staging/operations-agent.yaml` ohne Azure-Anmeldung prüfen.
 - [ ] 6.6 Paketstart, Stopp, Wiederanlauf und kompatibles Rollback in `platform/operations/agent/` dokumentieren; Abschluss durch Agenten-Update mit erhaltenem Auftrag und fortgesetzter Workflow-Beobachtung prüfen.
 
 ## 7. Gemeinsame Integration, Anteil P1-12

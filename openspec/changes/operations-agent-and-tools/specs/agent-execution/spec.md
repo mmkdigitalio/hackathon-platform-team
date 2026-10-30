@@ -75,11 +75,11 @@ Ist die Operations-Sperre für App und Umgebung durch eine andere Operation bele
 - **AND** nennt das Ergebnis die `operationId` des Sperrbesitzers
 
 ### Requirement: Bekannte Reparatur des AFFiNE-Deployments
-Weicht das AFFiNE-Deployment vom Sollzustand ab, weil es auf 0 Replicas skaliert ist, SHALL der Agent den Sollzustand per Dispatch des App-Deploy-Workflows mit `operationId` wiederherstellen, den Lauf bis zum Abschluss verfolgen und danach verifizieren.
+Weicht das AFFiNE-Deployment vom Sollzustand ab, weil es auf 0 Replicas skaliert ist, SHALL der Agent den Sollzustand per Dispatch von `app-deploy.yml` mit `operationId` und `actionId` wiederherstellen, den Lauf bis zum Abschluss verfolgen und danach verifizieren.
 
 #### Scenario: AFFiNE auf 0 Replicas
 - **WHEN** ein Verfügbarkeitsalarm für `affine` eintrifft und das Deployment 0 Replicas hat, der Sollzustand aber mehr
-- **THEN** startet der Agent den App-Deploy-Workflow mit der `operationId` des Auftrags
+- **THEN** startet der Agent `app-deploy.yml` mit der `operationId` des Auftrags und einer neuen `actionId`
 - **AND** schlägt er `resolved` erst nach erfolgreichem Lauf und positivem Smoke-Test vor
 
 ### Requirement: Nicht reparierbarer Sollzustand
@@ -135,7 +135,7 @@ Der Chart SHALL Konfiguration und Secrets aus genau einem Kubernetes-Secret lese
 - **AND** enthalten Chart und Werte-Dateien keine Secret-Werte
 
 ### Requirement: Image-Build ohne Azure-Identität
-Ein Workflow unter `.github/workflows/agent-*.yml` SHALL das Image mit dem ACR-Admin-User aus der Composite Action `foundation-outputs` nach ACR pushen und den Chart veröffentlichen. Danach SHALL er den wiederverwendbaren Workflow zur Sollzustandsaktualisierung für `platform/environments/staging/operations-agent.yaml` aufrufen.
+Ein Workflow unter `.github/workflows/agent-*.yml` SHALL das Image mit dem ACR-Admin-User aus der Composite Action `foundation-outputs` nach ACR pushen und den Chart veröffentlichen. Danach SHALL er den wiederverwendbaren Workflow `app-update-desired-state.yml` für `platform/environments/staging/operations-agent.yaml` aufrufen.
 
 #### Scenario: Merge auf main
 - **WHEN** eine Änderung unter `operations-agent/` auf `main` landet und die Prüfungen bestehen

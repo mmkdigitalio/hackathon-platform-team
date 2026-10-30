@@ -111,7 +111,11 @@ Die Plattform SHALL die Action Group `ops-intake` bereitstellen. Sie sendet Alar
 - **AND** lehnt der Eingang denselben Request ohne Key ab
 
 ### Requirement: Verfügbarkeitstests aus dem Katalog
-Der Foundation-Stack SHALL für jeden Eintrag unter `platform/catalog/<app-id>/app.yaml` einen Application-Insights-Standardtest auf `https://<app-id>.<baseDomain><Prüfpfad>` und eine Metrik-Alarmregel `alert-<app-id>-staging-availability` anlegen. Die Regel SHALL an `ops-intake` senden, `app-id` und `environment` als Custom Properties mitgeben und automatische Auflösung aktivieren, damit auch Resolved-Ereignisse entstehen. Der Ende-zu-Ende-Nachweis mit einem echten Alarm gehört zur gemeinsamen Abnahme P1-09.
+Der Foundation-Stack SHALL für jeden Eintrag unter `platform/catalog/<app-id>/app.yaml` einen Application-Insights-Standardtest auf `https://<app-id>.<baseDomain><Prüfpfad>` und eine Metrik-Alarmregel `alert-<app-id>-staging-availability` anlegen. Die Regel SHALL an `ops-intake` senden, `app-id` und `environment` als Custom Properties mitgeben und automatische Auflösung aktivieren, damit auch Resolved-Ereignisse entstehen. Ausgenommen ist `operations-agent`: Er wird nur über den `/healthz`-Test an `ops-humans` überwacht, damit er sich nicht selbst alarmiert. Der Ende-zu-Ende-Nachweis mit einem echten Alarm gehört zur gemeinsamen Abnahme P1-09.
+
+#### Scenario: Kein Alarm des Agenten an sich selbst
+- **WHEN** der Katalog einen Eintrag `operations-agent` enthält
+- **THEN** entsteht für ihn kein Test an `ops-intake`
 
 #### Scenario: AFFiNE nicht erreichbar
 - **WHEN** AFFiNE fünf Minuten lang nicht antwortet

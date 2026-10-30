@@ -38,7 +38,7 @@ Jeder Change enthält `proposal.md`, `design.md`, Capability-Specs und `tasks.md
 | `platform/infra/foundation/`, `platform/infra/components/`, `platform/scripts/bootstrap/`, `platform/operations/foundation/` | A | Alle Azure-Ressourcen; keine Kubernetes-Objekte von Apps |
 | `platform/schemas/conventions/`, `platform/schemas/foundation-outputs/`, `.github/actions/foundation-outputs/`, `.github/workflows/foundation-*.yml` | A | Konventionen, Ausgabevertrag und Zugangscheck |
 | `platform/infra/app-runtime/`, `platform/schemas/app-catalog/`, `platform/catalog/`, `platform/environments/`, `platform/operations/apps/`, `.github/workflows/app-*.yml` | B | App-Stacks und Releases; `platform/catalog/affine/` befüllt der AFFiNE-Kollege nach B's Schema |
-| `platform/schemas/events/`, `platform/operations/state/`, `.github/ISSUE_TEMPLATE/`, `.github/workflows/health-check.yml` | C | Ereignisverträge und Wartungseingang |
+| `platform/schemas/events/`, `platform/operations/state/`, `.github/ISSUE_TEMPLATE/`, `.github/workflows/health-check.yml`, `.github/workflows/ops-migrate.yml` | C | Ereignisverträge, Wartungseingang und Erstinitialisierung der Datenbank |
 | `platform/operations/agent/` | D | Plattformweite Agenten-Betriebsregeln |
 | `operations-agent/src/contracts/`, `src/api/`, `src/persistence/`, `src/worker/` | C | Einstiegspunkte, Besitz, Zustände, Migrationen, Heartbeat |
 | `operations-agent/src/agent/`, `src/tools/`, `deploy/`, `Dockerfile`, Paketmanifest und Lockdatei, `.github/workflows/agent-*.yml` | D | Agentenausführung, Adapter, Image und Chart; C meldet Abhängigkeiten an D |
@@ -71,7 +71,7 @@ Maßgeblich ist die Tabelle im Requirement „Versionierter Foundation-Ausgabeve
 - `platform/environments/<env>/<app-id>.yaml`, Sollzustand: Image-Digest, Chart-Version, Konfigurationswerte, Größen.
 - Namespace und Host werden aus App-ID und Umgebung abgeleitet und nicht eingetragen.
 
-A erzeugt aus `app.yaml` je App und Umgebung einen Verfügbarkeitstest mit Alarm an `ops-intake`. C validiert App-/Umgebungszuordnung. D lädt Release, erlaubte Aktionen und Betriebswissen.
+A erzeugt aus `app.yaml` je App und Umgebung einen Verfügbarkeitstest mit Alarm an `ops-intake`; ausgenommen ist `operations-agent`, der nur über `/healthz` an `ops-humans` überwacht wird. C validiert App-/Umgebungszuordnung. D lädt Release, erlaubte Aktionen und Betriebswissen.
 
 ### Ereignisse, C liefert an A und die Eingangsquellen
 
@@ -97,8 +97,15 @@ Eine Operation besitzt stabile `operationId`, App/Umgebung, Besitzerreferenz, St
 - D protokolliert einen Workflow-Dispatch vor dem Aufruf mit stabiler Korrelation und hält beim Warten keine Ziel-Sperre. Das Deployment übernimmt die Sperre im Workflow.
 - Ein abgelaufener Besitz mit ungeklärter externer Änderung wird nicht blind neu vergeben.
 
+### Workflows, B liefert an D
+
+- `app-plan.yml`: Plan-Prüfung für Pull Requests, erforderlicher Check für `main`.
+- `app-deploy.yml`: Push auf `main` unter `platform/environments/**` und `workflow_dispatch` mit `appId`, `environment`, `operationId`, `actionId`, `force`. Der `run-name` enthält App, Umgebung, `operationId` und `actionId`; der Agent ordnet Läufe über die `actionId` zu.
+- `app-update-desired-state.yml`: wiederverwendbar per `workflow_call`, schreibt den Sollzustand mit `OPS_GITHUB_TOKEN`; D's `agent-build.yml` ruft ihn auf.
+
 ### Migrationen und Gesundheit, C liefert an D
 
+- Vor dem ersten App-Deployment führt C's Workflow `ops-migrate.yml` die Migrations-CLI einmal aus, weil die Sperre ihr Schema braucht. Gleichzeitige Migrationen serialisiert eine Advisory-Lock.
 - Das Agenten-Chart führt C's Migrations-CLI als Helm-Hook-Job (`pre-install,pre-upgrade`) aus. API und Worker prüfen beim Start nur die Schema-Version.
 - Der Worker schreibt mindestens jede Minute einen Heartbeat in PostgreSQL. `/healthz` der API wertet ihn nach E10 aus.
 
@@ -113,7 +120,7 @@ Eine Operation besitzt stabile `operationId`, App/Umgebung, Besitzerreferenz, St
 
 1. A legt Konventionen fest und veröffentlicht Ausgabe-Schema v0 mit Platzhalterwerten; B und C veröffentlichen Katalog- und Ereignisbeispiele; C und D fixieren Aufruf- und Aktionsverträge.
 2. Alle vier Stränge beginnen lokal. D liefert P1-02 mit echtem Modell früh. A bootstrapt und rollt die Foundation lokal aus.
-3. A liefert Foundation und erreichbare Datenbank. C liefert Migrationen und standalone Operations-Client. B kann damit AFFiNE und das erste Agentenpaket ausrollen, auch wenn die Agenten-API noch nicht läuft.
+3. A liefert Foundation und erreichbare Datenbank. C liefert Migrationen, führt `ops-migrate.yml` einmal aus und liefert den standalone Operations-Client. B kann damit AFFiNE und das erste Agentenpaket ausrollen, auch wenn die Agenten-API noch nicht läuft.
 4. D liefert das Paket mit C's API-/Worker-Einstiegspunkten. B integriert Digest, Chart und Konfiguration im Katalog. A erzeugt die Verfügbarkeitstests aus dem Katalog.
 5. Gemeinsame Abnahme: AFFiNE-Fehler, Alarm oder Issue, Diagnose, Reparatur, unabhängiger Test und sichtbares Ergebnis. Danach die Widerstandsfähigkeitsszenarien.
 
