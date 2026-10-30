@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Eine schreibgeschützte Statusansicht zeigt den aktuellen Zustand der Apps, der Operations-Datenbank und des Agent-Workers, ohne Geheimnisse preiszugeben und ohne von der Verfügbarkeit des Agenten abzuhängen. Die konkret angezeigten Inhalte sind vorläufig und werden inhaltlich überarbeitet; die folgenden Requirements gelten unabhängig davon.
+Eine schreibgeschützte Statusansicht zeigt den aktuellen Zustand der Apps, der Operations-Datenbank und des Agent-Workers, ohne Geheimnisse preiszugeben und ohne von der Verfügbarkeit des Agenten abzuhängen. Dashboard, Anwendungsanalyse und Aktivitäten sind getrennte Admin-Aufgaben; die folgenden Requirements definieren ihre Daten und Bedienung.
 
 ## ADDED Requirements
 
@@ -160,7 +160,7 @@ Die Detailseite SHALL Live-HTTP-Prüfung, konfigurierte externe Verfügbarkeit u
 - **AND** behauptet nicht, Azure-Monitor sei aktiv oder ausgefallen
 
 ### Requirement: Strukturierter Aktivitätenverlauf
-Der Verlauf SHALL Erkennungen, Agentenaktionen, Systemaktionen und Abschlüsse anhand fester Beschreibungen unterscheiden. Er SHALL nach App, Kategorie, Ergebnis und 24 Stunden bzw. sieben Tagen filterbar sein. Die URL SHALL Filter enthalten. Der Ausschnitt SHALL auf 100 jüngste Einträge aus sieben Tagen begrenzt und diese Grenze sichtbar sein. Rohe Payloads, Gründe, Findings, Targets, interne IDs und freie Meldungen SHALL nicht ausgegeben werden.
+Der Verlauf SHALL Erkennungen, strukturierte Agentenbefunde, Agentenaktionen, Systemaktionen und Abschlüsse anhand fester Beschreibungen unterscheiden. Er SHALL nach App, Kategorie, Ergebnis und 24 Stunden bzw. sieben Tagen filterbar sein. Die URL SHALL Filter enthalten. Der Ausschnitt SHALL auf 100 jüngste Einträge aus sieben Tagen begrenzt und diese Grenze sichtbar sein. Rohe Payloads, Gründe, Findingtexte, Targets, interne IDs und freie Meldungen SHALL nicht ausgegeben werden.
 
 #### Scenario: System-Deployment und Agentenaktion
 - **WHEN** beide in der Datenbank dokumentiert sind
@@ -172,7 +172,7 @@ Der Verlauf SHALL Erkennungen, Agentenaktionen, Systemaktionen und Abschlüsse a
 - **THEN** zeigt die UI fehlende Daten statt „keine Aktivitäten“ oder null Probleme
 
 ### Requirement: Behebungen mit Prüfnachweis
-„Verifiziert behoben“ SHALL einen Auftrag im Zustand `resolved` und eine erfolgreiche jüngste Verifikation desselben Auftrags erfordern. Ein erfolgreicher Aktions- oder Deployment-Status allein SHALL nicht ausreichen. Ein aktueller App-Ausfall SHALL unabhängig von früheren Behebungen angezeigt werden.
+„Verifiziert abgeschlossen“ SHALL einen Auftrag im Zustand `resolved` und eine erfolgreiche jüngste Verifikation desselben Auftrags erfordern. Ein erfolgreicher Aktions- oder Deployment-Status allein SHALL nicht ausreichen. Monitoring-Störungen, Support-Fälle und andere Aufträge SHALL anhand ihrer strukturierten Quelle getrennt benannt werden; ein erfolgreicher Wartungsauftrag SHALL nicht als behobene Monitoring-Störung erscheinen. Ein aktueller App-Ausfall SHALL unabhängig von früheren Behebungen angezeigt werden.
 
 #### Scenario: Abschluss ohne erfolgreiche jüngste Verifikation
 - **WHEN** ein Auftrag resolved ist, aber der jüngste Prüfnachweis fehlt oder fehlschlug

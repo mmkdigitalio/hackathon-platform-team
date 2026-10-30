@@ -5,9 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="robots" content="noindex,nofollow">
-  <meta name="description" content="Aktueller Zustand der MMK Plattform, ihrer Anwendungen und des Betriebsagenten.">
-  <title>Plattformstatus · mmkdigital</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23181818'/%3E%3Cpath d='M8 23V10h4l4 7 4-7h4v13h-4v-7l-4 7-4-7v7z' fill='%23fafafa'/%3E%3C/svg%3E">
+  <meta name="description" content="Status, Überwachung und Aktivitäten der deployten Plattform-Anwendungen.">
+  <title>Plattform · mmkdigital</title>
   <link rel="preload" href="/status-assets/fonts/bricolage-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="/status-assets/fonts/hanken-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/status-assets/colors.css">
@@ -19,56 +18,18 @@
 <body>
   <a class="skip-link" href="#main">Zum Inhalt</a>
   <header class="site-header shell">
-    <a class="brand" href="/" aria-label="mmkdigital Plattformstatus"><img src="/status-assets/wordmark.svg" alt="mmkdigital" width="142" height="28"></a>
-    <nav aria-label="Seitennavigation"><a class="nav-active" href="#main" aria-current="page">Übersicht</a><a href="#services">Anwendungen</a><a href="#activity">Betrieb</a></nav>
-    <span class="environment"><span class="dot"></span><span id="environment">Umgebung wird geladen</span></span>
+    <a class="brand" href="/" aria-label="mmkdigital Plattform"><img src="/status-assets/wordmark.svg" alt="mmkdigital" width="142" height="28"></a>
+    <nav aria-label="Hauptnavigation"><a href="/" data-nav="dashboard">Status</a><a href="/applications" data-nav="applications">Anwendungen</a><a href="/activity" data-nav="activity">Aktivitäten</a></nav>
+    <span id="environment" class="environment">Umgebung wird geladen</span>
   </header>
-
   <main id="main" class="shell">
-    <section class="intro" aria-labelledby="page-title">
-      <div class="eyebrow"><span class="measure-line"></span>AI-operated platform</div>
-      <div class="title-row"><h1 id="page-title">Plattformstatus<span class="accent">.</span></h1><button id="refresh" type="button"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5M5.4 8a7 7 0 0 1 11.5-2L20 9M4 15l3.1 3A7 7 0 0 0 18.6 16"/></svg><span>Aktualisieren</span></button></div>
-      <p class="intro-copy">Anwendungen, Automatisierung und Betrieb. Ein gemeinsamer Blick auf den aktuellen Zustand.</p>
-    </section>
-
-    <section id="summary" class="summary" data-state="unknown" aria-label="Gesamtzustand">
-      <span class="summary-icon" aria-hidden="true">·</span>
-      <div class="summary-copy"><h2 id="summary-title">Status wird geprüft.</h2><p id="summary-detail">Die aktuellen Messwerte werden abgerufen.</p></div>
-      <div class="check-time"><span class="meta">Letzte Prüfung</span><time id="checked-at">Noch keine Daten</time></div>
-    </section>
-    <p id="data-warning" class="data-warning" role="status" hidden></p>
-    <noscript><p class="data-warning">JavaScript ist deaktiviert. Die aktuellen Messwerte stehen unter <a href="/status">/status</a> bereit.</p></noscript>
+    <div class="page-heading"><div><p id="eyebrow" class="eyebrow">Platform operations</p><h1 id="page-title">Plattformstatus<span class="accent">.</span></h1><p id="page-description" class="lead">Aktuelle Daten werden geladen.</p></div><button id="refresh" type="button" aria-label="Status aktualisieren" aria-busy="false">Aktualisieren</button></div>
+    <div class="freshness"><span id="checked-at">Noch keine Messwerte</span><span id="refresh-note">Automatische Aktualisierung</span></div>
+    <p id="data-warning" class="notice" role="status" hidden></p>
     <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
-
-    <section class="metrics" aria-label="Betriebskennzahlen">
-      <div class="metric"><span class="meta">Dienste erreichbar</span><div class="metric-value"><span id="healthy-count">—</span><span class="metric-suffix" id="service-total"> / —</span></div><span class="metric-note">Öffentliche HTTP-Prüfung</span></div>
-      <div class="metric"><span class="meta">Aktive Aufträge</span><div class="metric-value" id="active-count">—</div><span class="metric-note">In Warteschlange oder Bearbeitung</span></div>
-      <div class="metric"><span class="meta">Abgeschlossen</span><div class="metric-value" id="resolved-count">—</div><span class="metric-note">In den letzten 24 Stunden</span></div>
-      <div class="metric"><span class="meta">Aufmerksamkeit</span><div class="metric-value" id="attention-count">—</div><span class="metric-note">Fehlgeschlagen oder eskaliert · 24 h</span></div>
-    </section>
-
-    <div class="overview-grid">
-      <section id="services" class="services-panel" aria-labelledby="services-title">
-        <div class="section-heading"><div class="section-label"><span class="section-index">01</span><h2 id="services-title">Anwendungen</h2></div><span class="meta" id="catalog-count">Katalog</span></div>
-        <div id="service-list" class="service-list"><p class="empty">Anwendungen werden geladen …</p></div>
-        <p class="section-note">Prüfung über den öffentlichen Ingress, einschließlich TLS. Eine erreichbare App ist kein vollständiger Funktionstest.</p>
-      </section>
-
-      <section class="operations-panel" aria-labelledby="operations-title">
-        <div class="section-heading"><div class="section-label"><span class="section-index">02</span><h2 id="operations-title">Betrieb</h2></div><span class="meta">Live</span></div>
-        <div class="component-row"><div><h3>Status-API</h3><p id="api-detail">Verbindung wird hergestellt</p></div><span id="api-state" class="state" data-state="unknown"><span class="dot"></span>Unbekannt</span></div>
-        <div class="component-row"><div><h3>Operations-Datenbank</h3><p id="database-detail">Verbindung und Lesbarkeit</p></div><span id="database-state" class="state" data-state="unknown"><span class="dot"></span>Unbekannt</span></div>
-        <div class="component-row"><div><h3>Agent-Worker</h3><p id="worker-detail">Heartbeat wird geprüft</p></div><span id="worker-state" class="state" data-state="unknown"><span class="dot"></span>Unbekannt</span></div>
-        <div class="operation-note"><span class="measure-line"></span><p>Der Agent untersucht Störungen, führt erlaubte Maßnahmen aus und prüft das Ergebnis.</p></div>
-      </section>
-    </div>
-
-    <section id="activity" class="activity" aria-labelledby="activity-title">
-      <div class="section-heading"><div class="section-label"><span class="section-index">03</span><h2 id="activity-title">Letzte Aufträge</h2></div><span class="meta">Zuletzt aktualisiert</span></div>
-      <div class="table-scroll"><table><caption class="sr-only">Die sechs zuletzt aktualisierten Betriebsaufträge</caption><thead><tr><th scope="col">Anwendung</th><th scope="col">Zustand</th><th scope="col">Aktualisiert</th></tr></thead><tbody id="activity-list"><tr><td colspan="3" class="empty">Aufträge werden geladen …</td></tr></tbody></table></div>
-    </section>
-    <footer class="page-footer"><span>mmkdigital <span class="footer-divider">/</span> Platform operations</span><span id="refresh-note"><span class="dot live-dot"></span>Automatische Prüfung alle 30 Sekunden</span><a href="/docs">API-Dokumentation <span aria-hidden="true">↗</span></a></footer>
+    <noscript><p class="notice">Diese Ansicht benötigt JavaScript. Die lesende JSON-Projektion ist unter <a href="/status">/status</a> verfügbar.</p></noscript>
+    <div id="page-content" aria-busy="true"><p class="empty">Status und Betriebsdaten werden geladen …</p></div>
+    <footer class="page-footer"><span>mmkdigital / Platform operations</span><span>Lesende Staging-Ansicht</span><a href="/applications">Anwendungsbestand öffnen</a></footer>
   </main>
-  <template id="service-template"><article class="service-row"><div class="service-symbol" aria-hidden="true"></div><div class="service-info"><h3></h3><p></p><span class="service-version"></span></div><div class="service-reading"><span class="state"><span class="dot"></span><span class="state-label"></span></span><span class="latency"></span></div><a class="service-link" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">↗</span></a></article></template>
 </body>
 </html>

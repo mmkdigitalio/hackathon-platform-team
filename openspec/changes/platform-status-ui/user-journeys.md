@@ -14,7 +14,7 @@ Screenshot der Ausgangsseite: `admin-before.jpg`, im Chat festgehalten. Die Seit
 | US-2 | eine deployte Anwendung schnell finden und ihren Zustand untersuchen | Suchbare Anwendungsliste mit Zustandsfilter, direkter Detail-URL und Rückweg zur Liste. Ein verifizierter Rollout wird getrennt vom Konfigurationsstand im Image gezeigt. |
 | US-3 | verstehen, was eine App überwacht und wohin Alarme gehen | Detailseite nennt Prüfpfad, TLS-Prüfung, Takt und Alarmziel der konfigurierten Überwachung sowie vorhandene empfangene Signale. Konfiguration wird nicht als nachgewiesene Azure-Aktivierung ausgegeben. |
 | US-4 | erkennen, was Agent und System zuletzt getan haben | Eigene Aktivitätenseite mit Filtern nach App, Quelle/Kategorie, Ergebnis und Zeitraum. Erkennung, Agentenaktion, System-Deployment und Abschluss sind getrennt beschriftet. |
-| US-5 | nachvollziehen, welche Probleme tatsächlich behoben wurden | „Verifiziert behoben“ erfordert einen aufgelösten Auftrag und eine erfolgreiche jüngste Verifikation desselben Auftrags. Ein abgeschlossenes Deployment oder ein Abschluss ohne Nachweis wird nicht so bezeichnet. |
+| US-5 | nachvollziehen, welche Probleme tatsächlich behoben wurden | „Verifiziert abgeschlossen“ erfordert einen aufgelösten Auftrag und eine erfolgreiche jüngste Verifikation desselben Auftrags. Ein abgeschlossenes Deployment oder ein Abschluss ohne Nachweis wird nicht so bezeichnet. |
 | US-6 | auch bei fehlenden Daten sicher entscheiden | Fehlender Verlauf erscheint als unbekannt/unverfügbar, nicht als „keine Probleme“. Such- und Filterzustände stehen in der URL und bleiben beim Aktualisieren erhalten. |
 
 ## Journeys
@@ -43,13 +43,13 @@ Screenshot der Ausgangsseite: `admin-before.jpg`, im Chat festgehalten. Die Seit
 ### J4: Agenten- und Systemarbeit nachvollziehen
 
 1. `/activity` öffnen. Zeitraum 24 Stunden oder sieben Tage wählen.
-2. Nach Anwendung und „Agent“, „System“, „Erkannt“ oder „Verifiziert behoben“ filtern.
+2. Nach Anwendung und „Agent“, „System“, „Erkannt“ oder „Verifiziert abgeschlossen“ filtern.
 3. Zeit, feste Tätigkeitsbeschreibung, Ergebnis und App lesen.
 4. Bei Bedarf zur App-Detailseite wechseln. Leere Treffer und nicht verfügbare Daten werden unterschiedlich erklärt.
 
 ### J5: Eine Behebung kontrollieren
 
-1. Vom Dashboard „Verifiziert behoben · 24 h“ öffnen.
+1. Vom Dashboard „Verifizierte Abschlüsse · 24 h“ öffnen.
 2. Eintrag und Verifikationskennzeichnung prüfen.
 3. App öffnen und aktuellen HTTP-Zustand mit dem historischen Behebungsnachweis vergleichen.
 4. Ein aktuell gestörter Dienst bleibt gestört, auch wenn ein älteres Problem behoben wurde.

@@ -20,6 +20,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .catalog import APP_ID, ENVIRONMENTS, Catalog
 from .settings import Settings
+from .status_activity import admin_projection
 
 STATIC = Path(__file__).with_name("static")
 ACTIVE_STATES = ("received", "queued", "investigating", "acting", "verifying")
@@ -94,8 +95,13 @@ class StatusCollector:
                 configured = bool(DOMAIN.fullmatch(self.domain)) and self.scheme in ("http", "https")
                 url = f"{self.scheme}://{app_id}.{self.domain}" if configured else None
                 apps.append({"id": app_id, "name": "AFFiNE" if app_id == "affine" else
-                             "Operations-Agent" if app_id == "operations-agent" else app_id,
-                             "version": str(version) if version else None, "url": url, "checkPath": path})
+                             "Operations-Agent" if app_id == "operations-agent" else "Status-UI" if app_id == "platform-status" else app_id,
+                             "version": str(version) if version else None, "url": url, "checkPath": path,
+                             "description": str(catalog.get("description", ""))[:240],
+                             "monitoring": {"external": {"source": "Foundation-IaC", "activation": "not-verified",
+                                 "intervalSeconds": 300, "locations": 5, "failedLocations": 2,
+                                 "notificationTarget": "ops-humans" if app_id == "operations-agent" else "ops-intake"},
+                                 "smokeConfigured": bool(catalog.get("smokeTest")), "tls": self.scheme == "https"}})
             except (OSError, ValueError, TypeError, AttributeError, yaml.YAMLError):
                 complete = False
         return apps, bool(complete and apps)
@@ -123,17 +129,21 @@ class StatusCollector:
                 return self._cached
             apps, catalog_ok = await run_in_threadpool(self.targets)
             async with httpx.AsyncClient(timeout=4, follow_redirects=False, transport=self.transport, trust_env=False) as client:
-                results, operations = await asyncio.gather(
+                results, operations, admin = await asyncio.gather(
                     asyncio.gather(*(self.probe(client, app) for app in apps)),
                     run_in_threadpool(database_status, self.pool, self.environment,
                                       self.settings.healthz_max_heartbeat_age_seconds),
+                    run_in_threadpool(admin_projection, self.pool, self.environment, {a["id"] for a in apps}),
                 )
+            for job in operations["recentJobs"]:
+                if job["appId"] not in {a["id"] for a in apps}:
+                    job["appId"] = None
             states = [a["status"] for a in results] + [operations["database"], operations["worker"]]
             overall = "degraded" if "unavailable" in states else "unknown" if "unknown" in states or not catalog_ok else "healthy"
             self._cached = {
                 "checkedAt": datetime.now(UTC).isoformat(), "refreshAfterSeconds": 30,
                 "environment": self.environment, "status": overall, "catalogAvailable": catalog_ok,
-                "services": list(results), "operations": operations,
+                "services": list(results), "operations": operations, "admin": admin,
             }
             self._expires = time.monotonic() + 10
             return self._cached
@@ -146,6 +156,17 @@ def install_status(app: FastAPI, settings: Settings, pool, **collector_options) 
     @app.get("/", include_in_schema=False)
     async def status_page():
         return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache", "X-Robots-Tag": "noindex"})
+
+    @app.get("/applications", include_in_schema=False)
+    @app.get("/activity", include_in_schema=False)
+    async def analysis_page():
+        return await status_page()
+
+    @app.get("/applications/{app_id}", include_in_schema=False)
+    async def app_page(app_id: str):
+        if not APP_ID.fullmatch(app_id) or Catalog(settings.platform_root).problem(app_id, collector.environment):
+            return FileResponse(STATIC / "not-found.html", status_code=404, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+        return await status_page()
 
     @app.get("/status", tags=["status"])
     async def platform_status():

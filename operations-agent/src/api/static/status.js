@@ -1,167 +1,160 @@
-/* No framework, third-party requests, credentials or write actions. */
 "use strict";
 (() => {
   const $ = (id) => document.getElementById(id);
-  const labels = { healthy: "Erreichbar", unavailable: "Gestört", unknown: "Unbekannt" };
-  const jobLabels = { received: "Eingegangen", queued: "In Warteschlange", investigating: "Untersuchung", acting: "Maßnahme läuft", verifying: "Verifikation", resolved: "Abgeschlossen", failed: "Fehlgeschlagen", needs_attention: "Aufmerksamkeit nötig" };
-  const names = { affine: "AFFiNE", "operations-agent": "Operations-Agent" };
-  const timeFormat = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short", timeZone: "Europe/Berlin" });
+  const params = new URLSearchParams(location.search);
+  const path = location.pathname.replace(/\/$/, "") || "/";
+  const route = path === "/" ? "dashboard" : path === "/activity" ? "activity" : path === "/applications" ? "applications" : "detail";
+  const appId = route === "detail" ? path.split("/").pop() : null;
+  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const labels = { healthy: "Erreichbar", unavailable: "Gestört", unknown: "Unbekannt", success: "Erfolgreich", failure: "Fehlgeschlagen", attention: "Aufmerksamkeit", running: "In Bearbeitung", detected: "Erkannt", closed: "Abgeschlossen", completed: "Abgeschlossen", active: "In Bearbeitung", failed: "Fehlgeschlagen" };
+  const categories = { detected: "Erkannt", agent: "Agent", system: "System", resolved: "Verifiziert abgeschlossen" };
   const dateFormat = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
-  let snapshot = null;
-  let loading = false;
-  let failed = false;
-
-  function stateBadge(element, state, label) {
-    element.dataset.state = state;
-    element.replaceChildren();
-    const dot = document.createElement("span");
-    dot.className = "dot";
-    element.append(dot, document.createTextNode(label || labels[state] || "Unbekannt"));
+  const timeFormat = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short", timeZone: "Europe/Berlin" });
+  let data = null, loading = false, failed = false, timer = null;
+  const badge = (state, text) => `<span class="badge" data-state="${esc(state)}"><span class="dot" aria-hidden="true"></span>${esc(text || labels[state] || "Unbekannt")}</span>`;
+  const date = (value) => value && Number.isFinite(new Date(value).getTime()) ? `<time datetime="${esc(value)}" title="${esc(new Date(value).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }))} Europe/Berlin">${esc(dateFormat.format(new Date(value)))}</time>` : "Noch kein Nachweis";
+  const urlFor = (app) => `/applications/${encodeURIComponent(app.id)}`;
+  const name = (id) => data.services.find((s) => s.id === id)?.name || "Nicht zugeordnet";
+  const appStats = (id) => data.admin?.available ? data.admin.perApp[id] || {} : {};
+  const count = (value) => value === null || value === undefined ? "—" : esc(value);
+  const adminReady = () => data.admin?.available === true;
+  const currentActivity = () => data.admin?.activity || [];
+  function selectedOptions(items, current) {
+    return items.map(([value, label]) => `<option value="${esc(value)}"${value === current ? " selected" : ""}>${esc(label)}</option>`).join("");
   }
-
-  function summary(state, title, detail) {
-    $("summary").dataset.state = state;
-    $("summary").querySelector(".summary-icon").textContent = state === "healthy" ? "✓" : state === "degraded" ? "!" : "·";
-    $("summary-title").textContent = title;
-    $("summary-detail").textContent = detail;
+  function field(label, name, options, current) {
+    return `<label>${esc(label)}<select name="${name}">${selectedOptions(options, current)}</select></label>`;
   }
-
-  function staleState() {
-    const stale = !snapshot || failed || Date.now() - new Date(snapshot.checkedAt).getTime() > 90000;
+  function dataHint() {
+    return adminReady() ? "" : '<p class="notice">Betriebsverlauf und Rollout-Nachweise sind derzeit nicht verfügbar. Die HTTP-Prüfungen werden separat angezeigt.</p>';
+  }
+  function metric(label, value, note, href) {
+    return `<a class="metric" href="${esc(href)}"><span class="meta">${label}</span><strong>${count(value)}</strong><span class="muted">${note}</span></a>`;
+  }
+  function summary() {
+    const stale = failed || Date.now() - new Date(data.checkedAt).getTime() > 90000;
+    const state = stale ? "unknown" : data.status;
+    const title = state === "healthy" ? "Alle geprüften Systeme erreichbar." : state === "degraded" ? "Der Betrieb ist eingeschränkt." : "Aktueller Status unvollständig.";
+    const detail = state === "healthy" ? "Anwendungen, Datenbank und Worker antworten. Der Aktivitätenverlauf zeigt Veränderungen und Nachweise." : state === "degraded" ? "Prüfe die betroffenen Anwendungen und die Betriebsbereitschaft des Agenten." : "Fehlende oder veraltete Messwerte erlauben derzeit keine vollständige Aussage.";
+    return `<section id="overall-summary" class="summary" data-state="${esc(state)}" aria-label="Gesamtzustand"><h2>${title}</h2><p>${detail}</p></section>`;
+  }
+  function component(label, state, detail) {
+    return `<div class="component"><div><strong>${label}</strong><p class="muted">${esc(detail)}</p></div>${badge(state, state === "healthy" ? "Bereit" : null)}</div>`;
+  }
+  function activityRows(items) {
+    if (!adminReady()) return '<p class="empty">Aktivitäten sind derzeit nicht verfügbar.</p>';
+    if (!items.length) return '<p class="empty">Keine passenden Aktivitäten im verfügbaren Zeitraum.<small>Auch ein ruhiger Betrieb wird als leerer Verlauf dargestellt. Es werden keine Ereignisse erfunden.</small></p>';
+    return `<ol class="timeline">${items.map((item) => `<li><div class="activity-time">${date(item.at)}</div><div class="activity-copy"><div class="activity-meta"><span class="category">${esc(categories[item.category] || "System")}</span>${categories[item.category] !== item.source ? `<span>${esc(item.source)}</span>` : ""}</div><strong>${esc(item.title)}</strong><p>${item.appId ? `<a href="/applications/${encodeURIComponent(item.appId)}">${esc(name(item.appId))}</a>` : "Nicht zugeordnet"}${item.verified ? '<span class="proof">Prüfnachweis vorhanden</span>' : ""}</p></div>${badge(item.result)}</li>`).join("")}</ol>`;
+  }
+  function dashboard() {
+    const issues = data.services.filter((s) => s.status !== "healthy").sort((a, b) => (a.status === "unavailable" ? 0 : 1) - (b.status === "unavailable" ? 0 : 1));
+    const healthy = data.services.filter((s) => s.status === "healthy").length;
+    const ops = data.operations;
+    const activity = currentActivity().slice(0, 5);
+    return `${summary()}<section class="metrics" aria-label="Schneller Tagescheck">
+      ${metric("Anwendungen erreichbar", data.services.length ? `${healthy} / ${data.services.length}` : null, "Öffentliche HTTP-Prüfung", "/applications")}
+      ${metric("Aufmerksamkeit · 24 h", ops.attentionJobs, "Fehlgeschlagene oder eskalierte Aufträge", "/activity?result=attention&range=24h")}
+      ${metric("Aktive Aufträge", ops.activeJobs, "Warteschlange und Bearbeitung", "/applications?state=active")}
+      ${metric("Verifizierte Abschlüsse · 24 h", data.admin?.verifiedResolved24h, "Behebung oder Auftrag mit Prüfnachweis", "/activity?category=resolved&range=24h")}
+    </section>${dataHint()}<div class="dashboard-grid"><section class="panel"><div class="section-heading"><h2>Handlungsbedarf</h2><a href="/applications">Alle Anwendungen</a></div>${ops.attentionJobs > 0 ? `<a class="issue-row" href="/activity?result=attention&range=24h"><div><strong>Aufträge mit Aufmerksamkeit</strong><p class="muted">${count(ops.attentionJobs)} fehlgeschlagene oder eskalierte Aufträge in 24 Stunden</p></div>${badge("attention", "Verlauf prüfen")}</a>` : ""}${issues.length ? issues.map((s) => `<a class="issue-row" href="${urlFor(s)}"><div><strong>${esc(s.name)}</strong><p class="muted">${esc(s.detail)}</p></div>${badge(s.status)}<span class="text-link">Analysieren</span></a>`).join("") : '<div class="quiet-state"><h3>Keine gestörte Anwendung erkannt.</h3><p>Für die Detailprüfung stehen Überwachung und Verlauf im Anwendungsbestand bereit.</p><a href="/applications">Anwendungsbestand prüfen</a></div>'}</section>
+    <section class="panel"><div class="section-heading"><h2>Betriebsbereitschaft</h2><span class="meta">Plattform</span></div>${component("Agent-Worker", ops.worker, ops.heartbeatAgeSeconds === null ? "Kein Heartbeat verfügbar" : `Heartbeat vor ${Math.floor(ops.heartbeatAgeSeconds)} Sekunden`)}${component("Operations-Datenbank", ops.database, ops.database === "healthy" ? "Betriebsdaten lesbar" : "Betriebsdaten nicht bestätigt")}<p class="footnote">Prozessgesundheit und aktuelle App-Erreichbarkeit werden getrennt geprüft.</p></section></div>
+    <section class="panel"><div class="section-heading"><h2>Zuletzt passiert</h2><a href="/activity">Alle Aktivitäten</a></div>${activityRows(activity)}</section>`;
+  }
+  function appsTable(services) {
+    if (!services.length && !data.catalogAvailable) return '<p class="empty">Der Anwendungsbestand ist derzeit nicht verfügbar.</p>';
+    if (!services.length) return '<p class="empty">Keine Anwendung passt zur Suche.<small>Suchtext oder Zustandsfilter anpassen.</small></p>';
+    return `<div class="table-scroll"><table><caption class="sr-only">Anwendungsbestand und Monitoring</caption><thead><tr><th scope="col">Anwendung</th><th scope="col">Erreichbarkeit</th><th scope="col">Überwachung</th><th scope="col">Letzter dokumentierter Rollout</th></tr></thead><tbody>${services.map((s) => {
+      const dep = data.admin?.deployments?.[s.id];
+      return `<tr><td><a class="app-name" href="${urlFor(s)}">${esc(s.name)}</a><span class="table-sub mono">${esc(s.url ? new URL(s.url).host : "Prüfziel fehlt")}</span></td><td>${badge(s.status)}<span class="table-sub">${esc(s.latencyMs === null ? s.detail : `${s.latencyMs} ms · ${s.detail}`)}</span></td><td><span>${s.url ? "HTTP + TLS".replace(" + TLS", s.monitoring?.tls ? " + TLS" : "") : "Kein Prüfziel"}</span><span class="table-sub">Externe Konfiguration vorhanden</span></td><td>${dep ? `${badge(dep.verified ? "success" : dep.status, dep.verified ? "Verifiziert" : null)}<span class="table-sub">${date(dep.finishedAt || dep.startedAt)}</span>` : `<span class="muted">${adminReady() ? "Noch kein Rollout dokumentiert" : "Daten nicht verfügbar"}</span>`}</td></tr>`;
+    }).join("")}</tbody></table></div>`;
+  }
+  function applications() {
+    const query = (params.get("q") || "").trim().toLocaleLowerCase("de");
+    const state = params.get("state") || "";
+    const services = data.services.filter((s) => (!query || `${s.name} ${s.id} ${s.url || ""}`.toLocaleLowerCase("de").includes(query)) && (!state || (state === "missing" ? !s.url : state === "active" ? appStats(s.id).activeJobs > 0 : s.status === state)));
+    return `<form class="filters" action="/applications" method="get"><label class="search">Anwendung oder Host<input type="search" name="q" value="${esc(params.get("q") || "")}" placeholder="Zum Beispiel AFFiNE" autocomplete="off"></label>${field("Zustand", "state", [["", "Alle Zustände"], ["unavailable", "Gestört"], ["unknown", "Unbekannt"], ["healthy", "Erreichbar"], ["missing", "Prüfziel fehlt"], ["active", "Mit aktiven Aufträgen"]], state)}<button type="submit">Filtern</button><a class="reset" href="/applications">Zurücksetzen</a></form>${dataHint()}<section class="panel"><div class="section-heading"><h2>${services.length} ${services.length === 1 ? "Anwendung" : "Anwendungen"}</h2><span class="muted">Details durch Auswahl des Namens</span></div>${appsTable(services)}</section><p class="footnote">HTTP-Erreichbarkeit ist keine Funktionsgarantie. Monitoring-Konfiguration und empfangene Signale stehen auf der jeweiligen Detailseite.</p>`;
+  }
+  function monitoring(app, stats, deployment) {
+    const external = app.monitoring?.external;
+    const verification = stats.lastVerification;
+    return `<section class="panel" id="monitoring"><div class="section-heading"><h2>Wie wird überwacht?</h2><span class="meta">Quellen getrennt</span></div><div class="monitor-grid">
+      <article class="monitor-card"><p class="eyebrow">Live-Prüfung</p><h3>Öffentliche Erreichbarkeit</h3>${badge(app.status)}<dl><dt>Prüfpfad</dt><dd class="mono">${esc(app.checkPath)}</dd><dt>TLS-Zertifikat</dt><dd>${app.monitoring?.tls ? "Wird validiert" : "HTTP, keine TLS-Prüfung"}</dd><dt>Takt</dt><dd>Mit jedem neuen Status-Snapshot</dd><dt>Nachweis</dt><dd>${esc(app.detail)}${app.latencyMs !== null ? ` · ${app.latencyMs} ms` : ""}</dd></dl><p class="footnote">Nur HTTP 200 gilt als erreichbar. Redirects werden nicht verfolgt.</p></article>
+      <article class="monitor-card"><p class="eyebrow">Konfiguration</p><h3>Externe Verfügbarkeit</h3>${badge("unknown", "Aktivierung nicht verifiziert")}<dl><dt>Quelle</dt><dd>${esc(external?.source || "Unbekannt")}</dd><dt>Intervall</dt><dd>${external ? `${external.intervalSeconds / 60} Minuten · ${external.locations} Standorte` : "Unbekannt"}</dd><dt>Alarmregel</dt><dd>${external ? `Ab ${external.failedLocations} fehlschlagenden Standorten` : "Unbekannt"}</dd><dt>Alarmziel</dt><dd class="mono">${esc(external?.notificationTarget || "Unbekannt")}</dd><dt>Letztes empfangenes Signal</dt><dd>${adminReady() ? date(stats.lastMonitorSignalAt) : "Daten nicht verfügbar"}</dd></dl><p class="footnote">Diese Angaben beschreiben die IaC-Konfiguration. Ein fehlendes Signal beweist weder Betrieb noch Ausfall des Azure-Monitors.</p></article>
+      <article class="monitor-card"><p class="eyebrow">Nach Änderung</p><h3>Smoke-Test</h3>${badge("unknown", app.monitoring?.smokeConfigured ? "Im Katalog konfiguriert" : "Nicht konfiguriert")}<dl><dt>Ausführung</dt><dd>Nach dem Deployment</dd><dt>Letzter Auftrags-Prüfnachweis</dt><dd>${verification ? `${badge(verification.success ? "success" : "failure")}${date(verification.at)}` : adminReady() ? "Noch kein Nachweis" : "Daten nicht verfügbar"}</dd><dt>Letzte Rollout-Prüfung</dt><dd>${deployment?.verified ? date(deployment.finishedAt) : "Kein verifizierter Rollout dokumentiert"}</dd></dl><p class="footnote">Ein einzelner Smoke-Test ist keine kontinuierliche Funktionsüberwachung.</p></article>
+    </div></section>`;
+  }
+  function detail() {
+    const app = data.services.find((s) => s.id === appId);
+    if (!app) return '<section class="panel"><h2>Anwendungsdaten derzeit nicht verfügbar.</h2><p>Der Katalog konnte nicht vollständig gelesen werden.</p><a href="/applications">Zum Anwendungsbestand</a></section>';
+    const stats = appStats(app.id), dep = data.admin?.deployments?.[app.id];
+    const items = currentActivity().filter((item) => item.appId === app.id).slice(0, 12);
+    return `<p class="breadcrumb"><a href="/applications">Anwendungen</a><span>/</span>${esc(app.name)}</p><nav class="section-tabs" aria-label="Bereiche der Anwendung"><a href="#state">Zustand und Rollout</a><a href="#monitoring">Überwachung</a><a href="#activity">Aktivitäten</a></nav>${dataHint()}<div class="detail-grid" id="state"><section class="panel"><div class="section-heading"><h2>Aktueller Zustand</h2>${badge(app.status)}</div><dl class="facts"><dt>Host</dt><dd class="mono">${esc(app.url ? new URL(app.url).host : "Nicht konfiguriert")}</dd><dt>HTTP-Prüfung</dt><dd>${esc(app.detail)}${app.latencyMs !== null ? ` · ${app.latencyMs} ms` : ""}</dd><dt>Konfigurationsstand im Image</dt><dd>${esc(app.version || "Unbekannt")}</dd><dt>Aktive Aufträge</dt><dd>${count(stats.activeJobs)}</dd><dt>Aufmerksamkeit · 24 h</dt><dd>${count(stats.attentionJobs)}</dd></dl>${app.url ? `<a class="text-link" href="${esc(app.url)}" target="_blank" rel="noopener noreferrer">Anwendung öffnen (neuer Tab)</a>` : ""}</section>
+      <section class="panel"><div class="section-heading"><h2>Letzter dokumentierter Rollout</h2>${dep ? badge(dep.verified ? "success" : dep.status, dep.verified ? "Verifiziert" : null) : ""}</div>${dep ? `<dl class="facts"><dt>Zeitpunkt</dt><dd>${date(dep.finishedAt || dep.startedAt)}</dd><dt>Chart-Version</dt><dd class="mono">${esc(dep.chartVersion || "Nicht dokumentiert")}</dd><dt>Git-Stand</dt><dd class="mono">${esc(dep.gitSha ? dep.gitSha.slice(0, 12) : "Nicht dokumentiert")}</dd></dl><details><summary>Image-Referenz</summary><code>${esc(dep.imageDigest || "Nicht dokumentiert")}</code></details>${dep.runUrl ? `<a class="text-link" href="${esc(dep.runUrl)}" target="_blank" rel="noopener noreferrer">Deployment-Nachweis in GitHub (neuer Tab)</a>` : ""}` : `<p class="empty">${adminReady() ? "Noch kein Deployment-Lauf dokumentiert." : "Rollout-Daten sind derzeit nicht verfügbar."}</p>`}<p class="footnote">Dokumentierter Release-Stand zum Prüfzeitpunkt, kein Live-Inventar der Kubernetes-Container.</p></section></div>
+      ${monitoring(app, stats, dep)}<section class="panel" id="activity"><div class="section-heading"><h2>Aktivitäten für ${esc(app.name)}</h2><a href="/activity?app=${encodeURIComponent(app.id)}&range=7d">Gefilterten Verlauf öffnen</a></div>${activityRows(items)}</section>`;
+  }
+  function activity() {
+    const app = params.get("app") || "", category = params.get("category") || "", result = params.get("result") || "";
+    const range = params.get("range") === "7d" ? "7d" : "24h";
+    const cutoff = Date.now() - (range === "7d" ? 7 : 1) * 86400000;
+    const items = currentActivity().filter((item) => (!app || item.appId === app) && (!category || item.category === category) && (!result || (result === "attention" ? ["attention", "failure"].includes(item.result) : item.result === result)) && new Date(item.at).getTime() >= cutoff);
+    return `<form class="filters activity-filters" action="/activity" method="get">${field("Anwendung", "app", [["", "Alle Anwendungen"], ...data.services.map((s) => [s.id, s.name])], app)}${field("Kategorie", "category", [["", "Alle Kategorien"], ...Object.entries(categories)], category)}${field("Ergebnis", "result", [["", "Alle Ergebnisse"], ["attention", "Aufmerksamkeit / Fehler"], ["success", "Erfolgreich"], ["running", "In Bearbeitung"], ["detected", "Erkannt"], ["closed", "Abgeschlossen"]], result)}${field("Zeitraum", "range", [["24h", "Letzte 24 Stunden"], ["7d", "Letzte 7 Tage"]], range)}<button type="submit">Filtern</button><a class="reset" href="/activity">Zurücksetzen</a></form>${dataHint()}<section class="panel"><div class="section-heading"><h2>${adminReady() ? `${items.length} ${items.length === 1 ? "Aktivität" : "Aktivitäten"}` : "Aktivitäten"}</h2><span class="muted">Neueste zuerst</span></div><p class="footnote activity-limit">Verfügbarer Ausschnitt: die letzten ${data.admin?.activityLimit || 100} Einträge aus bis zu sieben Tagen. Filter grenzen diesen Ausschnitt ein.</p>${activityRows(items)}</section><p class="footnote">„Verifiziert abgeschlossen“ erfordert einen abgeschlossenen Auftrag mit erfolgreichem jüngstem Prüfnachweis. Monitoring-Störungen, Support-Fälle und andere Aufträge werden getrennt benannt. Entwarnungen oder einzelne Aktionen sind keine automatische Behebungsbestätigung.</p>`;
+  }
+  function updateStale() {
+    const stale = failed || !data || Date.now() - new Date(data.checkedAt).getTime() > 90000;
     document.body.dataset.stale = String(stale);
     $("data-warning").hidden = !stale;
-    if (stale) {
-      $("data-warning").textContent = snapshot ? "Die Messwerte sind nicht mehr aktuell. Der letzte bekannte Stand bleibt sichtbar." : "Aktuelle Messwerte sind noch nicht verfügbar. Die Verbindung wird automatisch erneut geprüft.";
-      if (snapshot || failed) summary("unknown", "Aktueller Status unbekannt.", "Es liegen keine aktuellen, vollständigen Messwerte vor.");
-      $("refresh-note").textContent = "Nächster Verbindungsversuch automatisch";
-    }
-    return stale;
+    $("data-warning").textContent = data ? "Messwerte sind nicht mehr aktuell. Der letzte bekannte Stand bleibt sichtbar; der aktuelle Zustand ist unbekannt." : "Aktuelle Daten sind nicht verfügbar. Die Verbindung wird automatisch erneut geprüft.";
+    if (stale && data && $("overall-summary")) $("overall-summary").outerHTML = summary();
   }
-
-  function render(data) {
-    const ops = data.operations;
+  function render() {
+    const focused = document.activeElement;
+    const currentForm = document.querySelector(".filters");
+    const draft = currentForm ? { name: focused?.form === currentForm ? focused.name : null, values: Object.fromEntries(new FormData(currentForm)), start: focused?.selectionStart, end: focused?.selectionEnd } : null;
+    const titles = { dashboard: ["Status", "Der schnelle Tagescheck: Handlungsbedarf erkennen und gezielt weitergehen."], applications: ["Anwendungen", "Deployte Anwendungen finden, Zustand prüfen und Überwachung verstehen."], activity: ["Aktivitäten", "Erkannte Signale, Agentenarbeit, Systemänderungen und verifizierte Behebungen."] };
+    const app = data.services.find((s) => s.id === appId);
+    const [title, description] = route === "detail" ? [app?.name || "Anwendung", app?.description || "Zustand, Monitoring und Betriebsverlauf."] : titles[route];
+    $("page-title").textContent = title;
+    $("page-description").textContent = description;
+    document.title = `${title} · Plattform · mmkdigital`;
+    document.querySelectorAll("[data-nav]").forEach((a) => { if (a.dataset.nav === (route === "detail" ? "applications" : route)) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
     $("environment").textContent = data.environment;
-    $("checked-at").textContent = timeFormat.format(new Date(data.checkedAt));
-    $("checked-at").dateTime = data.checkedAt;
-    const healthy = data.services.filter((service) => service.status === "healthy").length;
-    $("healthy-count").textContent = data.services.length ? healthy : "—";
-    $("service-total").textContent = ` / ${data.services.length || "—"}`;
-    $("active-count").textContent = ops.activeJobs ?? "—";
-    $("resolved-count").textContent = ops.resolved24h ?? "—";
-    $("attention-count").textContent = ops.attentionJobs ?? "—";
-    $("attention-count").style.color = ops.attentionJobs > 0 ? "var(--accent-text)" : "";
-    if (data.status === "healthy") {
-      summary("healthy", "Alle Systeme erreichbar.", "Die öffentlichen Dienste, die Datenbank und der Worker antworten.");
-    } else if (data.status === "degraded") {
-      const issues = data.services.filter((service) => service.status === "unavailable").length + [ops.database, ops.worker].filter((s) => s === "unavailable").length;
-      summary("degraded", "Der Betrieb ist eingeschränkt.", `${issues} ${issues === 1 ? "Prüfung meldet eine Störung" : "Prüfungen melden eine Störung"}. Details stehen bei den betroffenen Komponenten.`);
-    } else {
-      summary("unknown", "Noch kein vollständiger Status.", "Für einzelne Komponenten fehlen Messwerte oder die Konfiguration.");
+    $("checked-at").textContent = `Letzte Prüfung ${timeFormat.format(new Date(data.checkedAt))}`;
+    $("page-content").innerHTML = (data.catalogAvailable ? "" : '<p class="notice">Der Anwendungskatalog ist nicht vollständig verfügbar. Fehlende Anwendungen sind kein Nachweis eines leeren Bestands.</p>') + (route === "dashboard" ? dashboard() : route === "applications" ? applications() : route === "detail" ? detail() : activity());
+    $("page-content").setAttribute("aria-busy", "false");
+    if (draft) {
+      const form = document.querySelector(".filters");
+      for (const [key, value] of Object.entries(draft.values)) if (form.elements[key]) form.elements[key].value = value;
+      const target = draft.name ? form.elements[draft.name] : null;
+      if (target) { target.focus({ preventScroll: true }); if (draft.start !== null && target.setSelectionRange) target.setSelectionRange(draft.start, draft.end); }
     }
-    $("catalog-count").textContent = `${data.services.length} ${data.services.length === 1 ? "Dienst" : "Dienste"}`;
-    $("service-list").replaceChildren();
-    for (const service of data.services) {
-      const row = $("service-template").content.cloneNode(true);
-      row.querySelector(".service-symbol").textContent = service.id === "affine" ? "A" : service.id === "operations-agent" ? "↳" : service.name.slice(0, 1).toUpperCase();
-      row.querySelector("h3").textContent = service.name;
-      row.querySelector(".service-info p").textContent = service.url ? new URL(service.url).host : "Prüfziel nicht konfiguriert";
-      row.querySelector(".service-version").textContent = service.version ? `Sollversion ${service.version}` : "Sollversion unbekannt";
-      stateBadge(row.querySelector(".state"), service.status);
-      row.querySelector(".latency").textContent = service.latencyMs !== null ? `${service.latencyMs} ms · ${service.detail}` : service.detail;
-      const link = row.querySelector(".service-link");
-      if (service.url) {
-        link.href = service.url;
-        link.setAttribute("aria-label", `${service.name} in einem neuen Tab öffnen`);
-      } else link.remove();
-      $("service-list").append(row);
-    }
-    if (!data.services.length) {
-      const empty = document.createElement("p");
-      empty.className = "empty";
-      empty.textContent = "Für diese Umgebung ist kein lesbarer App-Katalog verfügbar.";
-      $("service-list").append(empty);
-    }
-    stateBadge($("api-state"), "healthy", "Verbunden");
-    $("api-detail").textContent = "Statusdaten erfolgreich abgerufen";
-    stateBadge($("database-state"), ops.database, ops.database === "healthy" ? "Verbunden" : null);
-    $("database-detail").textContent = ops.database === "healthy" ? "Betriebsdaten erfolgreich gelesen" : ops.database === "unknown" ? "Keine Datenbank verbunden" : "Betriebsdaten nicht lesbar";
-    stateBadge($("worker-state"), ops.worker, ops.worker === "healthy" ? "Aktiv" : null);
-    const age = ops.heartbeatAgeSeconds;
-    $("worker-detail").textContent = age === null ? "Kein Heartbeat verfügbar" : `Letzter Heartbeat vor ${age < 60 ? `${Math.floor(age)} s` : `${Math.floor(age / 60)} min`}`;
-    $("activity-list").replaceChildren();
-    for (const job of ops.recentJobs) {
-      const row = document.createElement("tr");
-      const app = document.createElement("td");
-      app.textContent = names[job.appId] || job.appId || "Nicht zugeordnet";
-      const state = document.createElement("td");
-      const badge = document.createElement("span");
-      badge.className = "state";
-      const tone = job.state === "resolved" ? "healthy" : job.state === "failed" ? "unavailable" : job.state === "needs_attention" ? "attention" : "active";
-      stateBadge(badge, tone, jobLabels[job.state] || "Unbekannt");
-      state.append(badge);
-      const date = document.createElement("td");
-      const time = document.createElement("time");
-      time.dateTime = job.updatedAt;
-      time.textContent = dateFormat.format(new Date(job.updatedAt));
-      time.title = `${new Date(job.updatedAt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" })} Europe/Berlin`;
-      date.append(time);
-      row.append(app, state, date);
-      $("activity-list").append(row);
-    }
-    if (!ops.recentJobs.length) {
-      const row = document.createElement("tr");
-      const cell = document.createElement("td");
-      cell.colSpan = 3;
-      cell.className = "empty";
-      cell.textContent = ops.database === "healthy" ? "Noch keine Betriebsaufträge in dieser Umgebung." : "Betriebsaufträge derzeit nicht verfügbar.";
-      row.append(cell);
-      $("activity-list").append(row);
-    }
-    $("refresh-note").replaceChildren();
-    const dot = document.createElement("span");
-    dot.className = "dot live-dot";
-    $("refresh-note").append(dot, document.createTextNode("Automatische Prüfung alle 30 Sekunden"));
-    staleState();
+    updateStale();
   }
-
+  function schedule(seconds = 30) {
+    clearTimeout(timer);
+    const interval = Math.max(10, Math.min(300, Number(seconds) || 30));
+    $("refresh-note").textContent = `Automatische Aktualisierung alle ${interval} Sekunden`;
+    timer = setTimeout(() => { if (!document.hidden) refresh(); else schedule(interval); }, interval * 1000);
+  }
   async function refresh(manual = false) {
     if (loading) return;
-    loading = true;
-    $("refresh").disabled = true;
-    $("refresh").setAttribute("aria-busy", "true");
+    loading = true; $("refresh").disabled = true; $("refresh").setAttribute("aria-busy", "true");
     try {
-      const response = await fetch("/status", { cache: "no-store", signal: AbortSignal.timeout(12000), headers: { Accept: "application/json" } });
-      if (!response.ok) throw new Error("Status request failed");
-      const data = await response.json();
-      if (!Array.isArray(data.services) || !data.operations || !Array.isArray(data.operations.recentJobs) || !Number.isFinite(new Date(data.checkedAt).getTime())) throw new Error("Invalid status response");
-      snapshot = data;
-      failed = false;
-      render(data);
-      if (manual) $("announcement").textContent = `Aktualisiert. ${$("summary-title").textContent}`;
+      const response = await fetch("/status", { cache: "no-store", signal: AbortSignal.timeout(20000) });
+      if (!response.ok) throw new Error("status unavailable");
+      const next = await response.json();
+      if (!Array.isArray(next.services) || !next.operations || !Number.isFinite(new Date(next.checkedAt).getTime())) throw new Error("invalid data");
+      data = next; failed = false; render();
+      if (manual) $("announcement").textContent = "Status und Betriebsdaten aktualisiert.";
     } catch {
-      failed = true;
-      stateBadge($("api-state"), "unavailable", "Nicht verbunden");
-      $("api-detail").textContent = "Statusdaten konnten nicht abgerufen werden";
-      if (!snapshot) {
-        $("service-list").textContent = "Anwendungsstatus derzeit nicht verfügbar.";
-        $("activity-list").replaceChildren();
-        const row = $("activity-list").insertRow();
-        const cell = row.insertCell();
-        cell.colSpan = 3;
-        cell.className = "empty";
-        cell.textContent = "Betriebsaufträge derzeit nicht verfügbar.";
-        $("environment").textContent = "Nicht verbunden";
-      }
-      staleState();
-      if (manual) $("announcement").textContent = "Aktualisierung fehlgeschlagen. Der Status ist unbekannt.";
+      failed = true; updateStale();
+      if (!data) { $("page-content").innerHTML = '<section class="panel"><h2>Daten derzeit nicht verfügbar.</h2><p>Bitte später aktualisieren. Fehlende Daten werden nicht als störungsfreier Betrieb dargestellt.</p></section>'; $("page-content").setAttribute("aria-busy", "false"); }
+      if (manual) $("announcement").textContent = "Aktualisierung fehlgeschlagen. Der aktuelle Zustand ist unbekannt.";
     } finally {
-      loading = false;
-      $("refresh").disabled = false;
-      $("refresh").setAttribute("aria-busy", "false");
+      loading = false; $("refresh").disabled = false; $("refresh").setAttribute("aria-busy", "false"); schedule(data?.refreshAfterSeconds);
     }
   }
   $("refresh").addEventListener("click", () => refresh(true));
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
-  window.setInterval(() => { staleState(); if (!document.hidden) refresh(); }, 30000);
+  setInterval(updateStale, 5000);
   refresh();
 })();

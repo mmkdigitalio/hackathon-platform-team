@@ -3,7 +3,19 @@
 Die lesende Statusübersicht ist Teil des vorhandenen Operations-Agent-Images.
 Auf Azure läuft sie als eigenständige App `platform-status`, damit ein fehlender
 Agentenzugang oder ein ausgefallener Worker ihre Bereitstellung nicht verhindert.
-`GET /` liefert die UI, `GET /status` die dazugehörige JSON-Projektion.
+Die Admin-Aufgaben sind über eigene URLs getrennt:
+
+| URL | Aufgabe |
+| --- | --- |
+| `/` | Tagescheck und priorisierter Handlungsbedarf |
+| `/applications` | Suche, Zustandsfilter und Anwendungsbestand |
+| `/applications/<app-id>` | Zustand, dokumentierter Rollout, Monitoring und App-Verlauf |
+| `/activity` | Verlauf nach Anwendung, Kategorie, Ergebnis und Zeitraum filtern |
+| `/status` | Gemeinsame lesende JSON-Projektion |
+
+User Stories und Journeys: `openspec/changes/platform-status-ui/user-journeys.md`.
+Filter werden als URL-Parameter gespeichert und überstehen Reload und Browser-Zurück.
+Die Detailseite hat Sprunglinks zu Zustand/Rollout, Überwachung und Aktivitäten.
 Der eigenständige Dienst bietet keinen Ereigniseingang, keine Betriebsaktionen und
 keine Laufdetails. `/healthz` prüft dort nur den UI-Prozess. Die vorhandene Agenten-API
 enthält weiterhin dieselbe UI; ihre bisherigen Endpunkte und Schutzmaßnahmen bleiben erhalten.
@@ -14,7 +26,7 @@ enthält weiterhin dieselbe UI; ihre bisherigen Endpunkte und Schutzmaßnahmen b
 - HTTP-Prüfungen nutzen `<app-id>.<OPS_BASE_DOMAIN>` und den `availability.path` aus dem Katalog. Nur HTTP 200 gilt als erreichbar. TLS wird geprüft, Redirects werden nicht verfolgt; Antwortkörper werden nicht geladen.
 - Datenbankstatus, Worker-Heartbeat, aktive Aufträge, abgeschlossene und fehlgeschlagene/eskalierte Aufträge der letzten 24 Stunden sowie die sechs zuletzt aktualisierten Aufträge kommen aus der Operations-Datenbank. Auftragsabfragen sind auf die gewählte Umgebung beschränkt. Der Heartbeat entspricht wie `/healthz` dem jüngsten Worker-Heartbeat in dieser Datenbank.
 - Die Datenbankabfragen laufen in einer lesenden Transaktion mit einem Statement-Timeout von 2,5 Sekunden. HTTP-Prüfungen laufen parallel mit 4 Sekunden Timeout.
-- Die öffentliche Projektion enthält App-ID, Auftragszustand und Aktualisierungszeit. Sie enthält keine Auftrags- oder Vorfalltexte, IDs, Logs, Modellantworten, Secret-Werte oder rohe Fehlermeldungen. Der Nachweis-Endpunkt `/runs/{job_id}` bleibt in der Agenten-API geschützt und ist im eigenständigen Statusdienst nicht vorhanden.
+- Die öffentliche Projektion enthält App-ID, Auftragszustand, feste Quellen-/Tätigkeitsbeschreibungen, Zeitpunkte, Verifikationskennzeichen und erlaubte Release-Metadaten. Sie enthält keine Auftrags- oder Vorfalltexte, IDs, Logs, Modellantworten, Secret-Werte oder rohe Fehlermeldungen. Der Nachweis-Endpunkt `/runs/{job_id}` bleibt in der Agenten-API geschützt und ist im eigenständigen Statusdienst nicht vorhanden.
 - Der Browser aktualisiert alle 30 Sekunden. Der API-Prozess bündelt Abfragen über einen Cache von 10 Sekunden. Nach fehlgeschlagenem Abruf oder mehr als 90 Sekunden ohne frische Daten zeigt die Seite den Gesamtzustand als unbekannt und markiert den letzten Stand als veraltet.
 - Unbekannte Werte werden als Strich dargestellt. Ein gesunder Zustand besagt nur, dass die geprüften Komponenten antworten. Es werden keine historischen Uptime-Werte oder funktionalen Prüfungen erfunden.
 
@@ -39,6 +51,12 @@ uv run python scripts/preview-status.py --base-domain 57-153-7-126.sslip.io
 ```
 
 Vorschau unter `http://127.0.0.1:8088`. Ohne Datenbankkonfiguration werden echte öffentliche HTTP-Prüfungen ausgeführt, Datenbank und Worker bleiben unbekannt. Mit `OPS_DATABASE_URL` oder `POSTGRES_HOST` liest die Vorschau zusätzlich die konfigurierte Datenbank. Sie nimmt keine Ereignisse an und startet keinen Worker. `--environment production` wechselt die Umgebung, `--port` den lokalen Port.
+
+Der zusätzliche Verlauf besteht aus den jüngsten 100 Erkennungen, Aktionen und Abschlüssen innerhalb von sieben Tagen. Die Filter 24 Stunden/sieben Tage beziehen sich auf diesen verfügbaren Ausschnitt. „Verifiziert abgeschlossen“ erfordert `resolved` und eine erfolgreiche jüngste Verifikation desselben Auftrags. Ein erfolgreicher System-Deploy ist keine automatische Problembehebung.
+
+Monitoring-Konfiguration aus der Foundation-IaC, Live-HTTP-Prüfungen und empfangene Azure-Signale werden separat angezeigt. Die UI fragt keine Azure-Monitor-Aktivierung ab. Ein fehlendes Signal ist kein Beleg für fehlende Überwachung. Der letzte dokumentierte Rollout kommt aus `operations` und dem erlaubten Ausschnitt von `actions.detail.result`; er ist kein Live-Kubernetes-Inventar. Freie Meldungen, Rohpayloads, interne IDs und Targets bleiben verborgen. GitHub-Links sind auf Actions-Läufe des Plattform-Repositories begrenzt.
+
+Der eigenständige Statusdienst bietet `/docs`, `/redoc` und `/openapi.json` nicht mehr an. Die Dokumentations-Endpunkte der Agenten-API bleiben unverändert.
 
 Das Design übernimmt Farben, Typografie und Abstände aus `new-website/src/design-system/tokens/` sowie dessen lokal gehostete Schriften Bricolage Grotesque, Hanken Grotesk und JetBrains Mono. Die UI benötigt keinen Node-Build und keine zusätzlichen Python-Abhängigkeiten. CSS, JavaScript und Fonts liegen im Python-Paket unter `api/static/` und damit im bestehenden Container-Image.
 

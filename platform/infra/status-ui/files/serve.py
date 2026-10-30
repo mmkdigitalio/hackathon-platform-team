@@ -29,7 +29,7 @@ async def lifespan(app):
         pool.close()
 
 
-app = FastAPI(title="Platform status", lifespan=lifespan)
+app = FastAPI(title="Platform status", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 install_status(app, settings, pool)
 
 

@@ -18,7 +18,7 @@ FastAPI liefert dieselbe schlanke HTML-Hülle für die vier Seitentypen. Echte P
 
 ## Verlauf und Sicherheit
 
-Der Verlauf ist auf die jüngsten 100 Einträge aus sieben Tagen beschränkt. Filter gelten für diesen sichtbaren Ausschnitt; die Grenze ist genannt. Reihenfolge ist absteigend nach Zeitpunkt mit stabiler Gleichstandsregel. Quellen, Aktionen und Ergebnisse werden ausschließlich auf feste Labels abgebildet. Freie Meldungen, Gründe, Findings, Targets, Payloads, rohe IDs und beliebige externe URLs werden nicht ausgegeben. GitHub-Läufe werden nur für das bekannte Plattform-Repository verlinkt.
+Der Verlauf ist auf die jüngsten 100 Einträge aus sieben Tagen beschränkt. Filter gelten für diesen sichtbaren Ausschnitt; die Grenze ist genannt. Reihenfolge ist absteigend nach Zeitpunkt mit stabiler Gleichstandsregel. Quellen, Aktionen und Ergebnisse werden ausschließlich auf feste Labels abgebildet. Freie Meldungen, Gründe, Findingtexte, Targets, Payloads, rohe IDs und beliebige externe URLs werden nicht ausgegeben. GitHub-Läufe werden nur für das bekannte Plattform-Repository verlinkt.
 
 Ein Problem ist nur verifiziert behoben, wenn `jobs.state = resolved` und die jüngste Verifikation desselben Auftrags erfolgreich ist. Ein fehlender oder jüngst fehlgeschlagener Prüfnachweis reicht nicht. System-Deployments und Agentenmaßnahmen sind eigenständige Aktivitäten und keine Behebungsbeweise.
 
