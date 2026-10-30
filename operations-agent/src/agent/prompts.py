@@ -18,9 +18,37 @@ DATA_NOTICE = (
 )
 
 
-def system_prompt(rules_file: Path) -> str:
+def system_prompt(rules_file: Path, workspace: str | None = None) -> str:
     rules = rules_file.read_text(encoding="utf-8")
-    return f"{rules.strip()}\n\n## Umgang mit Daten\n\n{DATA_NOTICE}\n"
+    text = f"{rules.strip()}\n\n## Umgang mit Daten\n\n{DATA_NOTICE}\n"
+    return f"{text}\n{workspace}\n" if workspace else text
+
+
+def workspace_rules(repos_dir: str, repositories: list[str], azure: bool, branch_prefix: str) -> str:
+    """Abschnitt „Workspace“ im Systemprompt; nur wenn der Lauf einen Workspace hat."""
+    azure_line = (
+        "- Azure: zuerst `az-login` ausführen (Workload Identity, nur Leserechte), danach `az` wie gewohnt, "
+        "z. B. `az resource list`, `az monitor metrics list`, `az monitor log-analytics query`."
+        if azure
+        else "- Azure: keine Identität konfiguriert; `az` ist installiert, aber nicht angemeldet."
+    )
+    return "\n".join(
+        [
+            "## Workspace",
+            "",
+            "Für diesen Auftrag läuft ein eigener Workspace-Pod mit Shell (`execute`) und Dateiwerkzeugen "
+            "(`ls`, `read_file`, `write_file`, `edit_file`, `glob`, `grep`). Er gehört nur dieser Operation und wird danach gelöscht; "
+            "nicht gepushte Änderungen gehen dann verloren.",
+            "",
+            f"- Arbeitskopien: `clone_repository` legt sie unter `{repos_dir}/<owner>__<name>` an, schon auf dem Branch "
+            f"`{branch_prefix}<operationId>`. Freigegeben: {', '.join(sorted(repositories))}.",
+            "- Werkzeuge: git, gh, kubectl, helm, az, python3/uv, node/npm, jq, yq, rg. `toolbox-info` zeigt die Versionen.",
+            "- GitHub: `gh` und `git fetch` lesen mit einem Lese-Token. Push und Pull Request nur über `commit_and_push` und `open_pull_request`.",
+            "- Kubernetes: `kubectl` liest clusterweit (ohne Secrets) über den ServiceAccount des Workspace; Änderungen nur über die Werkzeuge.",
+            azure_line,
+            "- Dateien unter `/kontext/` sind die Auftragsdaten; sie liegen nicht im Workspace und sind nur über die Dateiwerkzeuge lesbar.",
+        ]
+    )
 
 
 def _data(source: str, value: Any) -> str:

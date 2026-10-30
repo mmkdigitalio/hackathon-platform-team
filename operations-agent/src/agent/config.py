@@ -11,7 +11,9 @@ from typing import Literal
 from pydantic import SecretStr
 
 from contracts import RunLimits
+from tools.common import ToolError
 from tools.github_auth import GitHubAppAuth, StaticToken, TokenProvider
+from tools.workspace import WorkspaceSettings
 
 Provider = Literal["anthropic", "azure-openai"]
 PROVIDERS: tuple[Provider, ...] = ("anthropic", "azure-openai")
@@ -131,6 +133,7 @@ class AgentSettings:
     git_branch_prefix: str = "agent/"
     git_denied_paths: tuple[str, ...] = (".github/workflows/",)
     git_workdir: Path = Path("/tmp/ops-agent-git")
+    workspace: WorkspaceSettings = field(default_factory=WorkspaceSettings)
 
     def github_auth(self) -> TokenProvider:
         """GitHub App, wenn konfiguriert; sonst der PAT."""
@@ -188,4 +191,12 @@ def agent_settings(env: dict[str, str] | None = None) -> AgentSettings:
         git_branch_prefix=env.get("OPS_GIT_BRANCH_PREFIX", "agent/"),
         git_denied_paths=tuple(p.strip() for p in env.get("OPS_GIT_DENIED_PATHS", ".github/workflows/").split(",") if p.strip()),
         git_workdir=Path(env.get("OPS_GIT_WORKDIR", "/tmp/ops-agent-git")),
+        workspace=_workspace(env),
     )
+
+
+def _workspace(env: dict[str, str]) -> WorkspaceSettings:
+    try:
+        return WorkspaceSettings.from_env(env)
+    except ToolError as e:
+        raise ConfigError(f"Workspace-Konfiguration: {e}") from e

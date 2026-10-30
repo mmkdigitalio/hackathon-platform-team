@@ -32,6 +32,7 @@ Fachliche Fehler gehen an das Modell zurück. Folgende Ereignisse beenden den La
 | `probe:` | `probe:https://affine.<baseDomain>/info@2026-10-30T10:01:05+00:00` |
 | `github://` | `github://mmkdigitalio/hackathon-platform-team/commit/<sha>` |
 | `alert://` | `alert://<essentials.alertId>` |
+| `workspace://` | `workspace://ops-ws-<operationId>/execute/<n>` (Ergebnis eines Shell-Befehls im Workspace) |
 
 Ein Modellbefund mit `certainty: confirmed` braucht Referenzen, die ein Werkzeug in diesem Lauf geliefert hat; sonst wird er als `hypothesis` gespeichert.
 
@@ -59,14 +60,23 @@ Ein Modellbefund mit `certainty: confirmed` braucht Referenzen, die ein Werkzeug
 | `commit_and_push` | `repository`, `message` | Commit mit Auftrags-/Operationsreferenz, Push auf `agent/<operationId>` | nie Standard-Branch, kein Force-Push, gesperrte Pfade auch beim Commit geprüft, Aktionsdatensatz `git_push`, Abgleich nach verlorener Antwort |
 | `open_pull_request` | `repository`, `title`, `body` | Pull Request mit Markierung, idempotent je Branch | kein Merge; Aktionsdatensatz `pull_request`; der Lauf bleibt `needs_attention` |
 
-Zusätzlich sieht das Modell die lesenden Dateiwerkzeuge des SDK (`ls`, `read_file`, `glob`, `grep`) für die Kontextdateien unter `/kontext/`. `execute`, `task`, `write_file` und `edit_file` werden ausgeblendet und beim Aufruf abgewiesen.
+Ohne Workspace sieht das Modell zusätzlich nur die lesenden Dateiwerkzeuge des SDK (`ls`, `read_file`, `glob`, `grep`) für die Kontextdateien unter `/kontext/`; `execute`, `task`, `write_file` und `edit_file` werden ausgeblendet und beim Aufruf abgewiesen.
+
+### Mit Workspace (`OPS_WORKSPACE_MODE=kubernetes` oder `local`)
+
+| Werkzeug | Wirkung | Grenze |
+| --- | --- | --- |
+| `execute` | Shell-Befehl im Workspace-Pod (`bash -lc`, Arbeitsverzeichnis `/workspace`) mit git, gh, kubectl, helm, az, python3/uv, node/npm, jq, yq, rg | Zeitgrenze 300 s (höchstens 1800 s), Ausgabe 100 KB, Ausgabe maskiert; Lese-Token für GitHub, clusterweit lesender ServiceAccount ohne Secrets, Azure nur mit Workload Identity |
+| `ls`, `read_file`, `glob`, `grep`, `write_file`, `edit_file` | Dateien im Workspace; `/kontext/` bleibt im Graph-Zustand | wirken nur im Pod |
+
+`clone_repository` legt die Arbeitskopie dann unter `/workspace/repos/<owner>__<name>` an; `repo_list`, `repo_read_file`, `repo_write_file` und `repo_replace` entfallen, weil die SDK-Dateiwerkzeuge dieselbe Arbeitskopie bearbeiten. `repo_diff`, `commit_and_push` und `open_pull_request` arbeiten im Pod; nur `commit_and_push` bekommt für den einen Push-Aufruf den schreibenden Token. Jeder SDK-Aufruf steht mit Ziel (Befehl oder Pfad), Dauer und Status im Laufnachweis. Ein Pod je Operation, gelöscht am Laufende; bleibt ein Workflow-Lauf offen oder geht der Besitz verloren, bleibt er bis zur TTL für die Wiederaufnahme stehen. Betrieb und RBAC: [paket-betrieb.md](paket-betrieb.md#workspace-pod-und-toolbox).
 
 ## Zugänge
 
 - Kubernetes: im Pod der ServiceAccount `operations-agent`. Lokal nur mit ausdrücklich gesetztem `OPS_KUBE_CONTEXT`; der Standardkontext von `kubectl` wird nie verwendet.
 - GitHub: GitHub App `hackathonplatformagent` (App-ID `5542094`, Installation `176901698`, Rechte `contents`, `pull_requests`, `issues`, `actions` schreibend, kein `workflows`). Installations-Tokens gelten eine Stunde und werden fünf Minuten vor Ablauf erneuert. Ohne Schlüssel im Secret gilt der PAT aus `opsGithubToken` (`OPS_GITHUB_TOKEN`). Fehlende Rechte meldet das Werkzeug mit dem Header `X-Accepted-GitHub-Permissions`, z. B. `actions=write`.
 - git: das Token erreicht git nur über `GIT_CONFIG_*`-Umgebungsvariablen (`http.extraHeader`), nie über die Kommandozeile oder `.git/config`. Commits tragen die Identität `hackathonplatformagent[bot]`.
-- Keine Azure-Werkzeuge (siehe [abweichung-p1-07.md](abweichung-p1-07.md)).
+- Workspace-Shell: GitHub über ein Installations-Token mit reinen Leserechten (`contents`, `issues`, `pull_requests`, `actions`, `checks`: read) in `/workspace/.ops/gh-token`, vor jedem Befehl erneuert; ein PAT-Rückfall lässt sich nicht einschränken. Azure nur über die Workload Identity des ServiceAccounts `operations-agent-workspace` (`az-login`), solange die Foundation sie bereitstellt; sonst keine Azure-Diagnose (siehe [abweichung-p1-07.md](abweichung-p1-07.md)).
 
 ## Tests
 

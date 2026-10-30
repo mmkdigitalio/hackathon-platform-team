@@ -14,6 +14,78 @@
     "secretName": { "type": "string" },
     "imagePullSecretName": { "type": "string" },
     "rolloutMarker": { "type": "string" },
+    "workspace": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": {"type": "string", "enum": ["off", "kubernetes"], "default": "off"},
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {"type": "string"},
+            "digest": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"}
+          }
+        },
+        "serviceAccountName": {"type": "string", "minLength": 1},
+        "resources": {
+          "type": "object",
+          "properties": {
+            "requests": {
+              "type": "object",
+              "properties": {
+                "cpu": {"type": "string", "minLength": 1},
+                "memory": {"type": "string", "minLength": 1}
+              }
+            },
+            "limits": {
+              "type": "object",
+              "properties": {
+                "memory": {"type": "string", "minLength": 1}
+              }
+            }
+          }
+        },
+        "storageLimit": {"type": "string", "minLength": 1},
+        "ttlSeconds": {"type": "integer", "minimum": 1, "default": 3600},
+        "commandTimeoutSeconds": {"type": "integer", "minimum": 1, "default": 300},
+        "maxCommandTimeoutSeconds": {"type": "integer", "minimum": 1, "default": 1800},
+        "maxOutputBytes": {"type": "integer", "minimum": 1, "default": 1048576},
+        "azure": {
+          "type": "object",
+          "properties": {
+            "clientId": {"type": "string"},
+            "tenantId": {"type": "string"},
+            "subscriptionId": {"type": "string"}
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"mode": {"const": "kubernetes"}}, "required": ["mode"]},
+          "then": {
+            "required": ["image"],
+            "properties": {
+              "image": {
+                "required": ["repository", "digest"],
+                "properties": {
+                  "repository": {"minLength": 1},
+                  "digest": {"pattern": "^sha256:[a-f0-9]{64}$"}
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "limits": {
+      "type": "object",
+      "properties": {
+        "runtimeSeconds": {"type": "integer", "minimum": 1, "default": 1800},
+        "toolCalls": {"type": "integer", "minimum": 1, "default": 150},
+        "repairAttempts": {"type": "integer", "minimum": 0, "default": 2},
+        "costUsd": {"type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?$", "default": "5.0"}
+      }
+    },
     "worker": {
       "type": "object",
       "properties": { "replicas": { "type": "integer", "minimum": 0, "maximum": 1 } }

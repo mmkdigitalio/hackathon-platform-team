@@ -37,6 +37,29 @@ class RunRecorder:
         if outcome.action_id and outcome.action_id not in self.action_ids:
             self.action_ids.append(outcome.action_id)
 
+    def sdk_tool_call(self, name: str, args: Any, started: datetime, result: Any, workspace_id: str | None) -> None:
+        """Datei- und Shell-Werkzeuge des SDK: protokollieren und ``execute`` als Evidenz zitierbar machen."""
+        args = args if isinstance(args, dict) else {}
+        target = args.get("command") or args.get("file_path") or args.get("path") or args.get("pattern")
+        target = redact(str(target))[:300] if target else None
+        failed = getattr(result, "status", None) == "error"
+        if name == "execute" and not failed and isinstance(getattr(result, "content", None), str):
+            exit_line = next((line for line in reversed(result.content.splitlines()) if "exit code" in line.lower()), "")
+            failed = bool(exit_line) and "exit code 0" not in exit_line.lower() and "succeeded" not in exit_line.lower()
+        self.tool_calls.append(
+            ToolCallRecord(
+                name=name,
+                started_at=started,
+                duration_ms=int((utcnow() - started).total_seconds() * 1000),
+                status="error" if failed else "ok",
+                target=target,
+            )
+        )
+        if name == "execute" and workspace_id and isinstance(getattr(result, "content", None), str):
+            ref = f"workspace://{workspace_id}/execute/{len(self.tool_calls)}"
+            self.seen_refs.add(ref)
+            result.content = f"{result.content}\n[evidenceRef: {ref}]"
+
     def finding(
         self,
         statement: str,

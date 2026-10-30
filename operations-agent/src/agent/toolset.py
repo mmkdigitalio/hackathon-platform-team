@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from langchain_core.tools import BaseTool, StructuredTool
 from pydantic import BaseModel, Field
@@ -29,6 +29,10 @@ from tools.targets import Target, TargetPolicy
 from tools.verification import SmokeTest
 
 READ_ONLY_FS_TOOLS = frozenset({"ls", "read_file", "glob", "grep", "write_todos"})
+# Mit Workspace kommen Schreiben, Bearbeiten und die Shell des SDK hinzu; sie wirken nur im Workspace-Pod.
+WORKSPACE_TOOLS = frozenset({"write_file", "edit_file", "execute"})
+# Ohne Workspace ersetzen diese Werkzeuge die Dateiwerkzeuge des SDK für die Arbeitskopie im Worker.
+LOCAL_REPO_TOOLS = frozenset({"repo_list", "repo_read_file", "repo_write_file", "repo_replace"})
 DEPLOY_WORKFLOW = "app-deploy.yml"
 VERIFY_RESERVE_SECONDS = 30
 
@@ -55,6 +59,7 @@ class RunScope:
     dispatcher: WorkflowDispatcher
     smoke: SmokeTest
     git: GitWorkspace
+    workspace: Any | None = None
 
     @property
     def target(self) -> Target:
@@ -377,6 +382,8 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
     def clone_repository(repository: str, ref: str | None = None) -> str:
         def fn() -> dict:
             c = s.git.clone(repository, ref)
+            if s.workspace is not None:
+                return {"base": c.base, "branch": c.branch, "path": str(c.path), "note": "Mit ls, read_file, edit_file und execute weiterarbeiten"}
             return {"base": c.base, "branch": c.branch, "files": s.git.list_dir(repository)}
 
         return git_tool("clone_repository", repository, fn)
@@ -435,8 +442,11 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
         (commit_and_push, CommitArgs, "Änderungen committen und auf den Agenten-Branch pushen (nie main, kein Force-Push)."),
         (open_pull_request, PullRequestArgs, "Pull Request vom Agenten-Branch öffnen. Kein Merge; der Vorfall bleibt offen."),
     ]
+    if s.workspace is not None:
+        specs = [spec for spec in specs if spec[0].__name__ not in LOCAL_REPO_TOOLS]
     return [StructuredTool.from_function(fn, name=fn.__name__, description=desc, args_schema=schema) for fn, schema, desc in specs]
 
 
-def tool_names(tools: list[BaseTool]) -> frozenset[str]:
-    return frozenset(t.name for t in tools) | READ_ONLY_FS_TOOLS
+def tool_names(tools: list[BaseTool], workspace: bool = False) -> frozenset[str]:
+    names = frozenset(t.name for t in tools) | READ_ONLY_FS_TOOLS
+    return names | WORKSPACE_TOOLS if workspace else names

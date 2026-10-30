@@ -2,18 +2,24 @@
 
 Grenzen im Code: nur freigegebene Repositories, ein Branch ``<präfix><operationId>`` je Operation, kein Push auf den
 Standard-Branch, kein Force-Push, keine Änderungen unter gesperrten Pfaden (z. B. ``.github/workflows/``), kein Merge.
+
+Git läuft entweder lokal im Worker (``LocalShell``) oder im Workspace-Pod der Operation (``WorkspaceShell``). Im
+Workspace liegt die Arbeitskopie dort, wo auch die Shell- und Dateiwerkzeuge des Modells arbeiten; der Push mit
+Schreibrechten geschieht trotzdem nur über ``commit_and_push`` mit Aktionsdatensatz.
 """
 
 from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from base64 import b64encode
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, Protocol
 
 from contracts import OperationsServices
 from tools.common import NotAllowed, NotFound, ToolError, UnclearOutcome, UpstreamError, ValidationFailed, redact
@@ -21,6 +27,65 @@ from tools.github import AGENT_MARKER, GitHubClient
 
 MAX_FILE_CHARS = 40_000
 MAX_DIFF_CHARS = 20_000
+
+
+class Shell(Protocol):
+    """Ort, an dem Git läuft und die Arbeitskopien liegen."""
+
+    local: bool
+
+    def run(self, argv: list[str], cwd: str | None, env: dict[str, str], timeout: float) -> tuple[int, str, str]: ...
+
+    def exists(self, path: str) -> bool: ...
+
+    def reset_dir(self, path: str) -> None: ...
+
+
+class LocalShell:
+    local = True
+
+    def run(self, argv: list[str], cwd: str | None, env: dict[str, str], timeout: float) -> tuple[int, str, str]:
+        try:
+            r = subprocess.run(argv, cwd=cwd, env={**os.environ, **env}, capture_output=True, text=True, timeout=timeout, check=False)
+        except subprocess.TimeoutExpired as e:
+            raise UpstreamError(f"{argv[0]} {argv[1] if len(argv) > 1 else ''}: Zeitüberschreitung", timeout=True) from e
+        return r.returncode, r.stdout, r.stderr
+
+    def exists(self, path: str) -> bool:
+        return Path(path).exists()
+
+    def reset_dir(self, path: str) -> None:
+        if Path(path).exists():
+            shutil.rmtree(path)
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+
+
+class WorkspaceShell:
+    """Git im Workspace-Pod über dessen ``execute``; Ausgaben von stdout und stderr kommen zusammen zurück."""
+
+    local = False
+
+    def __init__(self, workspace: Any) -> None:
+        self.ws = workspace
+
+    def run(self, argv: list[str], cwd: str | None, env: dict[str, str], timeout: float) -> tuple[int, str, str]:
+        prefix = f"cd {shlex.quote(cwd)} && " if cwd else ""
+        assignments = " ".join(f"{k}={shlex.quote(v)}" for k, v in env.items())
+        command = f"{prefix}{'env ' + assignments + ' ' if assignments else ''}{shlex.join(argv)}"
+        r = self.ws.execute(command, timeout=int(timeout))
+        if r.exit_code is None:
+            raise UpstreamError(f"{argv[0]} {argv[1] if len(argv) > 1 else ''}: Ausgang unklar", timeout=True)
+        if r.exit_code == 124:
+            raise UpstreamError(f"{argv[0]} {argv[1] if len(argv) > 1 else ''}: Zeitüberschreitung", timeout=True)
+        return r.exit_code, r.output, r.output
+
+    def exists(self, path: str) -> bool:
+        return self.ws.execute(f"test -e {shlex.quote(path)}", timeout=30).exit_code == 0
+
+    def reset_dir(self, path: str) -> None:
+        r = self.ws.execute(f"rm -rf {shlex.quote(path)} && mkdir -p {shlex.quote(str(Path(path).parent))}", timeout=60)
+        if r.exit_code != 0:
+            raise UpstreamError(f"Arbeitsverzeichnis {path} nicht anlegbar: {redact(r.output)[-300:]}")
 
 
 @dataclass
@@ -47,7 +112,9 @@ class GitWorkspace:
         denied_paths: tuple[str, ...] = (".github/workflows/",),
         timeout: float = 120.0,
         remote_url: Callable[[str], str] = lambda repo: f"https://github.com/{repo}.git",
+        shell: Shell | None = None,
     ) -> None:
+        self.shell = shell or LocalShell()
         self.remote_url = remote_url
         self.gh = gh
         self.s = services
@@ -63,17 +130,17 @@ class GitWorkspace:
     # Git-Aufrufe ohne Token in argv oder .git/config
 
     def _git(self, args: list[str], cwd: Path | None = None, auth: bool = False) -> str:
-        env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "HOME": str(self.root), "GIT_CONFIG_NOSYSTEM": "1"}
+        env = {"GIT_TERMINAL_PROMPT": "0"}
+        if self.shell.local:
+            env.update({"HOME": str(self.root), "GIT_CONFIG_NOSYSTEM": "1"})
         if auth:
+            # Schreibender Token nur für diesen einen Aufruf; im Workspace sieht die Shell sonst nur den Lese-Token.
             basic = b64encode(f"x-access-token:{self.gh.auth.token()}".encode()).decode()
             env.update({"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "http.extraHeader", "GIT_CONFIG_VALUE_0": f"Authorization: Basic {basic}"})
-        try:
-            r = subprocess.run(["git", *args], cwd=cwd, env=env, capture_output=True, text=True, timeout=self.timeout, check=False)
-        except subprocess.TimeoutExpired as e:
-            raise UpstreamError(f"git {args[0]}: Zeitüberschreitung", timeout=True) from e
-        if r.returncode != 0:
-            raise UpstreamError(f"git {args[0]} fehlgeschlagen: {redact(r.stderr.strip())[-500:]}", returncode=r.returncode)
-        return r.stdout
+        code, out, err = self.shell.run(["git", *args], str(cwd) if cwd else None, env, self.timeout)
+        if code != 0:
+            raise UpstreamError(f"git {args[0]} fehlgeschlagen: {redact(err.strip())[-500:]}", returncode=code)
+        return out
 
     def _clone(self, repository: str) -> Clone:
         c = self.clones.get(repository)
@@ -98,12 +165,18 @@ class GitWorkspace:
         if repository in self.clones:
             return self.clones[repository]
         base = ref or self.gh.default_branch(repository)
-        path = self.root / self.operation_id / repository.replace("/", "__")
-        if path.exists():
-            shutil.rmtree(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        self._git(["clone", "--depth", "50", "--branch", base, self.remote_url(repository), str(path)], auth=True)
+        # Lokal je Operation ein Unterverzeichnis; der Workspace-Pod gehört ohnehin genau einer Operation.
+        path = (self.root / self.operation_id if self.shell.local else self.root) / repository.replace("/", "__")
         branch = f"{self.prefix}{re.sub(r'[^A-Za-z0-9._-]', '-', self.operation_id)}"
+        if not self.shell.local and self.shell.exists(str(path / ".git")):
+            # Wiederaufnahme im selben Pod: Arbeitskopie mit nicht gepushten Änderungen behalten.
+            current = self._git(["rev-parse", "--abbrev-ref", "HEAD"], cwd=path).strip()
+            if current == branch:
+                c = Clone(repository, path, base, branch)
+                self.clones[repository] = c
+                return c
+        self.shell.reset_dir(str(path))
+        self._git(["clone", "--depth", "50", "--branch", base, self.remote_url(repository), str(path)], auth=True)
         # Liegt der Agenten-Branch schon remote (Wiederaufnahme), auf ihm weiterarbeiten statt ihn zu überschreiben.
         if self.gh.branch_head(repository, branch):
             self._git(["fetch", "--depth", "50", "origin", f"{branch}:{branch}"], cwd=path, auth=True)

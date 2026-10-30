@@ -114,10 +114,31 @@ jobs:
           push: true
           tags: ${{ steps.foundation.outputs.acrLoginServer }}/operations-agent:${{ github.sha }}
           labels: org.opencontainers.image.revision=${{ github.sha }}
+      - name: Toolbox bauen und pushen
+        id: toolbox
+        if: steps.ready.outputs.ok == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: operations-agent/toolbox
+          push: true
+          tags: ${{ steps.foundation.outputs.acrLoginServer }}/operations-agent-toolbox:${{ github.sha }}
+          labels: org.opencontainers.image.revision=${{ github.sha }}
       - uses: azure/setup-helm@v4
         if: steps.ready.outputs.ok == 'true'
         with:
           version: v3.18.4
+      - name: Toolbox-Digest im Chart festschreiben
+        if: steps.ready.outputs.ok == 'true'
+        uses: mikefarah/yq@v4.45.1
+        env:
+          TOOLBOX_REPOSITORY: ${{ steps.foundation.outputs.acrLoginServer }}/operations-agent-toolbox
+          TOOLBOX_DIGEST: ${{ steps.toolbox.outputs.digest }}
+        with:
+          cmd: >-
+            yq -i '.workspace.mode = "kubernetes" |
+            .workspace.image.repository = strenv(TOOLBOX_REPOSITORY) |
+            .workspace.image.digest = strenv(TOOLBOX_DIGEST)'
+            operations-agent/deploy/values.yaml
       - name: Chart veröffentlichen
         id: chart
         if: steps.ready.outputs.ok == 'true'
@@ -135,6 +156,7 @@ jobs:
           {
             echo "### Agentenpaket"
             echo "- Image: \`${ACR}/operations-agent@${{ steps.build.outputs.digest }}\`"
+            echo "- Toolbox: \`${ACR}/operations-agent-toolbox@${{ steps.toolbox.outputs.digest }}\`"
             echo "- Chart: \`oci://${ACR}/helm/operations-agent\` Version \`$version\`"
           } >> "$GITHUB_STEP_SUMMARY"
 

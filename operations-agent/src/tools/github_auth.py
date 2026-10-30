@@ -24,6 +24,19 @@ _REFRESH_MARGIN = 300  # Sekunden vor Ablauf erneuern
 class TokenProvider(Protocol):
     def token(self) -> str: ...
 
+    def read_only_token(self) -> str: ...
+
+
+# Rechte des Tokens für den Workspace-Pod: lesen, Issues und Pull Requests kommentieren nur über die Werkzeuge.
+READ_ONLY_PERMISSIONS = {
+    "contents": "read",
+    "metadata": "read",
+    "issues": "read",
+    "pull_requests": "read",
+    "actions": "read",
+    "checks": "read",
+}
+
 
 @dataclass(frozen=True)
 class GitIdentity:
@@ -39,6 +52,10 @@ class StaticToken:
         register_secret(token)
 
     def token(self) -> str:
+        return self._token
+
+    def read_only_token(self) -> str:
+        """Ein PAT lässt sich nicht einschränken; der Rückfall gibt denselben Token weiter."""
         return self._token
 
     def identity(self) -> GitIdentity:
@@ -69,6 +86,8 @@ class GitHubAppAuth:
         self._clock = clock
         self._token: str | None = None
         self._expires = 0.0
+        self._ro_token: str | None = None
+        self._ro_expires = 0.0
         self._identity: GitIdentity | None = None
 
     def _jwt(self) -> str:
@@ -78,10 +97,10 @@ class GitHubAppAuth:
         signature = self._key.sign(f"{header}.{payload}".encode(), padding.PKCS1v15(), hashes.SHA256())
         return f"{header}.{payload}.{_b64(signature)}"
 
-    def _app_request(self, method: str, path: str, what: str) -> dict:
+    def _app_request(self, method: str, path: str, what: str, body: dict | None = None) -> dict:
         headers = {"Authorization": f"Bearer {self._jwt()}", "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
         try:
-            r = self._http.request(method, path, headers=headers)
+            r = self._http.request(method, path, headers=headers, json=body)
         except httpx.TimeoutException as e:
             raise TimedOut(f"GitHub App: {what} Zeitüberschreitung") from e
         if r.status_code in (401, 403, 404):
@@ -90,16 +109,30 @@ class GitHubAppAuth:
             raise UpstreamError(f"GitHub App: {what} mit Status {r.status_code}", status=r.status_code)
         return r.json()
 
+    def _installation_token(self, permissions: dict[str, str] | None) -> tuple[str, float]:
+        if not self.installation_id:
+            self.installation_id = str(self._app_request("GET", f"/repos/{self.repository}/installation", "Installation ermitteln")["id"])
+        body = self._app_request(
+            "POST",
+            f"/app/installations/{self.installation_id}/access_tokens",
+            "Installations-Token anfordern",
+            {"permissions": permissions} if permissions else None,
+        )
+        register_secret(body["token"])
+        return body["token"], datetime.fromisoformat(body["expires_at"].replace("Z", "+00:00")).timestamp()
+
     def token(self) -> str:
         if self._token and self._clock() < self._expires - _REFRESH_MARGIN:
             return self._token
-        if not self.installation_id:
-            self.installation_id = str(self._app_request("GET", f"/repos/{self.repository}/installation", "Installation ermitteln")["id"])
-        body = self._app_request("POST", f"/app/installations/{self.installation_id}/access_tokens", "Installations-Token anfordern")
-        self._token = body["token"]
-        register_secret(self._token)
-        self._expires = datetime.fromisoformat(body["expires_at"].replace("Z", "+00:00")).timestamp()
+        self._token, self._expires = self._installation_token(None)
         return self._token
+
+    def read_only_token(self) -> str:
+        """Installations-Token mit reinen Leserechten für die Shell im Workspace-Pod."""
+        if self._ro_token and self._clock() < self._ro_expires - _REFRESH_MARGIN:
+            return self._ro_token
+        self._ro_token, self._ro_expires = self._installation_token(READ_ONLY_PERMISSIONS)
+        return self._ro_token
 
     def identity(self) -> GitIdentity:
         """Commit-Autor ``<slug>[bot]`` mit der noreply-Adresse der App."""

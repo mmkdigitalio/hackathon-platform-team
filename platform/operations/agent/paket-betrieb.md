@@ -103,6 +103,43 @@ Foundation-Schlüssel hat Vorrang. Andere Apps erhalten diesen CI-Schlüssel nic
 `app-update-desired-state.yml` nutzt dieselbe Quellenreihenfolge für sein kurzlebiges
 Installations-Token. Damit ist keine lokale Kenntnis der Pulumi-Passphrase erforderlich.
 
+## Workspace-Pod und Toolbox
+
+Im Modus `kubernetes` erzeugt der Worker je Operation einen Pod `ops-ws-<operation>` im Release-Namespace. Er startet das Toolbox-Image mit `sleep <ttl>` und führt Shell-Befehle über `pods/exec` aus. Der Worker-Speicher bleibt unverändert; die Befehle laufen im Workspace-Pod.
+
+CI baut `<acr>/operations-agent-toolbox` mit Git-SHA-Tag und schreibt dessen Digest in das veröffentlichte Chart. `toolbox-info` und `/usr/local/share/ops-toolbox/README.md` im Image nennen Werkzeuge und Versionen. Die README entsteht beim Build aus den Dockerfile-Pins und installierten Paketversionen. Debian-Pakete kommen aus einem festen APT-Snapshot. Azure CLI liegt mit ihren Abhängigkeiten in `/opt/azure-cli`.
+
+Der bestehende ServiceAccount `operations-agent` erhält zusätzlich Pod-Verwaltung und `pods/exec` ausschließlich im Release-Namespace. Die oben gezeigte Prüfung für `create pods/exec` ergibt daher nur bei `workspace.mode: off` weiterhin `no`. Der separate ServiceAccount `operations-agent-workspace` darf clusterweit nur `get`, `list`, `watch`, ohne Secrets und ohne `pods/exec`. Der Git-Hook im Image erlaubt Push-Ziele nur unter `refs/heads/agent/`; die verbindliche Prüfung bleibt im Worker.
+
+Im Repository ist `workspace.mode` standardmäßig `off`; CI setzt beim Paketieren `kubernetes`, `workspace.image.repository` und `workspace.image.digest`. Die übrigen `workspace.*`-Werte steuern ServiceAccount, Ressourcen, ephemeren Speicher, TTL, Befehlsgrenzen und Azure-Identität. Standard sind 250m CPU/512Mi RAM als Request, 2Gi RAM als Limit, 5Gi Speicher, 300 Sekunden Befehls-Timeout, maximal 1800 Sekunden und 1 MiB Ausgabe je Befehl. Coding-Aufträge haben 1800 Sekunden Laufzeit, 150 Werkzeugaufrufe, zwei Reparaturversuche und 5 USD Budget.
+
+Die bestehende ConfigMap wird per `envFrom` geladen. `OPS_WORKSPACE_MODE` ist immer gesetzt; die folgenden Variablen nur im Kubernetes-Modus:
+
+| Variablen | Quelle |
+| --- | --- |
+| `OPS_WORKSPACE_IMAGE` | `workspace.image.repository@workspace.image.digest` |
+| `OPS_WORKSPACE_NAMESPACE` | Release-Namespace |
+| `OPS_WORKSPACE_SERVICE_ACCOUNT`, `OPS_WORKSPACE_IMAGE_PULL_SECRET` | `workspace.serviceAccountName`, bestehendes `imagePullSecretName` |
+| `OPS_WORKSPACE_CPU_REQUEST`, `OPS_WORKSPACE_MEMORY_REQUEST`, `OPS_WORKSPACE_MEMORY_LIMIT` | `workspace.resources.requests.cpu`, `.requests.memory`, `.limits.memory` |
+| `OPS_WORKSPACE_STORAGE_LIMIT`, `OPS_WORKSPACE_TTL_SECONDS` | `workspace.storageLimit`, `workspace.ttlSeconds` |
+| `OPS_WORKSPACE_COMMAND_TIMEOUT`, `OPS_WORKSPACE_MAX_COMMAND_TIMEOUT`, `OPS_WORKSPACE_MAX_OUTPUT_BYTES` | `workspace.commandTimeoutSeconds`, `workspace.maxCommandTimeoutSeconds`, `workspace.maxOutputBytes` |
+| `OPS_WORKSPACE_AZURE_CLIENT_ID`, `OPS_WORKSPACE_AZURE_TENANT_ID`, `OPS_WORKSPACE_AZURE_SUBSCRIPTION_ID` | `workspace.azure.clientId`, `.tenantId`, `.subscriptionId` |
+
+`workspace.ttlSeconds` ist standardmäßig 3600. Nach Ablauf des `sleep` endet der Container; das Pod-Objekt wird dadurch nicht automatisch gelöscht. Verbliebene Pod-Objekte lassen sich mit dem letzten Befehl unten manuell entfernen.
+
+```bash
+kubectl --context <staging> get pods -n <namespace>                         # Namen ops-ws-* suchen
+kubectl --context <staging> describe pod ops-ws-<operation> -n <namespace>
+kubectl --context <staging> logs ops-ws-<operation> -n <namespace>           # sleep liefert normalerweise keine Ausgabe
+kubectl --context <staging> exec -it ops-ws-<operation> -n <namespace> -- bash
+kubectl --context <staging> auth can-i list pods --all-namespaces --as=system:serviceaccount:<namespace>:operations-agent-workspace
+kubectl --context <staging> auth can-i get secrets -n <namespace> --as=system:serviceaccount:<namespace>:operations-agent-workspace       # no
+kubectl --context <staging> auth can-i create pods/exec -n <namespace> --as=system:serviceaccount:<namespace>:operations-agent-workspace  # no
+kubectl --context <staging> delete pod ops-ws-<operation> -n <namespace>
+```
+
+Für Azure benötigt der Workspace eine Workload Identity aus der Foundation; sie ist noch nicht provisioniert. Erst mit `workspace.azure.clientId` annotiert das Chart den Workspace-ServiceAccount. Der Worker muss für diese Pods das Label `azure.workload.identity/use: "true"` setzen. Ohne injizierte Identität beendet sich `az-login` mit Code 2 und dem Hinweis auf die fehlende AKS Workload Identity. `AZURE_CONFIG_DIR=/workspace/.home/.azure`; `AZURE_CORE_COLLECT_TELEMETRY=false` und `AZURE_CORE_SURVEY_MESSAGE=false` schalten Telemetrie und Umfrage ab.
+
 ## Start, Stopp, Wiederanlauf
 
 | Vorgang | Vorgehen | Wirkung |

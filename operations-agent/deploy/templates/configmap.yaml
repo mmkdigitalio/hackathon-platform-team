@@ -37,3 +37,22 @@ data:
   OPS_HTTP_SCHEME: {{ .Values.agent.httpScheme | quote }}
   OPS_SMOKE_TIMEOUT_SECONDS: {{ .Values.agent.smokeTimeoutSeconds | quote }}
   OPS_POST_ISSUE_COMMENT: {{ .Values.agent.postIssueComment | quote }}
+  OPS_WORKSPACE_MODE: {{ .Values.workspace.mode | quote }}
+  {{- if eq .Values.workspace.mode "kubernetes" }}
+  # Weitere Workspace-Werte nur im Kubernetes-Modus; Bezug über das bestehende envFrom.
+  OPS_WORKSPACE_IMAGE: {{ printf "%s@%s" .Values.workspace.image.repository .Values.workspace.image.digest | quote }}
+  OPS_WORKSPACE_NAMESPACE: {{ .Release.Namespace | quote }}
+  OPS_WORKSPACE_SERVICE_ACCOUNT: {{ .Values.workspace.serviceAccountName | quote }}
+  OPS_WORKSPACE_IMAGE_PULL_SECRET: {{ .Values.imagePullSecretName | quote }}
+  OPS_WORKSPACE_CPU_REQUEST: {{ .Values.workspace.resources.requests.cpu | quote }}
+  OPS_WORKSPACE_MEMORY_REQUEST: {{ .Values.workspace.resources.requests.memory | quote }}
+  OPS_WORKSPACE_MEMORY_LIMIT: {{ .Values.workspace.resources.limits.memory | quote }}
+  OPS_WORKSPACE_STORAGE_LIMIT: {{ .Values.workspace.storageLimit | quote }}
+  OPS_WORKSPACE_TTL_SECONDS: {{ .Values.workspace.ttlSeconds | quote }}
+  OPS_WORKSPACE_COMMAND_TIMEOUT: {{ .Values.workspace.commandTimeoutSeconds | quote }}
+  OPS_WORKSPACE_MAX_COMMAND_TIMEOUT: {{ .Values.workspace.maxCommandTimeoutSeconds | quote }}
+  OPS_WORKSPACE_MAX_OUTPUT_BYTES: {{ .Values.workspace.maxOutputBytes | quote }}
+  OPS_WORKSPACE_AZURE_CLIENT_ID: {{ .Values.workspace.azure.clientId | quote }}
+  OPS_WORKSPACE_AZURE_TENANT_ID: {{ .Values.workspace.azure.tenantId | quote }}
+  OPS_WORKSPACE_AZURE_SUBSCRIPTION_ID: {{ .Values.workspace.azure.subscriptionId | quote }}
+  {{- end }}

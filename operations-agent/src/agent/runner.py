@@ -6,8 +6,11 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
 
 from deepagents import create_deep_agent
+from deepagents.backends import CompositeBackend, StateBackend
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
@@ -17,19 +20,24 @@ from agent.context import ContextLoader, OperationalContext, assess_drift, desir
 from agent.limits import BudgetMiddleware, LimitReached, RunBudget, UsageCallback
 from agent.model import build_chat_model
 from agent.outcome import Stop, valid_verification, verification_failed
-from agent.prompts import context_files, system_prompt, task_message
+from agent.prompts import context_files, system_prompt, task_message, workspace_rules
 from agent.recorder import RunRecorder
-from agent.toolset import VERIFY_RESERVE_SECONDS, RunScope, TransitionRejected, build_tools, tool_names
+from agent.toolset import VERIFY_RESERVE_SECONDS, WORKSPACE_TOOLS, RunScope, TransitionRejected, build_tools, tool_names
 from contracts import AgentInvocation, AgentResult, OperationsServices, OwnershipLost, ResultProposal
 from tools.common import LockBusy, ToolError, UnclearOutcome, github_ref, k8s_ref, register_secret
 from tools.dispatch import WorkflowDispatcher
-from tools.git_repo import GitWorkspace
+from tools.git_repo import GitWorkspace, WorkspaceShell
 from tools.github import GitHubClient
 from tools.http_check import HttpProbe
 from tools.kubernetes import KubernetesAdapter
 from tools.restart import RestartAction
 from tools.targets import TargetPolicy
 from tools.verification import SmokeTest
+from tools.workspace import create_workspace
+
+# Pfade, die das SDK für Auftragsdaten und ausgelagerte Ergebnisse nutzt; sie bleiben im Graph-Zustand statt im Pod.
+STATE_ROUTES = ("/kontext/", "/large_tool_results/", "/conversation_history/")
+SDK_TOOLS = WORKSPACE_TOOLS | frozenset({"ls", "read_file", "glob", "grep"})
 
 log = logging.getLogger("operations_agent.agent")
 
@@ -52,6 +60,8 @@ class Dependencies:
     clock: Callable[[], float] = time.monotonic
     poll_seconds: dict[str, float] = field(default_factory=dict)
     git_remote_url: Callable[[str], str] | None = None
+    # (operationId, jobId) -> Workspace oder None; Standard aus ``settings.workspace``.
+    workspace: Callable[[str, str], Any] | None = None
 
 
 def execute(
@@ -76,8 +86,14 @@ def execute(
     stop: Stop | None = None
     ctx: OperationalContext | None = None
     scope: RunScope | None = None
+    workspace = None
 
     try:
+        workspace = (deps.workspace or (lambda op, job: create_workspace(settings.workspace, op, job)))(
+            invocation.operation_id, invocation.job_id
+        )
+        if workspace is not None:
+            _provide_github_token(workspace, gh)
         policy = TargetPolicy(ContextLoader(gh, None).catalog_app_ids(invocation.context.git_ref), settings.base_domain)
         target = policy.target(invocation.app_id, invocation.environment)
         loader_k8s = (deps.kubernetes or KubernetesAdapter.from_environment)(policy)
@@ -115,12 +131,14 @@ def execute(
                 services,
                 invocation.operation_id,
                 invocation.job_id,
-                settings.git_workdir,
+                Path(workspace.repos_dir) if workspace is not None else settings.git_workdir,
                 settings.git_repositories,
                 settings.git_branch_prefix,
                 settings.git_denied_paths,
                 **({"remote_url": deps.git_remote_url} if deps.git_remote_url else {}),
+                **({"shell": WorkspaceShell(workspace)} if workspace is not None else {}),
             ),
+            workspace=workspace,
         )
         _context_findings(scope)
         budget.repair_attempts = _previous_repairs(previous)
@@ -149,7 +167,43 @@ def execute(
     result = _result(invocation, scope, ctx, rec, budget, stop)
     if scope is not None and invocation.context.issue and settings.post_issue_comment:
         _comment_result(scope, result)
+    if workspace is not None:
+        _close_workspace(workspace, stop, result)
     return result
+
+
+def _provide_github_token(workspace: Any, gh: GitHubClient) -> None:
+    """Lese-Token als Datei im Workspace, vor jedem Befehl erneuert; nie in Befehlszeilen oder Umgebungsvariablen."""
+    original = workspace.execute
+    state = {"written": None, "busy": False}
+
+    def execute(command: str, *, timeout: int | None = None):
+        if not state["busy"]:
+            state["busy"] = True
+            try:
+                token = gh.auth.read_only_token()
+                if token != state["written"]:
+                    workspace.write_secret_file("gh-token", token)
+                    state["written"] = token
+            except ToolError as e:
+                log.warning("Lese-Token für den Workspace nicht verfügbar: %s", e.kind)
+            finally:
+                state["busy"] = False
+        return original(command, timeout=timeout)
+
+    workspace.execute = execute
+
+
+def _close_workspace(workspace: Any, stop: Stop | None, result: AgentResult) -> None:
+    """Pod löschen; bleibt ein eigener Workflow-Lauf offen, behält die Wiederaufnahme ihn bis zur TTL."""
+    if stop is not None and stop.kind in ("open_run", "ownership"):
+        result.references["workspace"] = {"id": workspace.id, "kept": True}
+        return
+    try:
+        workspace.close()
+    except Exception as e:  # noqa: BLE001 - Aufräumen darf das Ergebnis nicht ändern; TTL beendet den Pod
+        log.warning("Workspace %s nicht gelöscht: %s", workspace.id, type(e).__name__)
+    result.references["workspace"] = {"id": workspace.id, "kept": False}
 
 
 def _previous_repairs(previous: list) -> int:
@@ -222,13 +276,27 @@ def _resume(s: RunScope) -> bool:
 
 def _run_model(s: RunScope, chat_model: BaseChatModel) -> None:
     tools = build_tools(s)
+    ws = s.workspace
+    extra: dict[str, Any] = {}
+    workspace_text = None
+    if ws is not None:
+        extra["backend"] = CompositeBackend(default=ws, routes={prefix: StateBackend() for prefix in STATE_ROUTES})
+        workspace_text = workspace_rules(
+            ws.repos_dir, sorted(s.settings.git_repositories), bool(s.settings.workspace.azure_client_id), s.settings.git_branch_prefix
+        )
+
+    def on_sdk_tool(name: str, args: Any, outcome: tuple) -> None:
+        started, message = outcome
+        s.recorder.sdk_tool_call(name, args, started, message, ws.id if ws is not None else None)
+
     agent = create_deep_agent(
         model=chat_model,
         tools=tools,
-        system_prompt=system_prompt(s.settings.rules_file),
-        middleware=[BudgetMiddleware(s.budget, tool_names(tools))],
+        system_prompt=system_prompt(s.settings.rules_file, workspace_text),
+        middleware=[BudgetMiddleware(s.budget, tool_names(tools, ws is not None), on_sdk_tool, SDK_TOOLS if ws is not None else frozenset())],
         checkpointer=s.services.checkpoints.checkpointer(),
         name="mmk-ops-agent",
+        **extra,
     )
     config = {
         "configurable": {"thread_id": s.inv.resume.thread_id},

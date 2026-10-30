@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+python3 --version
+uv --version
+uvx --version
+yq --version
+rg --version
+node --version
+npm --version
+kubectl version --client=true --output=yaml
+helm version --short
+gh --version
+az version
+# coreutils enthält unter anderem base64 und timeout; find/grep/sed sind eigene Pakete.
+dpkg-query -W -f='${Package} ${Version}\n' git bash coreutils findutils grep sed gawk \
+  diffutils patch curl ca-certificates jq unzip openssh-client libstdc++6

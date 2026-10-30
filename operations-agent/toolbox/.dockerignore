@@ -1,0 +1,9 @@
+*
+!Dockerfile
+!fetch-tools.sh
+!gh
+!git-credential-ops
+!az-login
+!toolbox-info
+!gitconfig
+!pre-push

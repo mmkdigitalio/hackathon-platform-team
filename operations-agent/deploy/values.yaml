@@ -30,6 +30,26 @@ worker:
     requests: { cpu: 100m, memory: 384Mi }
     limits: { memory: 1Gi }
 
+# Shell-Befehle laufen im eigenen Pod; die Worker-Speichergrenzen bleiben unverändert.
+workspace:
+  mode: "off"                  # off | kubernetes; CI aktiviert veröffentlichte Charts
+  image:
+    repository: ""             # <acrLoginServer>/operations-agent-toolbox, von CI gesetzt
+    digest: ""                 # sha256:…, von CI gesetzt
+  serviceAccountName: operations-agent-workspace
+  resources:
+    requests: { cpu: 250m, memory: 512Mi }
+    limits: { memory: 2Gi }
+  storageLimit: 5Gi            # ephemerer Speicher des Workspace-Pods
+  ttlSeconds: 3600
+  commandTimeoutSeconds: 300
+  maxCommandTimeoutSeconds: 1800
+  maxOutputBytes: 100000       # höchstens 100 KB Ausgabe je Befehl für den Modellkontext
+  azure:
+    clientId: ""              # leer: keine Workload Identity; Foundation muss sie bereitstellen
+    tenantId: ""
+    subscriptionId: ""
+
 migrate:
   command: ["ops", "migrate"]   # Migrations-CLI von Strang C
   backoffLimit: 1
@@ -47,11 +67,12 @@ model:
   priceInputPerMTok: "2.5"      # Platzhalter, vor Betrieb mit der Preisliste abgleichen
   priceOutputPerMTok: "10"
 
+# Coding-Aufträge brauchen mehr Laufzeit, Werkzeugaufrufe und Budget.
 limits:
-  runtimeSeconds: 600
-  toolCalls: 30
+  runtimeSeconds: 1800
+  toolCalls: 150
   repairAttempts: 2
-  costUsd: "1.0"
+  costUsd: "5.0"
 
 agent:
   githubRepository: mmkdigitalio/hackathon-platform-team

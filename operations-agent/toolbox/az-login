@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+if [ -z "${AZURE_FEDERATED_TOKEN_FILE:-}" ] || [ -z "${AZURE_CLIENT_ID:-}" ]; then
+  echo 'Keine Azure-Identität konfiguriert: AKS Workload Identity fehlt.' >&2
+  exit 2
+fi
+az login --service-principal --federated-token "$(cat "$AZURE_FEDERATED_TOKEN_FILE")" \
+  -u "$AZURE_CLIENT_ID" -t "${AZURE_TENANT_ID:?AZURE_TENANT_ID fehlt}"
+if [ -n "${AZURE_SUBSCRIPTION_ID:-}" ]; then
+  az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+fi

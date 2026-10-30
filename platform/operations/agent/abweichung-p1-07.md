@@ -1,6 +1,8 @@
 # Abweichung von P1-07: keine Azure-Diagnose durch den Agenten
 
-**Status:** gilt für Phase 1. Review mit Strang A ausstehend.
+**Status:** gilt, bis die Foundation eine Azure-Leseidentität für den Workspace bereitstellt (Tasks 9.5, Änderung vom 30.10.2026). Review mit Strang A ausstehend.
+
+**Nachtrag 30.10.2026:** Der Agent bekommt einen Workspace-Pod mit `az` (siehe `paket-betrieb.md`). Mit der Workload Identity aus Task 9.5 liest er Azure Resource Manager, Messwerte und Log Analytics über die Shell; ohne sie gilt der Ersatz unten weiter. Ändernde Azure-Aufrufe sind auch dann nicht vorgesehen: die Identität erhält nur die Rollen Reader und Log Analytics Reader.
 
 ## Vorgabe
 

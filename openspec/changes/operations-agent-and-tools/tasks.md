@@ -63,3 +63,12 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 - [x] 8.2 Git-Werkzeuge (klonen, lesen, ändern, Diff, Commit und Push auf `agent/<operationId>`, Pull Request) mit Allowlist, Pfadsperren, Aktionsdatensatz und Push-Abgleich liefern; Abschluss durch echten Push über die App auf einen Agenten-Branch sowie abgewiesenen Push auf `main` und abgewiesene Workflow-Änderung prüfen.
 - [ ] 8.3 App-ID, Installations-ID und privaten Schlüssel über Foundation-Ausgabe und App-Stack an den Agenten liefern (A, B); Abschluss durch Agenten-Pod, der ohne PAT ein Installations-Token erhält.
 - [ ] 8.4 Nicht reparierbaren Fall in Staging mit Pull Request des Agenten durchspielen; Abschluss durch `needs_attention` mit Commit-Verweis und geöffnetem, nicht gemergtem Pull Request prüfen.
+
+## 9. Agent als Coding- und Ops-Agent im Workspace (Änderung vom 30.10.2026)
+
+- [ ] 9.1 Workspace-Sandbox `src/tools/workspace.py` (Kubernetes-Pod je Operation, lokaler Modus) mit Zeit- und Ausgabegrenzen liefern; Abschluss durch Tests mit Fake-API sowie echten Befehl in einem Staging-Pod prüfen.
+- [ ] 9.2 Toolbox-Image `operations-agent/toolbox/` mit festen Versionen, Credential-Helper und `az-login` liefern und in `agent-build.yml` bauen; Abschluss durch `toolbox-info` im Staging-Pod prüfen.
+- [ ] 9.3 Chart: Workspace-ServiceAccount mit clusterweiter Leserolle ohne Secrets, Role für Pod-Verwaltung des Workers, Workspace-Werte; Abschluss durch `kubectl auth can-i` für erlaubte und verweigerte Verben prüfen.
+- [ ] 9.4 Integration in Runner und Toolset (Backend, Lese-Token, Arbeitskopie im Workspace, Protokoll der SDK-Werkzeuge, Prompt); Abschluss durch Lauf mit Codeänderung, Test im Workspace und Pull Request prüfen.
+- [ ] 9.5 Azure-Leseidentität (User-Assigned Managed Identity, Federated Credential auf den Workspace-ServiceAccount, Rollen Reader und Log Analytics Reader) mit A bereitstellen; Abschluss durch `az-login` und `az monitor log-analytics query` im Workspace prüfen.
+- [ ] 9.6 Betriebsregeln, `werkzeuge.md` und `abweichung-p1-07.md` anpassen; Abschluss durch Review mit A.

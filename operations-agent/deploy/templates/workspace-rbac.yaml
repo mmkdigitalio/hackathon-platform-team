@@ -1,0 +1,97 @@
+{{- if eq .Values.workspace.mode "kubernetes" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.workspace.serviceAccountName }}
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "ops.labels" . | nindent 4 }}
+  {{- with .Values.workspace.azure.clientId }}
+  annotations:
+    azure.workload.identity/client-id: {{ . | quote }}
+  {{- end }}
+---
+# Absichtlich clusterweit nur lesend; Secrets und pods/exec sind ausgeschlossen.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "ops.name" . }}-workspace-{{ .Release.Namespace }}
+  labels: {{- include "ops.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "services", "endpoints", "configmaps", "events", "namespaces", "nodes", "persistentvolumeclaims", "persistentvolumes", "serviceaccounts", "resourcequotas", "limitranges", "replicationcontrollers"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps", "batch", "autoscaling", "storage.k8s.io"]
+    resources: ["*"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["policy"]
+    resources: ["poddisruptionbudgets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "ingressclasses", "networkpolicies"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["discovery.k8s.io"]
+    resources: ["endpointslices"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["rbac.authorization.k8s.io"]
+    resources: ["roles", "rolebindings", "clusterroles", "clusterrolebindings"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["cert-manager.io", "acme.cert-manager.io"]
+    resources: ["certificates", "certificaterequests", "issuers", "clusterissuers", "orders", "challenges"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["traefik.io", "traefik.containo.us"]
+    resources: ["ingressroutes", "ingressroutetcps", "ingressrouteudps", "middlewares", "middlewaretcps", "traefikservices", "serverstransports", "tlsoptions", "tlsstores"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "ops.name" . }}-workspace-{{ .Release.Namespace }}
+  labels: {{- include "ops.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "ops.name" . }}-workspace-{{ .Release.Namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.workspace.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+---
+# Nur der bestehende Agenten-ServiceAccount verwaltet Workspace-Pods im Release-Namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "ops.name" . }}-workspace
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "ops.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create", "get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "ops.name" . }}-workspace
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "ops.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "ops.name" . }}-workspace
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "ops.name" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

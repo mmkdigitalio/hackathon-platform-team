@@ -1,0 +1,8 @@
+[credential "https://github.com"]
+    helper = /usr/local/bin/git-credential-ops
+[safe]
+    directory = *
+[init]
+    defaultBranch = main
+[core]
+    hooksPath = /etc/ops-git-hooks

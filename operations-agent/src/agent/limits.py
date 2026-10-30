@@ -14,6 +14,7 @@ from langchain_core.outputs import LLMResult
 from agent.config import ModelSettings
 from agent.model import cost_usd
 from contracts import RunLimits, Usage
+from tools.common import utcnow
 
 LimitName = Literal["runtime", "tool_calls", "repair_attempts", "cost"]
 
@@ -112,10 +113,19 @@ class BudgetMiddleware(AgentMiddleware):
     Grenzverletzungen werden als ``LimitReached`` geworfen und beenden den Graph-Lauf.
     """
 
-    def __init__(self, budget: RunBudget, allowed_tools: frozenset[str]) -> None:
+    def __init__(
+        self,
+        budget: RunBudget,
+        allowed_tools: frozenset[str],
+        on_sdk_tool: Callable[[str, Any, Any], None] | None = None,
+        sdk_tools: frozenset[str] = frozenset(),
+    ) -> None:
         super().__init__()
         self.budget = budget
         self.allowed = allowed_tools
+        # SDK-Werkzeuge (Dateien, Shell) protokolliert kein eigener Wrapper; das übernimmt dieser Rückruf.
+        self.on_sdk_tool = on_sdk_tool
+        self.sdk_tools = sdk_tools
 
     def _filter(self, request: ModelRequest) -> ModelRequest:
         return request.override(tools=[t for t in request.tools if _tool_name(t) in self.allowed])
@@ -148,4 +158,9 @@ class BudgetMiddleware(AgentMiddleware):
                 status="error",
             )
         self.budget.before_tool(name)
-        return handler(request)
+        if self.on_sdk_tool is None or name not in self.sdk_tools:
+            return handler(request)
+        started = utcnow()
+        result = handler(request)
+        self.on_sdk_tool(name, request.tool_call.get("args"), (started, result))
+        return result
