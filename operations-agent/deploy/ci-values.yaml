@@ -1,0 +1,6 @@
+# Nur für helm lint/template in CI; echte Werte setzt der App-Stack.
+image:
+  repository: example.azurecr.io/operations-agent
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+secretName: operations-agent-platform
+imagePullSecretName: acr-pull

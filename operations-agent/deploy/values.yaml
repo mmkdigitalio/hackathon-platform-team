@@ -1,0 +1,58 @@
+# Werte setzt B's App-Stack aus Sollzustand und Foundation-Ausgaben. Keine Secret-Werte in diesem Chart.
+
+image:
+  repository: ""          # <acrLoginServer>/operations-agent
+  digest: ""              # sha256:… (Pflicht, keine beweglichen Tags)
+
+# Kubernetes-Secret des App-Stacks; alle Schlüssel werden als Umgebungsvariablen geladen
+# (erwartete Schlüssel: platform/operations/agent/paket-betrieb.md).
+secretName: ""
+# Image-Pull-Secret des App-Stacks für alle Pods einschließlich Hook-Job.
+imagePullSecretName: ""
+
+# Von app-deploy.yml je Lauf gesetzt (operationId); erzwingt ein Helm-Upgrade, ändert kein Pod-Template.
+rolloutMarker: ""
+
+api:
+  replicas: 1
+  command: ["ops-api"]    # Einstiegspunkt von Strang C
+  port: 8080
+  resources:
+    requests: { cpu: 50m, memory: 192Mi }
+    limits: { memory: 512Mi }
+
+worker:
+  replicas: 1             # genau ein Worker in Staging (C, durable-operations)
+  command: ["ops-worker"] # Einstiegspunkt von Strang C
+  resources:
+    requests: { cpu: 100m, memory: 384Mi }
+    limits: { memory: 1Gi }
+
+migrate:
+  command: ["ops", "migrate"]   # Migrations-CLI von Strang C
+  backoffLimit: 1
+  activeDeadlineSeconds: 600
+
+model:
+  provider: azure-openai        # azure-openai | anthropic
+  name: gpt-6.1-terra           # Azure-Deploymentname bzw. Anthropic-Modell-ID
+  endpoint: https://mmk-hackathon-openai.openai.azure.com/   # nur azure-openai
+  apiVersion: 2025-04-01-preview                            # nur azure-openai
+  responsesApi: true            # GPT-6-Deployments: Function Tools nur über die Responses API
+  priceInputPerMTok: "2.5"      # Platzhalter, vor Betrieb mit der Preisliste abgleichen
+  priceOutputPerMTok: "10"
+
+limits:
+  runtimeSeconds: 600
+  toolCalls: 30
+  repairAttempts: 2
+  costUsd: "1.0"
+
+agent:
+  githubRepository: mmkdigitalio/hackathon-platform-team
+  dispatchWorkflows: app-deploy.yml
+  dispatchRef: main
+  appImagePullSecret: ""        # Pull-Secret in App-Namespaces für Smoke-Test-Jobs
+  httpScheme: https             # http nur als dokumentierter Fallback (E8)
+  smokeTimeoutSeconds: 180
+  postIssueComment: true

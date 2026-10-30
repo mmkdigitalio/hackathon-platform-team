@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "ops.name" . }}-config
+  labels: {{- include "ops.labels" . | nindent 4 }}
+data:
+  OPS_MODEL_PROVIDER: {{ .Values.model.provider | quote }}
+  OPS_MODEL_NAME: {{ .Values.model.name | quote }}
+  {{- with .Values.model.endpoint }}
+  OPS_MODEL_ENDPOINT: {{ . | quote }}
+  {{- end }}
+  {{- with .Values.model.apiVersion }}
+  OPS_MODEL_API_VERSION: {{ . | quote }}
+  {{- end }}
+  OPS_MODEL_RESPONSES_API: {{ .Values.model.responsesApi | quote }}
+  OPS_MODEL_PRICE_INPUT_PER_MTOK: {{ .Values.model.priceInputPerMTok | quote }}
+  OPS_MODEL_PRICE_OUTPUT_PER_MTOK: {{ .Values.model.priceOutputPerMTok | quote }}
+  OPS_LIMIT_RUNTIME_SECONDS: {{ .Values.limits.runtimeSeconds | quote }}
+  OPS_LIMIT_TOOL_CALLS: {{ .Values.limits.toolCalls | quote }}
+  OPS_LIMIT_REPAIR_ATTEMPTS: {{ .Values.limits.repairAttempts | quote }}
+  OPS_LIMIT_COST_USD: {{ .Values.limits.costUsd | quote }}
+  OPS_GITHUB_REPOSITORY: {{ .Values.agent.githubRepository | quote }}
+  OPS_DISPATCH_WORKFLOWS: {{ .Values.agent.dispatchWorkflows | quote }}
+  OPS_DISPATCH_REF: {{ .Values.agent.dispatchRef | quote }}
+  OPS_APP_IMAGE_PULL_SECRET: {{ .Values.agent.appImagePullSecret | quote }}
+  OPS_HTTP_SCHEME: {{ .Values.agent.httpScheme | quote }}
+  OPS_SMOKE_TIMEOUT_SECONDS: {{ .Values.agent.smokeTimeoutSeconds | quote }}
+  OPS_POST_ISSUE_COMMENT: {{ .Values.agent.postIssueComment | quote }}

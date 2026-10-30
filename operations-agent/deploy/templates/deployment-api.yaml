@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ops.name" . }}-api
+  labels: {{- include "ops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  replicas: {{ .Values.api.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ops.name" . }}
+      app.kubernetes.io/component: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "ops.name" . }}
+        app.kubernetes.io/component: api
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "ops.name" . }}
+      {{- include "ops.podSecurity" . | nindent 6 }}
+      containers:
+        - name: api
+          image: {{ include "ops.image" . }}
+          command: {{ toJson .Values.api.command }}
+          {{- include "ops.env" . | nindent 10 }}
+          env:
+            - name: OPS_API_PORT
+              value: {{ .Values.api.port | quote }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.api.port }}
+          # Bereit erst nach erfolgreicher Schema-Versionsprüfung beim Start (C); /healthz bewertet den Worker (E10).
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          {{- include "ops.containerSecurity" . | nindent 10 }}
+          resources: {{- toYaml .Values.api.resources | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: tmp, emptyDir: {} }

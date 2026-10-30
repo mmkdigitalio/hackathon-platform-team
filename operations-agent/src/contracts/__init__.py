@@ -1,0 +1,66 @@
+"""Vertrag zwischen Auftragsverwaltung (Strang C) und Agentenausführung (Strang D).
+
+ENTWURF v0.1: Besitz liegt bei Strang C (C-Task 1.2). Strang D hat diesen Entwurf
+angelegt, damit Agent und Werkzeuge gegen feste Typen entwickelt werden können.
+Änderungen stimmt C mit D ab; brechende Änderungen erhöhen ``CONTRACT_VERSION``.
+"""
+
+from contracts.v0_1 import (
+    CONTRACT_VERSION,
+    ActionKind,
+    ActionLog,
+    ActionRecord,
+    ActionStatus,
+    AgentExecution,
+    AgentInvocation,
+    AgentResult,
+    CheckpointProvider,
+    ContextRefs,
+    Finding,
+    IssueRef,
+    KubernetesState,
+    LockAcquisition,
+    OperationsLock,
+    OperationsServices,
+    Ownership,
+    OwnershipGuard,
+    OwnershipLost,
+    ReleaseRef,
+    ResultProposal,
+    ResumeInfo,
+    RunLimits,
+    StateTransitions,
+    ToolCallRecord,
+    Usage,
+    VerificationEvidence,
+)
+
+__all__ = [
+    "CONTRACT_VERSION",
+    "ActionKind",
+    "ActionLog",
+    "ActionRecord",
+    "ActionStatus",
+    "AgentExecution",
+    "AgentInvocation",
+    "AgentResult",
+    "CheckpointProvider",
+    "ContextRefs",
+    "Finding",
+    "IssueRef",
+    "KubernetesState",
+    "LockAcquisition",
+    "OperationsLock",
+    "OperationsServices",
+    "Ownership",
+    "OwnershipGuard",
+    "OwnershipLost",
+    "ReleaseRef",
+    "ResultProposal",
+    "ResumeInfo",
+    "RunLimits",
+    "StateTransitions",
+    "ToolCallRecord",
+    "Usage",
+    "VerificationEvidence",
+]

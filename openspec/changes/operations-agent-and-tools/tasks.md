@@ -4,18 +4,18 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 
 ## 1. Echter Framework-Nachweis, P1-02
 
-- [ ] 1.1 Deep-Agents-, Modelladapter- und Persistenzpakete in Manifest und Lockdatei unter `operations-agent/` pinnen; Abschluss durch reproduzierbare Installation aus der Lockdatei prüfen.
-- [ ] 1.2 Modellanbieter Azure OpenAI und Anthropic konfigurierbar anbinden, Keys aus `modelApiKeys` bzw. lokal aus Umgebungsvariablen; Abschluss durch echten Tool-Calling-Lauf mit typisiertem Diagnosewerkzeug und Anbieterwechsel allein per Konfiguration prüfen.
-- [ ] 1.3 SDK-Checkpoint-/Store-Anbindung mit den gepinnten Versionen erproben und den Befund an C übergeben; Abschluss durch ein dokumentiertes Persistenzbeispiel ohne konkurrierende Initialisierung prüfen.
-- [ ] 1.4 Prototypstart, Modellkonfiguration und Ergebnisse in `platform/operations/agent/` dokumentieren; Abschluss durch ausgeführten lokalen Start aus der Anleitung prüfen.
+- [x] 1.1 Deep-Agents-, Modelladapter- und Persistenzpakete in Manifest und Lockdatei unter `operations-agent/` pinnen; Abschluss durch reproduzierbare Installation aus der Lockdatei prüfen.
+- [x] 1.2 Modellanbieter Azure OpenAI und Anthropic konfigurierbar anbinden, Keys aus `modelApiKeys` bzw. lokal aus Umgebungsvariablen; Abschluss durch echten Tool-Calling-Lauf mit typisiertem Diagnosewerkzeug und Anbieterwechsel allein per Konfiguration prüfen.
+- [x] 1.3 SDK-Checkpoint-/Store-Anbindung mit den gepinnten Versionen erproben und den Befund an C übergeben; Abschluss durch ein dokumentiertes Persistenzbeispiel ohne konkurrierende Initialisierung prüfen.
+- [x] 1.4 Prototypstart, Modellkonfiguration und Ergebnisse in `platform/operations/agent/` dokumentieren; Abschluss durch ausgeführten lokalen Start aus der Anleitung prüfen.
 
 ## 2. Aufrufbare Agentenausführung
 
 - [ ] 2.1 Agentenausführung in `operations-agent/src/agent/` gegen C's Vertrag unter `src/contracts/` implementieren; Abschluss durch Worker-Aufruf mit strukturierten Befunden und ausschließlich C-seitig persistierten Zustandsübergängen prüfen.
 - [ ] 2.2 Katalog-, Sollzustands-, Release-, Runbook- und Alarm-Payload-Kontext versionsbezogen laden; Abschluss durch getrennte Soll-/Iststände und korrekt zugeordneten AFFiNE-Kontext prüfen.
-- [ ] 2.3 Grenzen für Laufzeit (10 min), Tool-Aufrufe (30), Reparaturversuche (2) und Modellkosten (etwa 1 USD) konfigurierbar im Code erzwingen; Abschluss durch jede ausgelöste Grenze mit `needs_attention` statt weiterer Aufrufe prüfen.
-- [ ] 2.4 Kontextdaten von Betriebsregeln trennen und Herkunft von Erkenntnissen dokumentieren; Abschluss durch Log-/Tickettext mit unerlaubter Anweisung ohne zusätzliche Berechtigung prüfen.
-- [ ] 2.5 Belegte Operations-Sperre ohne Warten behandeln; Abschluss durch `needs_attention` mit „gesperrt durch Operation X“ und ohne ändernde Maßnahme prüfen.
+- [x] 2.3 Grenzen für Laufzeit (10 min), Tool-Aufrufe (30), Reparaturversuche (2) und Modellkosten (etwa 1 USD) konfigurierbar im Code erzwingen; Abschluss durch jede ausgelöste Grenze mit `needs_attention` statt weiterer Aufrufe prüfen.
+- [x] 2.4 Kontextdaten von Betriebsregeln trennen und Herkunft von Erkenntnissen dokumentieren; Abschluss durch Log-/Tickettext mit unerlaubter Anweisung ohne zusätzliche Berechtigung prüfen.
+- [x] 2.5 Belegte Operations-Sperre ohne Warten behandeln; Abschluss durch `needs_attention` mit „gesperrt durch Operation X“ und ohne ändernde Maßnahme prüfen.
 
 ## 3. Lesende Betriebswerkzeuge, Anteil P1-07
 
@@ -23,7 +23,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 - [ ] 3.2 Alarm-Payload-Auswertung und eigene HTTP-Prüfungen anbinden, ohne Azure-Werkzeuge; Abschluss durch Diagnose eines echten Staging-Alarms ohne Azure-Zugangsdaten prüfen.
 - [ ] 3.3 GitHub-Dateien und Commit-Historie über den PAT aus `opsGithubToken` lesen; Abschluss durch letzten Commit auf `platform/environments/staging/affine.yaml` mit SHA, Autor und Diff prüfen.
 - [ ] 3.4 Issue-Kommentare mit `<!-- mmk-ops-agent -->` und Auftragsreferenz anbinden; Abschluss durch Kommentar im ursprünglichen Support-Issue ohne neuen Auftrag prüfen.
-- [ ] 3.5 Werkzeug-Eingaben, Fehlerformat und Evidenzreferenzen dokumentieren; Abschluss durch positive, Timeout- und Berechtigungsfehlerfälle der Adaptertests prüfen.
+- [x] 3.5 Werkzeug-Eingaben, Fehlerformat und Evidenzreferenzen dokumentieren; Abschluss durch positive, Timeout- und Berechtigungsfehlerfälle der Adaptertests prüfen.
 - [ ] 3.6 Abweichung von P1-07 (keine Azure-Diagnose, E6) in `platform/operations/agent/` dokumentieren; Abschluss durch Review mit A prüfen.
 
 ## 4. Ändernde Aktionen und Workflow-Verfolgung, Anteil P1-07

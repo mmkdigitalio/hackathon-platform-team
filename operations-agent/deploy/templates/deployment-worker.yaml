@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ops.name" . }}-worker
+  labels: {{- include "ops.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  # Nie zwei Worker gleichzeitig; ein neuer Pod übernimmt Aufträge über C's Lease.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ops.name" . }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "ops.name" . }}
+        app.kubernetes.io/component: worker
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "ops.name" . }}
+      terminationGracePeriodSeconds: 60
+      {{- include "ops.podSecurity" . | nindent 6 }}
+      containers:
+        - name: worker
+          image: {{ include "ops.image" . }}
+          command: {{ toJson .Values.worker.command }}
+          {{- include "ops.env" . | nindent 10 }}
+          {{- include "ops.containerSecurity" . | nindent 10 }}
+          resources: {{- toYaml .Values.worker.resources | nindent 12 }}
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - { name: tmp, emptyDir: {} }
