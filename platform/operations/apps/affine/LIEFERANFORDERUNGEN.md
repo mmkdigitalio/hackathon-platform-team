@@ -33,7 +33,7 @@ Host `https://affine.<baseDomain>` mit Let's-Encrypt-Zertifikat über die Ingres
 
 | Schritt | Status |
 | --- | --- |
-| Anforderungen übergeben an den AFFiNE-Kollegen | offen |
-| Übergabe bestätigt | offen |
-| Entwurf `platform/catalog/affine/app.yaml` validiert | offen |
-| L11 Fehlerwert festgelegt | offen |
+| Anforderungen übergeben an den AFFiNE-Kollegen | erledigt |
+| Übergabe bestätigt | erledigt, Lieferung in `mmkdigitalio/hackathon-platform-affine` (`platform-delivery/README.md`) |
+| Entwurf `platform/catalog/affine/app.yaml` validiert | erledigt |
+| L11 Fehlerwert festgelegt | erledigt: `affine.nodeOptions = --max-old-space-size=16` |
