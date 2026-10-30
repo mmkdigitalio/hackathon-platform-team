@@ -11,7 +11,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 
 ## 2. Aufrufbare Agentenausführung
 
-- [ ] 2.1 Agentenausführung in `operations-agent/src/agent/` gegen C's Vertrag unter `src/contracts/` implementieren; Abschluss durch Worker-Aufruf mit strukturierten Befunden und ausschließlich C-seitig persistierten Zustandsübergängen prüfen.
+- [x] 2.1 Agentenausführung in `operations-agent/src/agent/` gegen C's Vertrag unter `src/contracts/` implementieren; Abschluss durch Worker-Aufruf mit strukturierten Befunden und ausschließlich C-seitig persistierten Zustandsübergängen prüfen.
 - [ ] 2.2 Katalog-, Sollzustands-, Release-, Runbook- und Alarm-Payload-Kontext versionsbezogen laden; Abschluss durch getrennte Soll-/Iststände und korrekt zugeordneten AFFiNE-Kontext prüfen.
 - [x] 2.3 Grenzen für Laufzeit (10 min), Tool-Aufrufe (30), Reparaturversuche (2) und Modellkosten (etwa 1 USD) konfigurierbar im Code erzwingen; Abschluss durch jede ausgelöste Grenze mit `needs_attention` statt weiterer Aufrufe prüfen.
 - [x] 2.4 Kontextdaten von Betriebsregeln trennen und Herkunft von Erkenntnissen dokumentieren; Abschluss durch Log-/Tickettext mit unerlaubter Anweisung ohne zusätzliche Berechtigung prüfen.
