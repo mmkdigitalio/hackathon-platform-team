@@ -323,20 +323,26 @@ def test_kubernetes_pod_spec(streams, azure):
     assert container["resources"] == {
         "requests": {"cpu": "250m", "memory": "512Mi"}, "limits": {"memory": "2Gi", "ephemeral-storage": "5Gi"},
     }
-    assert spec["volumes"] == [{"name": "workspace", "emptyDir": {"sizeLimit": "5Gi"}}, {"name": "tmp", "emptyDir": {}}]
+    assert spec["volumes"][:2] == [{"name": "workspace", "emptyDir": {"sizeLimit": "5Gi"}}, {"name": "tmp", "emptyDir": {}}]
     env = {item["name"]: item["value"] for item in container["env"]}
     assert env["HOME"] == "/workspace/.home"
     assert env["OPS_OPERATION_ID"] == "Op: 123 / X"
     assert env["OPS_JOB_ID"] == "Job: 789"
     assert env["GIT_TERMINAL_PROMPT"] == "0"
+    # Kein Webhook-Label: das projizierte Token legt der Code selbst an.
+    assert "azure.workload.identity/use" not in body["metadata"]["labels"]
     if azure:
-        assert body["metadata"]["labels"]["azure.workload.identity/use"] == "true"
         assert env["AZURE_CLIENT_ID"] == "client"
         assert env["AZURE_TENANT_ID"] == "tenant"
         assert env["AZURE_SUBSCRIPTION_ID"] == "sub"
+        assert env["AZURE_FEDERATED_TOKEN_FILE"] == "/var/run/secrets/azure/tokens/azure-identity-token"
+        assert env["AZURE_AUTHORITY_HOST"] == "https://login.microsoftonline.com/"
+        token = spec["volumes"][2]["projected"]["sources"][0]["serviceAccountToken"]
+        assert token == {"audience": "api://AzureADTokenExchange", "expirationSeconds": 3600, "path": "azure-identity-token"}
+        assert {"name": "azure-identity-token", "mountPath": "/var/run/secrets/azure/tokens", "readOnly": True} in container["volumeMounts"]
     else:
-        assert "azure.workload.identity/use" not in body["metadata"]["labels"]
         assert not any(name.startswith("AZURE_") for name in env)
+        assert len(spec["volumes"]) == 2
     assert not workspace.enable_capture_offload
     assert workspace.repos_dir == REPOS_DIR
     assert workspace.credentials_dir == CREDENTIALS_DIR

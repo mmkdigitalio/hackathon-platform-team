@@ -11,3 +11,9 @@ values:
   agent:
     # Pull-Secret, das der App-Stack in jedem App-Namespace anlegt; für D's Smoke-Test-Jobs
     appImagePullSecret: acr-pull
+  workspace:
+    # Azure-Leseidentität des Workspace-Pods (Reader, Log Analytics Reader); per az CLI angelegt, Übernahme in die Foundation offen.
+    azure:
+      clientId: 83e90ad7-5780-418f-9a27-cefdc9b80fc7
+      tenantId: 04871c4e-334d-41d3-986b-175b6ae0ce4c
+      subscriptionId: e74d4729-d5f5-4fd4-ab22-17005555593e

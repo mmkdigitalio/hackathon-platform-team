@@ -45,6 +45,7 @@ from tools.kubernetes import _call
 WORKDIR = "/workspace"
 REPOS_DIR = "/workspace/repos"
 CREDENTIALS_DIR = "/workspace/.ops"
+AZURE_TOKEN_DIR = "/var/run/secrets/azure/tokens"
 _NAMESPACE_FILE = Path("/var/run/secrets/kubernetes.io/serviceaccount/namespace")
 # ``kubernetes.stream.stream`` ersetzt kurzzeitig ``api_client.request`` des übergebenen Clients. Parallele Werkzeugaufrufe
 # des SDK würden sich dabei gegenseitig den Patch zurücksetzen; deshalb eigener Client für Exec und Aufbau unter Sperre.
@@ -275,8 +276,17 @@ class KubernetesWorkspace(BaseSandbox):
         for name in ("azure_client_id", "azure_tenant_id", "azure_subscription_id"):
             if value := getattr(s, name):
                 env[name.upper()] = value
+        mounts = [{"name": "workspace", "mountPath": WORKDIR}, {"name": "tmp", "mountPath": "/tmp"}]
+        volumes: list[dict[str, Any]] = [{"name": "workspace", "emptyDir": {"sizeLimit": s.storage_limit}}, {"name": "tmp", "emptyDir": {}}]
         if s.azure_client_id:
-            labels["azure.workload.identity/use"] = "true"
+            # Workload Identity ohne AKS-Webhook: das projizierte Token legen wir selbst an, wie es der Webhook täte.
+            # Ohne das Label azure.workload.identity/use, damit ein später aktivierter Webhook den Pod nicht doppelt ändert.
+            env["AZURE_FEDERATED_TOKEN_FILE"] = f"{AZURE_TOKEN_DIR}/azure-identity-token"
+            env["AZURE_AUTHORITY_HOST"] = "https://login.microsoftonline.com/"
+            mounts.append({"name": "azure-identity-token", "mountPath": AZURE_TOKEN_DIR, "readOnly": True})
+            volumes.append({"name": "azure-identity-token", "projected": {"sources": [{"serviceAccountToken": {
+                "audience": "api://AzureADTokenExchange", "expirationSeconds": 3600, "path": "azure-identity-token",
+            }}]}})
         return {
             "apiVersion": "v1",
             "kind": "Pod",
@@ -307,9 +317,9 @@ class KubernetesWorkspace(BaseSandbox):
                         "capabilities": {"drop": ["ALL"]},
                         "seccompProfile": {"type": "RuntimeDefault"},
                     },
-                    "volumeMounts": [{"name": "workspace", "mountPath": WORKDIR}, {"name": "tmp", "mountPath": "/tmp"}],
+                    "volumeMounts": mounts,
                 }],
-                "volumes": [{"name": "workspace", "emptyDir": {"sizeLimit": s.storage_limit}}, {"name": "tmp", "emptyDir": {}}],
+                "volumes": volumes,
             },
         }
 
