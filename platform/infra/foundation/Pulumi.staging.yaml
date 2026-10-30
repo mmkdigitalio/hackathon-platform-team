@@ -5,8 +5,8 @@ config:
   foundation:modelApiKeys:
     azure-openai:
       secure: v1:R+8n4o05kcHHWdAM:WL7czREEPCwkyEDWRakcmdIVMSb9rBlN4zvsAu5tkwjnuRyEY+I4Y+Cwtsq8hfoeCCQes2+c5nxrZVwt+oskBspYcXe886HvJrOF/NlPrOebVAVaiGVNqXLELDfRTtrAs8opZw==
-  foundation:location: swedencentral
-  foundation:kubernetesVersion: 1.35.9
+  foundation:location: westeurope
+  foundation:kubernetesVersion: 1.35.8
   foundation:nodeVmSize: Standard_D2als_v6
   foundation:nodeCount: "1"
   foundation:humansEmail: cornelius.hoefig@mmkdigital.io, erik.kaufmann@mmkdigital.io, efstratios.baxivanelis@mmkdigital.io, constantin.silberhorn@mmkdigital.io
