@@ -8,7 +8,8 @@ chart:
 sizes:
   replicas: 1
   resources:
-    requests: { cpu: 250m, memory: 1Gi }
+    # Ein Knoten mit 2 vCPU / 4 GiB für die ganze Plattform: Anfrage klein, Limit für Lastspitzen
+    requests: { cpu: 100m, memory: 512Mi }
     limits: { memory: 2Gi }
   volumeSize: 10Gi
 values:
