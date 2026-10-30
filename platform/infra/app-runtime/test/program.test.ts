@@ -71,10 +71,10 @@ const options = (appId: string): AppStackOptions => ({
   postgresSslMode: "require",
 });
 
-async function run(appId: string) {
+async function run(appId: string, overrides: Partial<AppStackOptions> = {}) {
   mock(`app-${appId}`);
   const { appStack } = await import("../src/program");
-  const outputs = appStack(options(appId));
+  const outputs = appStack({ ...options(appId), ...overrides });
   await value(outputs.url);
   await value(outputs.helmRelease);
   await new Promise((r) => setTimeout(r, 50));
@@ -182,6 +182,30 @@ describe("App-Stack operations-agent (Platzhalter-Ausgaben)", () => {
     assert.deepEqual(JSON.parse(secret.OPS_MODEL_API_KEYS), { "azure-openai": "model-secret" });
     assert.match(secret.OPS_GITHUB_APP_PRIVATE_KEY, /^-----BEGIN RSA PRIVATE KEY-----/);
     assert.equal(secret.OPS_PUBLIC_SCHEME, "https");
+  });
+});
+
+describe("GitHub-App-Schlüssel aus geschützter CI-Konfiguration", () => {
+  it("überbrückt einen fehlenden Foundation-Output beim Agenten", async () => {
+    foundation = { ...FOUNDATION };
+    delete foundation.githubAppPrivateKey;
+    await run("operations-agent", { githubAppPrivateKey: pulumi.secret("ci-app-key") });
+    const secret = ofType("core/v1:Secret").find((r) => r.name === "operations-agent-platform")!.inputs.stringData;
+    assert.equal(secret.OPS_GITHUB_APP_PRIVATE_KEY, "ci-app-key");
+  });
+
+  it("behält einen vorhandenen Foundation-Schlüssel als erste Quelle", async () => {
+    foundation = FOUNDATION;
+    await run("operations-agent", { githubAppPrivateKey: pulumi.secret("ci-app-key") });
+    const secret = ofType("core/v1:Secret").find((r) => r.name === "operations-agent-platform")!.inputs.stringData;
+    assert.equal(secret.OPS_GITHUB_APP_PRIVATE_KEY, FOUNDATION.githubAppPrivateKey);
+  });
+
+  it("verwendet den CI-Schlüssel auch bei leerem Foundation-Wert", async () => {
+    foundation = { ...FOUNDATION, githubAppPrivateKey: "" };
+    await run("operations-agent", { githubAppPrivateKey: pulumi.secret("ci-app-key") });
+    const secret = ofType("core/v1:Secret").find((r) => r.name === "operations-agent-platform")!.inputs.stringData;
+    assert.equal(secret.OPS_GITHUB_APP_PRIVATE_KEY, "ci-app-key");
   });
 });
 

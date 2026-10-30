@@ -32,6 +32,8 @@ export interface AppStackOptions {
   /** Nur lokal: Verbindung des Pulumi-Providers, wenn der Server für Pods unter einer anderen Adresse erreichbar ist */
   postgresAdminHost?: string;
   postgresAdminPort?: number;
+  /** Geschütztes CI-Secret als Rückfall für noch nicht aktualisierte Foundation-Ausgaben. */
+  githubAppPrivateKey?: pulumi.Output<string>;
 }
 
 const ANNOTATION = "platform.mmk";
@@ -66,10 +68,13 @@ export function appStack(opts: AppStackOptions) {
   });
   // Jede Ausgabe läuft über die Versionsprüfung, damit bei falschem Vertrag nichts angelegt wird.
   // Objekte wie modelApiKeys gehen als JSON weiter, nicht als "[object Object]".
-  const out = (name: string) =>
-    pulumi
-      .all([contractVersion, foundation.requireOutput(name)])
+  const out = (name: string) => {
+    const value = appId === "operations-agent" && name === "githubAppPrivateKey" && opts.githubAppPrivateKey
+      ? pulumi.all([foundation.getOutput(name), opts.githubAppPrivateKey]).apply(([stored, fallback]) => stored || fallback)
+      : foundation.requireOutput(name);
+    return pulumi.all([contractVersion, value])
       .apply(([, v]) => (typeof v === "object" && v !== null ? JSON.stringify(v) : String(v)));
+  };
   const baseDomain = out("baseDomain");
   const host = pulumi.interpolate`${appId}.${baseDomain}`;
   const acr = { server: out("acrLoginServer"), username: out("acrUsername"), password: pulumi.secret(out("acrPassword")) };

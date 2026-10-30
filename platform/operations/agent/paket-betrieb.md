@@ -55,7 +55,7 @@ Werden über die `secrets:`-Zuordnung in `platform/catalog/operations-agent/app.
 | Schlüssel | Foundation-Ausgabe | Verbraucher |
 | --- | --- | --- |
 | `OPS_MODEL_API_KEYS` | `modelApiKeys` | D |
-| `OPS_GITHUB_APP_PRIVATE_KEY` | neu: `githubAppPrivateKey` (A) | D; PEM, auch mit maskierten Zeilenumbrüchen (`\n`) |
+| `OPS_GITHUB_APP_PRIVATE_KEY` | `githubAppPrivateKey` (A), ersatzweise geschütztes Repository-Secret `OPS_GITHUB_APP_PRIVATE_KEY` über den App-Stack | D; PEM, auch mit maskierten Zeilenumbrüchen (`\n`) |
 | `OPS_GITHUB_TOKEN` | `opsGithubToken` | D, nur noch Rückfall ohne App-Schlüssel |
 | `OPS_BASE_DOMAIN` | `baseDomain` | D |
 | `OPS_PUBLIC_SCHEME` | `publicScheme` | D (HTTP-Fallback nach E8) |
@@ -92,6 +92,16 @@ kubectl --context <staging> auth can-i create pods/exec -n affine-staging --as $
 3. B's `app-update-desired-state.yml` schreibt Digest und Chart-Version in `platform/environments/staging/operations-agent.yaml`. Den Rollout übernimmt `app-deploy.yml`.
 
 Keine Azure-Anmeldung, nur Repo-Secrets des State-Backends (über `secrets: inherit`); der Sollzustands-PR läuft mit einem Token der GitHub App, `OPS_GITHUB_TOKEN` ist nur Rückfall.
+
+Ist `githubAppPrivateKey` in der Foundation noch nicht vorhanden oder leer, verwenden
+`app-plan.yml` und `app-deploy.yml` das geschützte Repository-Secret
+`OPS_GITHUB_APP_PRIVATE_KEY`. Der Wrapper `pulumi-stack.sh` schreibt es nur für
+`operations-agent` per stdin und `pulumi config set --secret` in die Konfiguration
+`app-runtime:githubAppPrivateKey`. Die vorhandene CI-Passphrase verschlüsselt den Wert;
+das App-Programm reicht ihn als Secret an das Kubernetes-Secret weiter. Ein nichtleerer
+Foundation-Schlüssel hat Vorrang. Andere Apps erhalten diesen CI-Schlüssel nicht.
+`app-update-desired-state.yml` nutzt dieselbe Quellenreihenfolge für sein kurzlebiges
+Installations-Token. Damit ist keine lokale Kenntnis der Pulumi-Passphrase erforderlich.
 
 ## Start, Stopp, Wiederanlauf
 

@@ -52,6 +52,9 @@ on:
       OPS_GITHUB_TOKEN:
         description: Rückfall, solange githubAppPrivateKey in den Foundation-Ausgaben leer ist
         required: false
+      OPS_GITHUB_APP_PRIVATE_KEY:
+        description: Geschützter App-Schlüssel als Rückfall ohne Foundation-Ausgabe
+        required: false
     outputs:
       pullRequestUrl:
         value: ${{ jobs.update.outputs.pullRequestUrl }}
@@ -72,6 +75,7 @@ jobs:
       CHART_VERSION: ${{ inputs.chartVersion }}
       SOURCE_SHA: ${{ inputs.sourceSha || github.sha }}
       ARTIFACT_REFS: ${{ inputs.artifactRefs }}
+      CI_APP_PRIVATE_KEY: ${{ secrets.OPS_GITHUB_APP_PRIVATE_KEY }}
     steps:
       - name: Eingaben prüfen
         run: |
@@ -93,12 +97,12 @@ jobs:
           config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
       - name: Token der GitHub App
         id: app-token
-        if: steps.foundation.outputs.githubAppPrivateKey != ''
+        if: steps.foundation.outputs.githubAppPrivateKey != '' || env.CI_APP_PRIVATE_KEY != ''
         uses: actions/create-github-app-token@v2
         with:
           # GitHub App des Agenten, wie in staging.env und deploy/values.yaml
           app-id: "5542094"
-          private-key: ${{ steps.foundation.outputs.githubAppPrivateKey }}
+          private-key: ${{ steps.foundation.outputs.githubAppPrivateKey || env.CI_APP_PRIVATE_KEY }}
       - name: Schreibzugang festlegen
         id: token
         env:
@@ -107,7 +111,7 @@ jobs:
         run: |
           token="${APP_TOKEN:-$PAT}"
           if [[ -z "$token" ]]; then
-            echo "::error::Kein Schreibzugang: githubAppPrivateKey in den Foundation-Ausgaben ist leer und OPS_GITHUB_TOKEN fehlt"
+            echo "::error::Kein Schreibzugang: App-Schlüssel aus Foundation/CI und OPS_GITHUB_TOKEN fehlen"
             exit 1
           fi
           echo "::add-mask::$token"

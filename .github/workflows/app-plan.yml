@@ -102,6 +102,7 @@ jobs:
       PULUMI_BACKEND_KEY: ${{ secrets.PULUMI_BACKEND_KEY }}
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
       APP_RUNTIME_SKIP_BUILD: "1"
+      APP_RUNTIME_GITHUB_APP_PRIVATE_KEY: ${{ matrix.appId == 'operations-agent' && secrets.OPS_GITHUB_APP_PRIVATE_KEY || '' }}
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

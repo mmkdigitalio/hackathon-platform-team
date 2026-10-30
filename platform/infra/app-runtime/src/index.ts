@@ -33,4 +33,5 @@ export = appStack({
   postgresSslMode: config.get("postgresSslMode") ?? "require",
   postgresAdminHost: config.get("postgresAdminHost"),
   postgresAdminPort: config.getNumber("postgresAdminPort"),
+  githubAppPrivateKey: config.getSecret("githubAppPrivateKey"),
 });

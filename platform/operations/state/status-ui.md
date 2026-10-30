@@ -48,7 +48,7 @@ Das Design übernimmt Farben, Typografie und Abstände aus `new-website/src/desi
 
 `platform/catalog/platform-status/app.yaml` und `platform/environments/staging/platform-status.yaml` definieren die App und ihre festen Release-Referenzen. `app-deploy.yml` rollt sie über den bestehenden Pulumi-App-Pfad mit Operations-Sperre, Plan und Smoke-Test aus. Adresse: `https://platform-status.<baseDomain>/`.
 
-Ein vollständiger Agenten-Rollout braucht weiterhin dessen Foundation-Ausgabe `githubAppPrivateKey` oder den dokumentierten PAT-Rückfall. Die Status-UI ersetzt diesen Zugang nicht und zeigt den Agenten bei fehlender Erreichbarkeit als gestört an.
+Ein vollständiger Agenten-Rollout braucht weiterhin die Foundation-Ausgabe `githubAppPrivateKey`, das geschützte CI-Secret `OPS_GITHUB_APP_PRIVATE_KEY` oder den dokumentierten PAT-Rückfall. Die Status-UI ersetzt diesen Zugang nicht und zeigt den Agenten bei fehlender Erreichbarkeit als gestört an.
 
 Bei ausgefallenem gemeinsamem Ingress ist auch die Status-UI nicht erreichbar; sie ersetzt kein unabhängiges externes Monitoring. Nach neuen Builds wird der gewünschte Image-Digest im Sollzustand explizit aktualisiert.
 

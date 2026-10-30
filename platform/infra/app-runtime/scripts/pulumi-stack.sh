@@ -7,6 +7,7 @@
 #          PULUMI_BACKEND_ACCOUNT + PULUMI_BACKEND_KEY (+ PULUMI_STATE_CONTAINER) für das Azure-Blob-Backend.
 # Passphrase: PULUMI_CONFIG_PASSPHRASE.
 # Optional: APP_RUNTIME_GIT_SHA, APP_RUNTIME_OPERATION_ID und weitere APP_RUNTIME_CONFIG_<key>=<wert>.
+# APP_RUNTIME_GITHUB_APP_PRIVATE_KEY: geschützter CI-Rückfall, nur beim operations-agent.
 set -euo pipefail
 
 app_id="${1:?app-id fehlt}"
@@ -53,6 +54,12 @@ pulumi stack select "$stack" --create --secrets-provider passphrase --non-intera
 set_config() { pulumi config set --cwd "$work" --stack "$stack" "app-runtime:$1" "$2" >/dev/null; }
 [[ -n "${APP_RUNTIME_GIT_SHA:-}" ]] && set_config gitSha "$APP_RUNTIME_GIT_SHA"
 [[ -n "${APP_RUNTIME_OPERATION_ID:-}" ]] && set_config operationId "$APP_RUNTIME_OPERATION_ID"
+# Nur der Agent erhält den CI-Rückfall. PEM bleibt aus Argumenten und Logs heraus;
+# Pulumi verschlüsselt ihn mit der vorhandenen Stack-Passphrase.
+if [[ "$app_id" == "operations-agent" && -n "${APP_RUNTIME_GITHUB_APP_PRIVATE_KEY:-}" ]]; then
+  printf '%s' "$APP_RUNTIME_GITHUB_APP_PRIVATE_KEY" | pulumi config set --secret \
+    --cwd "$work" --stack "$stack" app-runtime:githubAppPrivateKey >/dev/null
+fi
 while IFS='=' read -r name value; do
   [[ "$name" == APP_RUNTIME_CONFIG_* ]] && set_config "${name#APP_RUNTIME_CONFIG_}" "$value"
 done < <(env)

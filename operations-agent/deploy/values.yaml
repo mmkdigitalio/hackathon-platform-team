@@ -6,6 +6,8 @@ image:
 
 # Kubernetes-Secret des App-Stacks; alle Schlüssel werden als Umgebungsvariablen geladen
 # (erwartete Schlüssel: platform/operations/agent/paket-betrieb.md).
+# OPS_GITHUB_APP_PRIVATE_KEY kommt aus der Foundation oder dem geschützten CI-Secret,
+# das der App-Stack verschlüsselt in seine Konfiguration und sein Kubernetes-Secret übernimmt.
 secretName: ""
 # Image-Pull-Secret des App-Stacks für alle Pods einschließlich Hook-Job.
 imagePullSecretName: ""
