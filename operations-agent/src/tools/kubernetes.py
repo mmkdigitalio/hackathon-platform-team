@@ -194,6 +194,15 @@ class KubernetesAdapter:
                 break
         return out, refs
 
+    def app_deployments(self, t: Target) -> list[str]:
+        deps = _call(
+            f"Deployments in {t.namespace} lesen",
+            lambda: self.apps.list_namespaced_deployment(
+                t.namespace, label_selector=f"app.kubernetes.io/instance={t.app_id}", _request_timeout=self.timeout
+            ),
+        )
+        return sorted(d.metadata.name for d in deps.items)
+
     def namespace_release(self, t: Target) -> ReleaseRef:
         ns = _call(f"Namespace {t.namespace} lesen", lambda: self.core.read_namespace(t.namespace, _request_timeout=self.timeout))
         ann = ns.metadata.annotations or {}

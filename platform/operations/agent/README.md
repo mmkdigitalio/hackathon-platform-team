@@ -90,7 +90,8 @@ Stand 30.10.2026, lokal auf macOS mit Python 3.12.6:
 | Installation aus Lockdatei in leerer Umgebung (`uv sync --frozen --no-cache`) | erfolgreich, Versionen wie oben |
 | Image-Build, Teststufe im Image (`docker build --target test`) | bestanden |
 | Lokaler kind-Cluster mit echtem Modell, ServiceAccount-Token und Smoke-Job ([testen.md](testen.md#stufe-3-lokaler-cluster-mit-echtem-modell-ca-5-minuten-ca-010-usd-je-szenario)) | RBAC 20/20, `repair` → `resolved`, `unrepairable` → `needs_attention` |
-| Agenten- und Adaptertests (`uv run pytest`) | 63 bestanden, davon 1 gegen lokales PostgreSQL 18 (`OPS_TEST_POSTGRES_DSN`) |
+| Lesender Abgleich mit dem echten Repository (Katalog, Runbook-Verzeichnis, letzter Sollzustands-Commit, Laufliste) | bestanden |
+| Agenten- und Adaptertests (`uv run pytest`) | 69 bestanden (davon 4 Vertragstests gegen Strang B), 1 weiterer nur mit PostgreSQL (`OPS_TEST_POSTGRES_DSN`) |
 | Unabhängiges Review mit Codex (`gpt-6.1-sol`, high) | 10 Befunde bestätigt und behoben, je ein Regressionstest in `tests/agent/test_review_regressions.py` |
 | Checkpoint gegen PostgreSQL, neue Verbindung liest Thread weiter | bestanden (`tests/agent/test_persistence.py`) |
 | `helm lint` / `helm template` mit `deploy/ci-values.yaml` | bestanden |
