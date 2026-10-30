@@ -101,8 +101,6 @@ jobs:
       PULUMI_BACKEND_ACCOUNT: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
       PULUMI_BACKEND_KEY: ${{ secrets.PULUMI_BACKEND_KEY }}
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-      APP_RUNTIME_GIT_SHA: ${{ github.event.pull_request.head.sha }}
-      APP_RUNTIME_OPERATION_ID: preview-pr-${{ github.event.pull_request.number }}
       APP_RUNTIME_SKIP_BUILD: "1"
     steps:
       - uses: actions/checkout@v5
@@ -116,10 +114,16 @@ jobs:
         env:
           APP_ID: ${{ matrix.appId }}
           ENVIRONMENT: ${{ matrix.environment }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -o pipefail
-          platform/infra/app-runtime/scripts/pulumi-stack.sh "$APP_ID" "$ENVIRONMENT" \
-            preview --refresh --diff --color never --suppress-outputs 2>&1 | tee "$RUNNER_TEMP/preview.txt"
+          stack=platform/infra/app-runtime/scripts/pulumi-stack.sh
+          # Release-Markierungen des letzten Rollouts übernehmen, damit das Preview nur echte Änderungen zeigt
+          "$stack" "$APP_ID" "$ENVIRONMENT" stack output --json > "$RUNNER_TEMP/previous.json" 2>/dev/null || echo '{}' > "$RUNNER_TEMP/previous.json"
+          APP_RUNTIME_OPERATION_ID="$(jq -r '.rolloutMarker // "preview"' "$RUNNER_TEMP/previous.json")"
+          APP_RUNTIME_GIT_SHA="$(jq -r --arg head "$HEAD_SHA" '.release.gitSha // $head' "$RUNNER_TEMP/previous.json")"
+          export APP_RUNTIME_OPERATION_ID APP_RUNTIME_GIT_SHA
+          "$stack" "$APP_ID" "$ENVIRONMENT" preview --refresh --diff --color never --suppress-outputs 2>&1 | tee "$RUNNER_TEMP/preview.txt"
       - name: Zusammenfassung
         if: always()
         env:

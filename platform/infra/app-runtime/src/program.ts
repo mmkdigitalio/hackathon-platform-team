@@ -254,6 +254,8 @@ export function appStack(opts: AppStackOptions) {
     host,
     url: pulumi.interpolate`${scheme}://${host}`,
     release,
+    // app-plan.yml übernimmt beides, damit ein Preview nur echte Änderungen zeigt
+    rolloutMarker: opts.operationId,
     helmRelease: helmRelease.status.name,
     secretName: names.platformSecret,
     smokeSecretKeys: Object.keys(app.catalog.smokeTest.secrets ?? {}),
