@@ -2,6 +2,8 @@
 
 import asyncio
 import json
+import re
+import shutil
 
 import httpx
 from fastapi import FastAPI
@@ -11,6 +13,7 @@ from psycopg.rows import dict_row
 
 from api.settings import Settings
 from api.status import StatusCollector, database_status, install_status
+import api.status as status_module
 
 
 def test_probe_tls_failure_is_not_reported_healthy_and_requests_are_cached(platform_root):
@@ -117,3 +120,32 @@ def test_dashboard_and_assets_are_served_and_status_is_not_cached(platform_root)
         assert status.status_code == 200
         assert status.headers["cache-control"] == "no-store"
         assert status.json()["status"] == "unknown"
+
+
+def test_updated_assets_get_new_urls_on_all_pages(platform_root, tmp_path, monkeypatch):
+    static = tmp_path / "static"
+    shutil.copytree(status_module.STATIC, static)
+    monkeypatch.setattr(status_module, "STATIC", static)
+
+    def asset_urls():
+        app = FastAPI()
+        install_status(app, Settings(platform_root=platform_root), None, base_domain="")
+        with TestClient(app) as client:
+            pages = [client.get(path) for path in ("/", "/applications", "/activity", "/applications/missing")]
+            urls = re.findall(r'"(/status-assets/[^" ]+\.(?:css|js)\?v=[a-f0-9]+)"', pages[0].text)
+            assert len(urls) == 5
+            assert all(client.get(url).status_code == 200 for url in urls)
+            assert all(url in page.text for page in pages[1:3] for url in urls)
+            assert all(url in pages[3].text for url in urls if ".css?" in url)
+            return urls
+
+    original = asset_urls()
+    assert asset_urls() == original
+    with (static / "status.js").open("a") as script:
+        script.write("\n// Updated deployment\n")
+    with (static / "status.css").open("a") as stylesheet:
+        stylesheet.write("\n/* Updated deployment */\n")
+    updated = asset_urls()
+    assert updated[:3] == original[:3]
+    assert updated[3] != original[3]
+    assert updated[4] != original[4]

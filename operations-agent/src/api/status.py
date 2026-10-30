@@ -5,6 +5,7 @@ Checks use configured catalog targets only, never a target supplied by a request
 """
 
 import asyncio
+import hashlib
 import os
 import re
 import time
@@ -15,7 +16,7 @@ import httpx
 import yaml
 from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .catalog import APP_ID, ENVIRONMENTS, Catalog
@@ -153,9 +154,21 @@ def install_status(app: FastAPI, settings: Settings, pool, **collector_options) 
     collector = StatusCollector(settings, pool, **collector_options)
     app.mount("/status-assets", StaticFiles(directory=STATIC), name="status-assets")
 
+    def page_html(filename):
+        # A changed asset must get a new URL even in an already-open browser.
+        def version(match):
+            digest = hashlib.sha256((STATIC / match[2]).read_bytes()).hexdigest()[:16]
+            return f"{match[1]}?v={digest}"
+
+        return re.sub(r"(/status-assets/([\w.-]+\.(?:css|js)))", version,
+                      (STATIC / filename).read_text(encoding="utf-8"))
+
+    index_html = page_html("index.html")
+    missing_html = page_html("not-found.html")
+
     @app.get("/", include_in_schema=False)
     async def status_page():
-        return FileResponse(STATIC / "index.html", headers={"Cache-Control": "no-cache", "X-Robots-Tag": "noindex"})
+        return HTMLResponse(index_html, headers={"Cache-Control": "no-cache", "X-Robots-Tag": "noindex"})
 
     @app.get("/applications", include_in_schema=False)
     @app.get("/activity", include_in_schema=False)
@@ -165,7 +178,7 @@ def install_status(app: FastAPI, settings: Settings, pool, **collector_options) 
     @app.get("/applications/{app_id}", include_in_schema=False)
     async def app_page(app_id: str):
         if not APP_ID.fullmatch(app_id) or Catalog(settings.platform_root).problem(app_id, collector.environment):
-            return FileResponse(STATIC / "not-found.html", status_code=404, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
+            return HTMLResponse(missing_html, status_code=404, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex"})
         return await status_page()
 
     @app.get("/status", tags=["status"])

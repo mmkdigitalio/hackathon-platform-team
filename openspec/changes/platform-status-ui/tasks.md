@@ -28,8 +28,8 @@
 
 ## Prüfnachweise
 
-- Vollständige Agenten-Suite auf dem isolierten Stand: 298 bestanden, zwei übersprungen.
-- Abschließende gezielte Status-/Admin-Suite: 19 bestanden, einschließlich Quellen, jüngster Verifikation, Datenschutz, Umgebung, 100er-Limit, Sieben-Tage-Grenze, Rollout-Nachweisen und nichtschreibenden Routen.
+- Vollständige CI-Agenten-Suite für `a41ad00`: 303 bestanden, einer übersprungen. Zusätzliche Image-Prüfstufe: 191 bestanden, 113 übersprungen.
+- Abschließende gezielte Status-/Admin-Suite: 20 bestanden, einschließlich Quellen, jüngster Verifikation, Datenschutz, Umgebung, 100er-Limit, Sieben-Tage-Grenze, Rollout-Nachweisen, nichtschreibenden Routen und Cache-Wechsel nach Deployment.
 - JavaScript-Syntax, Helm-Lint und OpenSpec-Validierung erfolgreich.
 - Browser-Journeys mit ausdrücklich als QA-Testdaten markierter Vorschau: Störung zur App-Analyse, Suche/Filter und Browser-Zurück, Behebungsfilter mit 7-Tage-URL, Filtererhalt beim Aktualisieren, Verbindungsfehler und Erholung.
 - Mobile Prüfung bei 390 × 844: Navigation sichtbar, kein Seitenüberlauf auf Aktivitäten und App-Details. Screenshots im Chat: `admin-before.jpg`, `admin-detail-qa.jpg`, `admin-activity-qa.jpg`, `admin-mobile-qa.jpg`. Screenshots bestätigen Layout und getestete Wege, keine vollständige Accessibility-Zertifizierung.
