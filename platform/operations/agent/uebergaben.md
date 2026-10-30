@@ -9,9 +9,9 @@ Der Agent nutzt die GitHub App `hackathonplatformagent` (App-ID `5542094`, Insta
 | Strang | Lieferung |
 | --- | --- |
 | A | Neue geheime Foundation-Ausgabe `githubAppPrivateKey` (PEM), gesetzt wie `opsGithubToken` über `foundation.sh secrets`; additive Erweiterung, `contractVersion` bleibt 1 |
-| B | Im Katalog des Agenten unter `secrets` die Zeile `OPS_GITHUB_APP_PRIVATE_KEY: foundation:githubAppPrivateKey` |
+| B | Erledigt 30.10.2026: Katalogzeile `OPS_GITHUB_APP_PRIVATE_KEY: foundation:githubAppPrivateKey`; `app-update-desired-state.yml` holt ein Token der App |
 | C | Vertrag v0.1 additiv um die Aktionsarten `git_push` und `pull_request` erweitert (`contracts/v0_1.py`, von D geändert); bitte bestätigen. Die Tabelle `actions` hat keine Einschränkung auf `kind` |
-| alle | `PARALLEL-IMPLEMENTATION.md` E7 bei Gelegenheit anpassen: App statt PAT, Pull Requests durch den Agenten erlaubt, Merge nie |
+| alle | Erledigt 30.10.2026: `PARALLEL-IMPLEMENTATION.md` E6, E7 und Secret-Tabelle nennen die App, der PAT ist Rückfall |
 
 Der private Schlüssel liegt derzeit unverschlüsselt in `~/Downloads` (Dateirechte 644). Er gehört in die Stack-Konfiguration von A und danach aus dem Download-Ordner gelöscht.
 
@@ -60,7 +60,7 @@ Der private Schlüssel liegt derzeit unverschlüsselt in `~/Downloads` (Dateirec
 
 Neu von A: `publicScheme` (`https` oder `http` im Let's-Encrypt-Fallback). D liest es als `OPS_PUBLIC_SCHEME` mit Vorrang vor dem Chart-Wert `agent.httpScheme`.
 
-**Offen für B:** im Katalog des Agenten (`platform/catalog/operations-agent/app.yaml`) unter `secrets` die Zeile `OPS_PUBLIC_SCHEME: foundation:publicScheme` ergänzen. Ohne sie gilt der Chart-Wert `https`.
+**Erledigt 30.10.2026:** der Katalog des Agenten übernimmt `OPS_PUBLIC_SCHEME: foundation:publicScheme`.
 
 **Offen für den Bootstrap (A):** `MODEL_KEY_AZURE_OPENAI` mit dem Key von `mmk-hackathon-openai` setzen, sonst fehlt dem Agenten der Standardanbieter.
 

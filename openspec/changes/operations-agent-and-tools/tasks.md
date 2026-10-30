@@ -21,7 +21,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 
 - [ ] 3.1 Kubernetes-Zustand, Events und begrenzte Logs über den ServiceAccount `operations-agent` mit Zielbeschränkung auf Katalog-Namespaces anbinden; Abschluss durch reale AFFiNE-Befunde, strukturierten Fehler bei verweigertem Zugriff und abgelehnten Fremd-Namespace prüfen.
 - [ ] 3.2 Alarm-Payload-Auswertung und eigene HTTP-Prüfungen anbinden, ohne Azure-Werkzeuge; Abschluss durch Diagnose eines echten Staging-Alarms ohne Azure-Zugangsdaten prüfen.
-- [ ] 3.3 GitHub-Dateien und Commit-Historie über den PAT aus `opsGithubToken` lesen; Abschluss durch letzten Commit auf `platform/environments/staging/affine.yaml` mit SHA, Autor und Diff prüfen.
+- [ ] 3.3 GitHub-Dateien und Commit-Historie über die GitHub App, mit dem PAT aus `opsGithubToken` als Rückfall, lesen (geändert 2026-10-30 (Cornelius); war: über den PAT aus `opsGithubToken`); Abschluss durch letzten Commit auf `platform/environments/staging/affine.yaml` mit SHA, Autor und Diff prüfen.
 - [ ] 3.4 Issue-Kommentare mit `<!-- mmk-ops-agent -->` und Auftragsreferenz anbinden; Abschluss durch Kommentar im ursprünglichen Support-Issue ohne neuen Auftrag prüfen.
 - [x] 3.5 Werkzeug-Eingaben, Fehlerformat und Evidenzreferenzen dokumentieren; Abschluss durch positive, Timeout- und Berechtigungsfehlerfälle der Adaptertests prüfen.
 - [ ] 3.6 Abweichung von P1-07 (keine Azure-Diagnose, E6) in `platform/operations/agent/` dokumentieren; Abschluss durch Review mit A prüfen.

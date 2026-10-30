@@ -115,7 +115,7 @@ Abgehakt sind in `tasks.md` nur Tasks, deren Abschlussprüfung vollständig lief
 | --- | --- | --- |
 | 2.2 | echter AFFiNE-Kontext (Code gegen B's Beispielkatalog geprüft) | AFFiNE-Lieferung |
 | 3.1, 3.2 | reale AFFiNE-Befunde, echter Staging-Alarm (lokal: echte Kubernetes-Befunde mit ServiceAccount) | Staging-Cluster, A-Alarm |
-| 3.3, 3.4 | echter Commit und Issue-Kommentar über den PAT | `opsGithubToken`, B-Sollzustand |
+| 3.3, 3.4 | echter Commit und Issue-Kommentar über die GitHub App | `githubAppPrivateKey` im Agenten-Secret (8.3), B-Sollzustand |
 | 3.6 | Review mit A | A |
 | 4.1–4.5 | echter Neustart, echter `app-deploy.yml`-Lauf, Besitzverlust mit C | Staging, B-Workflow, C-Sperrclient |
 | 5.1–5.5 | Läufe gegen AFFiNE in Staging | Staging, Smoke-Test-Image |

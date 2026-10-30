@@ -127,10 +127,10 @@ Changed 2026-10-30 (Erik); was: fine-grained PAT. The secret output
 `githubAppPrivateKey` holds the app's private key (PEM; empty until stored); consumers
 create installation tokens from it. The output `opsGithubToken` and the repository
 secret `OPS_GITHUB_TOKEN` remain an optional PAT fallback and are empty or absent when
-no PAT is stored. Open for B: `app-update-desired-state.yml` pushes and opens pull
-requests with `secrets.OPS_GITHUB_TOKEN` and needs an app installation token without a
-PAT; the agent's catalog entry needs
-`OPS_GITHUB_APP_PRIVATE_KEY: foundation:githubAppPrivateKey`. Comments the
+no PAT is stored. `app-update-desired-state.yml` creates an app installation token
+from `githubAppPrivateKey` and uses `OPS_GITHUB_TOKEN` only when the key is empty; the
+agent's catalog entry maps `OPS_GITHUB_APP_PRIVATE_KEY: foundation:githubAppPrivateKey`
+(both done 2026-10-30). Comments the
 agent writes carry the marker `<!-- mmk-ops-agent -->`; C ignores events that carry it.
 The GitHub webhook to `<publicScheme>://<operationsApiHost>/events/github` with `githubWebhookSecret` is
 created by a team member once C's receiver runs.

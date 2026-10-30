@@ -9,7 +9,7 @@ Die Phase-1-Plattform benötigt eine reproduzierbare Azure-Grundlage, bevor Anwe
 - Strang A übernimmt P1-01 für Monorepo-Gerüst und Konventionen sowie P1-03 und P1-04 für Bootstrap und Grundplattform.
 - Verbindliche Konventionen für App-IDs, abgeleitete Ressourcennamen und Release-Referenzen.
 - State-Backend, AKS, ACR, Ingress mit HTTPS über sslip.io, Log Analytics, Application Insights, Diagnoseartefakt-Speicher und ein gemeinsamer PostgreSQL-Server werden bereitgestellt.
-- Zugänge laufen über Schlüssel statt Rollen: Admin-Kubeconfig, ACR-Admin-User, Datenbankpasswort, Storage-Keys und ein PAT. Der Foundation-Stack wird lokal mit Contributor ausgerollt; GitHub Actions brauchen keine Azure-Identität.
+- Zugänge laufen über Schlüssel statt Rollen: Admin-Kubeconfig, ACR-Admin-User, Datenbankpasswort, Storage-Keys und der private Schlüssel der GitHub App des Agenten (geändert 2026-10-30 (Cornelius); war: ein PAT). Der Foundation-Stack wird lokal mit Contributor ausgerollt; GitHub Actions brauchen keine Azure-Identität.
 - Ein versionierter Ausgabevertrag verbindet die Infrastruktur mit App-Stacks, Workflows und Agentenkonfiguration.
 - Alle Azure-Ressourcen liegen im Foundation-Stack, auch die aus dem Katalog erzeugten Verfügbarkeitstests und Alarmregeln. Die Action Group `ops-intake` leitet App-Alarme an den Ereigniseingang; der Ausfall des Agenten wird per E-Mail gemeldet.
 - Secrets und Netzzugang sind für Staging bewusst einfach gehalten: Pulumi-Ausgaben und Repo-Secrets statt Key Vault, öffentliche Endpunkte mit Passwort bzw. API-Key statt privater Netze.

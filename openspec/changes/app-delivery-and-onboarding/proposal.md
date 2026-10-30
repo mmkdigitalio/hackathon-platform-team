@@ -10,7 +10,7 @@ Apps brauchen einen gemeinsamen, überprüfbaren Weg vom versionierten Sollzusta
 - Katalogschema v0.1 mit zwei Dateien je App: `platform/catalog/<app-id>/app.yaml` umgebungsunabhängig, `platform/environments/<env>/<app-id>.yaml` als Sollzustand. Namespace und Host werden nach Konvention abgeleitet.
 - Unterstützte Datenbausteine v0.1: `postgres-database`, `redis`, `persistent-volume`. Secret-Referenzen `foundation:<ausgabeName>` und `app:<name>`.
 - Ein Pulumi-App-Programm unter `platform/infra/app-runtime/` mit einem Stack je App und Umgebung, ausschließlich mit Kubernetes- und PostgreSQL-Objekten. Verfügbarkeitstests und Alarme erzeugt der Foundation-Stack aus dem Prüfpfad in `app.yaml`.
-- Workflows `.github/workflows/app-*.yml` für Plan-Prüfung, Deployment und Sollzustandsänderung per Pull Request mit `OPS_GITHUB_TOKEN` und Auto-Merge. Der Deploy-Workflow nutzt C's Operations-Client mit Konfliktregel und Break-glass.
+- Workflows `.github/workflows/app-*.yml` für Plan-Prüfung, Deployment und Sollzustandsänderung per Pull Request mit Token der GitHub App (Rückfall `OPS_GITHUB_TOKEN`) und Auto-Merge. Der Deploy-Workflow nutzt C's Operations-Client mit Konfliktregel und Break-glass.
 - Smoke-Test-Vertrag für fachliche Prüfungen und ein einheitliches Verifikationsergebnis.
 - AFFiNE-Integration über den App-Pfad. Die AFFiNE-Paketierung (Chart, Werte, Smoke-Test-Image, Runbook) liefert ein Kollege aus `mmkdigitalio/hackathon-platform-affine`; dieser Change legt nur fest, was diese Lieferung enthalten muss.
 - Zwei datensichere Fehlerszenarien mit AFFiNE: reparierbar (0 Replicas) und nicht reparierbar (ungültiger Konfigurationswert im Sollzustand).

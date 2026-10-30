@@ -147,7 +147,7 @@ Plan- und Deploy-Workflow SHALL sich nur mit den Repo-Secrets `PULUMI_BACKEND_AC
 - **THEN** bricht der Workflow vor jeder Zieländerung ab
 
 ### Requirement: Sollzustand per Pull Request ändern
-Der wiederverwendbare Workflow `.github/workflows/app-update-desired-state.yml` (`workflow_call`) SHALL Image-Digest (Eingabe `imageDigest`, Repository standardmäßig `acr:<app-id>`) und Chart-Version in `platform/environments/<env>/<app-id>.yaml` setzen und mit `OPS_GITHUB_TOKEN` Commit und Pull Request mit aktiviertem Auto-Merge anlegen. `GITHUB_TOKEN` SHALL dafür nicht verwendet werden, weil damit ausgelöste Ereignisse keine weiteren Workflows starten.
+Der wiederverwendbare Workflow `.github/workflows/app-update-desired-state.yml` (`workflow_call`) SHALL Image-Digest (Eingabe `imageDigest`, Repository standardmäßig `acr:<app-id>`) und Chart-Version in `platform/environments/<env>/<app-id>.yaml` setzen und mit einem Token der GitHub App des Agenten (Rückfall `OPS_GITHUB_TOKEN`) Commit und Pull Request mit Auto-Merge anlegen. `GITHUB_TOKEN` SHALL dafür nicht verwendet werden, weil damit ausgelöste Ereignisse keine weiteren Workflows starten.
 
 #### Scenario: Neues Agentenpaket
 - **WHEN** der Agenten-Build den wiederverwendbaren Workflow mit neuem Image-Digest und neuer Chart-Version aufruft

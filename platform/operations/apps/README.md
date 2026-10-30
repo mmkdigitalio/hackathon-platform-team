@@ -19,11 +19,11 @@ GitHub Actions ist in Phase 1 der einzige automatische Weg, den Git-Sollzustand 
 
 | Einstellung | Wert |
 | --- | --- |
-| Repo-Secrets | `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE` (A), `OPS_GITHUB_TOKEN` (PAT nach E7) |
+| Repo-Secrets | `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE` (A), optional `OPS_GITHUB_TOKEN` (PAT, nur Rückfall ohne App-Schlüssel) |
 | Allow auto-merge | aktiviert (Settings → General → Pull Requests) |
 | Branch-Schutz `main` | erforderlicher Status-Check **app-plan / Plan-Ergebnis**; „Require branches to be up to date“ empfohlen |
 | Reviews | keine Pflicht-Reviews für PRs, die nur `platform/environments/` ändern; sonst blockiert Auto-Merge. Wird eine Review-Pflicht gebraucht, CODEOWNERS so setzen, dass `platform/environments/` ausgenommen ist |
-| Actions | „Read and write permissions“ ist nicht nötig; Commits und PRs laufen über `OPS_GITHUB_TOKEN` |
+| Actions | „Read and write permissions“ ist nicht nötig; Commits und PRs laufen über ein Token der GitHub App des Agenten |
 
 Vor dem ersten Deployment: Foundation ausgerollt (A), `ops-migrate.yml` einmal gelaufen (C), A's Verträge unter `platform/schemas/conventions/` und `platform/schemas/foundation-outputs/` sowie die Composite Action `.github/actions/foundation-outputs` vorhanden.
 

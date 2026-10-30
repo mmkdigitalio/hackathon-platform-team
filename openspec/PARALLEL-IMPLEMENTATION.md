@@ -13,8 +13,8 @@ Maßgeblich ist [PRODUKT-UND-IMPLEMENTIERUNG.md](../PRODUKT-UND-IMPLEMENTIERUNG.
 | E3 | **Nur Contributor-Rechte** auf der Subscription, keine Rollenzuweisungen, keine Entra-App-Registrierungen. GitHub: Teammitglieder können Repositories anlegen und Repo-Secrets setzen. | Siehe E4 bis E6. |
 | E4 | **Der Foundation-Stack wird lokal** von einer Person mit Contributor (`az login`) ausgerollt. GitHub Actions haben keine Azure-Identität. | Bootstrap und Wiederherstellung laufen über ein dokumentiertes lokales Verfahren statt aus GitHub Actions (Abweichung von Produktdokument §4). |
 | E5 | **Alle Azure-Ressourcen gehören zum Foundation-Stack**, auch app-bezogene Verfügbarkeitstests und Alarme; sie werden aus den Katalogdateien im Repo erzeugt. App-Stacks verwalten nur Kubernetes-Objekte und Datenbankobjekte über das PostgreSQL-Protokoll. | App-Deployments in CI brauchen nur Pulumi-State-Key, Passphrase und die Foundation-Ausgaben. |
-| E6 | **Zugänge über Schlüssel statt Rollen:** Admin-Kubeconfig, ACR-Admin-User, PostgreSQL-Passwort, Storage-Keys. Der Agent nutzt im Cluster einen ServiceAccount, für GitHub einen PAT. | Der Agent liest in Phase 1 **keine Azure-Ressourcen, Messwerte oder Log Analytics**. Diagnose stützt sich auf Alarm-Payload, Kubernetes-Zustand, Events, Logs und HTTP-Prüfungen. |
-| E7 | **GitHub-Identität des Agenten ist ein Fine-grained PAT eines Teammitglieds** (Issues, Contents, Pull Requests, Actions für beide Repos). | Kommentare erscheinen unter dieser Person. Schleifenschutz erkennt Agentenkommentare an der Markierung `<!-- mmk-ops-agent -->`, nicht am Autor. |
+| E6 | **Zugänge über Schlüssel statt Rollen:** Admin-Kubeconfig, ACR-Admin-User, PostgreSQL-Passwort, Storage-Keys. Der Agent nutzt im Cluster einen ServiceAccount, für GitHub eine GitHub App (geändert 2026-10-30 (Cornelius); war: PAT). | Der Agent liest in Phase 1 **keine Azure-Ressourcen, Messwerte oder Log Analytics**. Diagnose stützt sich auf Alarm-Payload, Kubernetes-Zustand, Events, Logs und HTTP-Prüfungen. |
+| E7 | **GitHub-Identität des Agenten ist eine GitHub App** (Issues, Contents, Pull Requests, Actions für beide Repos); ein PAT bleibt nur Rückfall (geändert 2026-10-30 (Cornelius); war: Fine-grained PAT eines Teammitglieds). | Kommentare erscheinen unter der App. Schleifenschutz erkennt Agentenkommentare an der Markierung `<!-- mmk-ops-agent -->`, nicht am Autor. |
 | E8 | **Keine eigenen Domains.** Hosts heißen `<app-id>.<ingress-ip-mit-bindestrichen>.sslip.io`; die Foundation gibt die Basisdomain aus. | HTTPS per Let's Encrypt; schlägt die Ausstellung fehl, ist HTTP über dieselben Hosts dokumentierter Fallback für Staging. |
 | E9 | **Operations-Sperre in PostgreSQL mit Break-glass.** Der Foundation-Stack nimmt keine Sperre. Ist PostgreSQL nicht erreichbar, darf ein App-Deployment mit `--force` ohne Sperre laufen; das wird in der Workflow-Zusammenfassung vermerkt und nach Wiederherstellung ins Aktionsprotokoll nachgetragen. | Recovery ist nicht durch die eigene Datenbank blockiert. |
 | E10 | **Agentengesundheit über einen Endpunkt.** `/healthz` antwortet 503, wenn die Datenbank nicht erreichbar oder der letzte Worker-Heartbeat (Zeile in PostgreSQL) älter als 10 Minuten ist. Ein Verfügbarkeitstest darauf alarmiert Menschen per E-Mail. | Kein Log-Search-Alarm und keine Abhängigkeit von Container Insights für die Ausfallmeldung. |
@@ -53,7 +53,7 @@ Jeder Strang arbeitet in einem eigenen Branch. Eine Änderung an einem fremden B
 | --- | --- | --- |
 | `PULUMI_BACKEND_KEY`, `PULUMI_BACKEND_ACCOUNT` | Zugriff auf das State-Backend | A nach dem Bootstrap |
 | `PULUMI_CONFIG_PASSPHRASE` | Gemeinsame Passphrase aller Stacks | A |
-| `OPS_GITHUB_TOKEN` | PAT aus E7; auch für Commits, die Workflows auslösen sollen | Ein Teammitglied |
+| `OPS_GITHUB_TOKEN` | Optional: PAT als Rückfall, solange der App-Schlüssel `githubAppPrivateKey` fehlt (geändert 2026-10-30 (Cornelius); war: Pflicht-PAT aus E7) | Ein Teammitglied |
 
 Alle übrigen Werte (Kubeconfig, ACR-Zugang, Datenbank, Webhook-Keys) liest ein Workflow über die Composite Action `foundation-outputs` aus dem State.
 
@@ -101,7 +101,7 @@ Eine Operation besitzt stabile `operationId`, App/Umgebung, Besitzerreferenz, St
 
 - `app-plan.yml`: Plan-Prüfung für Pull Requests, erforderlicher Check für `main`.
 - `app-deploy.yml`: Push auf `main` unter `platform/environments/**` und `workflow_dispatch` mit `appId`, `environment`, `operationId`, `actionId`, `force`. Der `run-name` enthält App, Umgebung, `operationId` und `actionId`; der Agent ordnet Läufe über die `actionId` zu.
-- `app-update-desired-state.yml`: wiederverwendbar per `workflow_call`, schreibt den Sollzustand mit `OPS_GITHUB_TOKEN`; D's `agent-build.yml` ruft ihn auf.
+- `app-update-desired-state.yml`: wiederverwendbar per `workflow_call`, schreibt den Sollzustand mit einem Installations-Token der GitHub App, ersatzweise `OPS_GITHUB_TOKEN` (geändert 2026-10-30 (Cornelius); war: `OPS_GITHUB_TOKEN`); D's `agent-build.yml` ruft ihn auf.
 
 ### Migrationen und Gesundheit, C liefert an D
 

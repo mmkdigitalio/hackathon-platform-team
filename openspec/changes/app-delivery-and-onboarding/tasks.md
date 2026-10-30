@@ -23,7 +23,7 @@ B startet lokal mit Schema, App-Programm und Workflows gegen lokalen Cluster und
 - [x] 3.3 C's Operations-Client mit Erwerb, Erneuerung, Besitzprüfung, Freigabe und Aktionsnachweis integrieren; Abschluss durch Sperrerwerb bei gestoppter Agenten-API und Abbruch nach 15 Minuten bei belegter Sperre prüfen.
 - [x] 3.4 Break-glass mit `force` umsetzen; Abschluss durch Lauf ohne Sperre bei nicht erreichbarem PostgreSQL mit Vermerk in der Zusammenfassung und abgelehntes `force` bei erreichbarem PostgreSQL prüfen.
 - [ ] 3.5 Smoke-Job, Rollout-Prüfung und Deployment-Ergebnis verbinden; Abschluss durch echten Erfolg sowie fehlschlagenden Smoke-Test ohne Erfolgsmeldung prüfen.
-- [ ] 3.6 `app-update-desired-state.yml` mit `OPS_GITHUB_TOKEN` und Auto-Merge liefern; Abschluss durch Aufruf mit neuem Digest, gemergten PR nach grünem Plan und automatisch gestarteten Deploy-Lauf prüfen.
+- [ ] 3.6 `app-update-desired-state.yml` mit Token der GitHub App (Rückfall `OPS_GITHUB_TOKEN`) und Auto-Merge liefern (geändert 2026-10-30 (Cornelius); war: mit `OPS_GITHUB_TOKEN`); Abschluss durch Aufruf mit neuem Digest, gemergten PR nach grünem Plan und automatisch gestarteten Deploy-Lauf prüfen.
 - [ ] 3.7 Betriebsverfahren unter `platform/operations/apps/` dokumentieren (Release, Rollback mit Kompatibilitätsprüfung, Stopp und Wiederanlauf, Break-glass-Nachtrag, Repository-Einstellungen); Abschluss durch Durchspielen anhand der Anleitung prüfen.
 
 ## 4. Agentenpaket integrieren, Anteil P1-08

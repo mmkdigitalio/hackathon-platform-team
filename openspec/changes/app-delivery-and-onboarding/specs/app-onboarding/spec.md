@@ -88,7 +88,7 @@ Der abgeleitete Host `operations-agent.<baseDomain>` SHALL der Foundation-Ausgab
 - **THEN** erreicht ein Request von `ops-intake` an `https://<operationsApiHost>/events/azure-monitor` die Agenten-API über die Ingress-Regel des App-Stacks
 
 ### Requirement: Agenten-Secret aus Foundation-Ausgaben
-Der Katalogeintrag des Agenten SHALL per `foundation:`-Referenzen `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase`, `alertWebhookKey`, `maintenanceApiKey`, `githubWebhookSecret`, `modelApiKeys`, `opsGithubToken`, `diagnosticsStorageAccount`, `diagnosticsContainer` und `diagnosticsStorageKey` in das Kubernetes-Secret seines Namespace übernehmen.
+Der Katalogeintrag des Agenten SHALL per `foundation:`-Referenzen `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase`, `alertWebhookKey`, `maintenanceApiKey`, `githubWebhookSecret`, `modelApiKeys` (als JSON), `opsGithubToken`, `githubAppPrivateKey`, `publicScheme`, `diagnosticsStorageAccount`, `diagnosticsContainer` und `diagnosticsStorageKey` in das Kubernetes-Secret seines Namespace übernehmen.
 
 #### Scenario: Agent startet mit Secret
 - **WHEN** API und Worker starten
