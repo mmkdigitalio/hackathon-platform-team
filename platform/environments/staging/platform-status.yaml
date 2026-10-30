@@ -1,0 +1,7 @@
+# Getestetes UI-Image aus agent-build #18; eigenständiges Chart aus status-ui-package #1.
+schemaVersion: "0.1"
+image: acr:operations-agent@sha256:52b48976e5433616416de5d4414544b8a82f9b47ded281f7b4dcac85963d3aad
+chart:
+  version: 0.1.1
+sizes:
+  replicas: 1

@@ -1,9 +1,12 @@
 # Plattformstatus
 
-Die lesende Statusübersicht läuft im vorhandenen Operations-Agent-API-Prozess.
+Die lesende Statusübersicht ist Teil des vorhandenen Operations-Agent-Images.
+Auf Azure läuft sie als eigenständige App `platform-status`, damit ein fehlender
+Agentenzugang oder ein ausgefallener Worker ihre Bereitstellung nicht verhindert.
 `GET /` liefert die UI, `GET /status` die dazugehörige JSON-Projektion.
-Ereigniseingang, `/healthz`, `/runs/{job_id}` und `/docs` bleiben unter ihren bisherigen Pfaden verfügbar.
-Die Seite enthält keine Betriebsaktionen.
+Der eigenständige Dienst bietet keinen Ereigniseingang, keine Betriebsaktionen und
+keine Laufdetails. `/healthz` prüft dort nur den UI-Prozess. Die vorhandene Agenten-API
+enthält weiterhin dieselbe UI; ihre bisherigen Endpunkte und Schutzmaßnahmen bleiben erhalten.
 
 ## Daten und Grenzen
 
@@ -11,7 +14,7 @@ Die Seite enthält keine Betriebsaktionen.
 - HTTP-Prüfungen nutzen `<app-id>.<OPS_BASE_DOMAIN>` und den `availability.path` aus dem Katalog. Nur HTTP 200 gilt als erreichbar. TLS wird geprüft, Redirects werden nicht verfolgt; Antwortkörper werden nicht geladen.
 - Datenbankstatus, Worker-Heartbeat, aktive Aufträge, abgeschlossene und fehlgeschlagene/eskalierte Aufträge der letzten 24 Stunden sowie die sechs zuletzt aktualisierten Aufträge kommen aus der Operations-Datenbank. Auftragsabfragen sind auf die gewählte Umgebung beschränkt. Der Heartbeat entspricht wie `/healthz` dem jüngsten Worker-Heartbeat in dieser Datenbank.
 - Die Datenbankabfragen laufen in einer lesenden Transaktion mit einem Statement-Timeout von 2,5 Sekunden. HTTP-Prüfungen laufen parallel mit 4 Sekunden Timeout.
-- Die öffentliche Projektion enthält App-ID, Auftragszustand und Aktualisierungszeit. Sie enthält keine Auftrags- oder Vorfalltexte, IDs, Logs, Modellantworten, Secret-Werte oder rohe Fehlermeldungen. Der bereits geschützte Nachweis-Endpunkt `/runs/{job_id}` bleibt geschützt.
+- Die öffentliche Projektion enthält App-ID, Auftragszustand und Aktualisierungszeit. Sie enthält keine Auftrags- oder Vorfalltexte, IDs, Logs, Modellantworten, Secret-Werte oder rohe Fehlermeldungen. Der Nachweis-Endpunkt `/runs/{job_id}` bleibt in der Agenten-API geschützt und ist im eigenständigen Statusdienst nicht vorhanden.
 - Der Browser aktualisiert alle 30 Sekunden. Der API-Prozess bündelt Abfragen über einen Cache von 10 Sekunden. Nach fehlgeschlagenem Abruf oder mehr als 90 Sekunden ohne frische Daten zeigt die Seite den Gesamtzustand als unbekannt und markiert den letzten Stand als veraltet.
 - Unbekannte Werte werden als Strich dargestellt. Ein gesunder Zustand besagt nur, dass die geprüften Komponenten antworten. Es werden keine historischen Uptime-Werte oder funktionalen Prüfungen erfunden.
 
@@ -41,6 +44,10 @@ Das Design übernimmt Farben, Typografie und Abstände aus `new-website/src/desi
 
 ## Deployment
 
-Das bestehende `agent-build.yml` baut bei Änderungen unter `operations-agent/` Image und Chart. Der bestehende App-Pfad rollt den Operations-Agenten aus. Nach Deployment ist die Übersicht auf der Wurzel-URL des Operations-Agenten erreichbar, z. B. `https://operations-agent.<baseDomain>/`. Kein zusätzlicher Dienst und kein eigener Ingress sind nötig. Bei kaputtem Ingress ist auch die dort gehostete Übersicht nicht erreichbar; sie ersetzt kein unabhängiges externes Monitoring.
+`agent-build.yml` baut das gemeinsame Image. `status-ui-package.yml` prüft und veröffentlicht das eigenständige Helm-Chart unter `platform/infra/status-ui/`. Das Chart startet nur den Statusdienst aus dem geprüften Image. Es startet keinen Worker, führt keine Migration aus, benötigt keinen GitHub- oder Modellzugang und mountet kein Kubernetes-ServiceAccount-Token. Die Datenbank wird ausschließlich über die lesende Statusprojektion abgefragt.
 
-Das Hinzufügen der UI veröffentlicht noch kein neues Image. Lokale Änderungen müssen über den bestehenden Git-/CI-Pfad ausgeliefert werden.
+`platform/catalog/platform-status/app.yaml` und `platform/environments/staging/platform-status.yaml` definieren die App und ihre festen Release-Referenzen. `app-deploy.yml` rollt sie über den bestehenden Pulumi-App-Pfad mit Operations-Sperre, Plan und Smoke-Test aus. Adresse: `https://platform-status.<baseDomain>/`.
+
+Ein vollständiger Agenten-Rollout braucht weiterhin dessen Foundation-Ausgabe `githubAppPrivateKey` oder den dokumentierten PAT-Rückfall. Die Status-UI ersetzt diesen Zugang nicht und zeigt den Agenten bei fehlender Erreichbarkeit als gestört an.
+
+Bei ausgefallenem gemeinsamem Ingress ist auch die Status-UI nicht erreichbar; sie ersetzt kein unabhängiges externes Monitoring. Nach neuen Builds wird der gewünschte Image-Digest im Sollzustand explizit aktualisiert.

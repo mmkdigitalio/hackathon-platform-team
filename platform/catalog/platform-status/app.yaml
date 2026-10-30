@@ -1,0 +1,34 @@
+schemaVersion: "0.1"
+appId: platform-status
+description: Lesende Plattformstatus-UI ohne Agenten- oder Kubernetes-Zugriff
+source:
+  repository: mmkdigitalio/hackathon-platform-team
+chart:
+  acr:
+    repository: helm/platform-status
+ingress:
+  service: platform-status
+  port: 80
+dataBlocks: []
+secrets:
+  OPS_BASE_DOMAIN: foundation:baseDomain
+  OPS_PUBLIC_SCHEME: foundation:publicScheme
+  POSTGRES_HOST: foundation:postgresHost
+  POSTGRES_USER: foundation:postgresAdminUser
+  POSTGRES_PASSWORD: foundation:postgresAdminPassword
+  POSTGRES_DATABASE: foundation:postgresOperationsDatabase
+availability:
+  path: /
+smokeTest:
+  image: acr:platform/smoke-http@sha256:7b7a96a1eff6af52baa061fb4973a88d6a3c98ed7ae4ed15f4398280dcf9ebba
+  env:
+    CHECK_PATH: /status
+runbook:
+  repository: mmkdigitalio/hackathon-platform-team
+  path: platform/operations/state/status-ui.md
+  commit: 68d0e6a6fa3a17c51f497fc28da1367b734ae8ba
+allowedActions: []
+dataProcedures:
+  migration: not-applicable
+  backup: not-applicable
+  restore: not-applicable
