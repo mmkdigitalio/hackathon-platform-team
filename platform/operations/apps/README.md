@@ -60,22 +60,18 @@ Ein Image-Rollback ist keine Datenwiederherstellung. Datenwiederherstellung blei
 
 ## Wiederanlauf nach Cluster-Verlust
 
-1. A stellt den Cluster mit dem Foundation-Stack lokal wieder her. `baseDomain` kann sich mit der Ingress-IP ändern; App-Datenbanken bleiben auf dem Foundation-Server erhalten.
-2. Für jede App in jeder Umgebung `app-deploy.yml` starten, Agent zuerst:
+1. A stellt den Cluster mit dem Foundation-Stack lokal wieder her; die Foundation-Ausgaben enthalten danach die neue Kubeconfig. `baseDomain` kann sich mit der Ingress-IP ändern; App-Datenbanken bleiben auf dem Foundation-Server erhalten.
+2. Für jede App in jeder Umgebung `app-deploy.yml` **mit `clusterRebuilt=true`** starten, Agent zuerst:
    ```bash
-   gh workflow run app-deploy.yml -f appId=operations-agent -f environment=staging
-   gh workflow run app-deploy.yml -f appId=affine -f environment=staging
+   gh workflow run app-deploy.yml -f appId=operations-agent -f environment=staging -f clusterRebuilt=true
+   gh workflow run app-deploy.yml -f appId=affine -f environment=staging -f clusterRebuilt=true
    ```
    Die Sperre braucht nur PostgreSQL, nicht den Agenten.
-3. Der Kubernetes-Provider erkennt den neuen Cluster und plant, alle Kubernetes-Objekte zu ersetzen. Namespace und PVC sind geschützt, deshalb scheitert der Plan. Weil diese Objekte mit dem alten Cluster ohnehin verloren sind, nur ihren Schutz aufheben, nicht den von Datenbank und Login, und den Lauf wiederholen:
-   ```bash
-   cd platform/infra/app-runtime
-   scripts/pulumi-stack.sh affine staging stack --show-urns | grep -E 'Namespace|PersistentVolumeClaim'
-   scripts/pulumi-stack.sh affine staging state unprotect '<urn>' --yes   # je Namespace- und PVC-URN
-   ```
+3. Ohne `clusterRebuilt` bricht der Lauf mit „failed to read resource state due to unreachable cluster“ ab, weil der Refresh noch den alten Cluster abfragt. Mit `clusterRebuilt` (setzt `PULUMI_K8S_DELETE_UNREACHABLE=true`) entfernt der Refresh die Objekte des alten Clusters aus dem State, auch geschützte, und der Lauf legt sie neu an. Generierte Passwörter stammen aus dem State und bleiben gleich, Datenbank und Login bleiben unverändert. `clusterRebuilt` nie nach bloßen Netzwerkstörungen verwenden: dann würden existierende Objekte aus dem State entfernt.
 4. PVC-Inhalte (AFFiNE-Anhänge) gehen mit dem Cluster verloren, weil dynamische Azure-Disks in der Node-Resource-Group liegen (akzeptiertes Staging-Risiko, siehe Datenverfahren im Katalog).
 5. Nach geänderter `baseDomain` rollt A den Foundation-Stack für die Verfügbarkeitstests erneut aus.
-6. Den Schutz setzt der nächste erfolgreiche Lauf von `app-deploy.yml` wieder (`protect` im Programm).
+
+Lokal auf kind durchgespielt (30.10.2026): Cluster gelöscht und neu angelegt, ein Lauf mit `PULUMI_K8S_DELETE_UNREACHABLE=true` legte 10 Objekte neu an; Secret-Inhalt und Datenbank-OID unverändert, App wieder erreichbar.
 
 ## Sperre und Konflikte
 
@@ -96,12 +92,14 @@ gh workflow run app-deploy.yml -f appId=operations-agent -f environment=staging 
 - Ohne Sperre vermerkt die Zusammenfassung „Break-glass“ mit App, Umgebung, `operationId`, Git-SHA, Lauf, Zeitpunkt und Grund. Aktionsnachweise entfallen in diesem Lauf.
 - Ein AFFiNE-Lauf scheitert ohne PostgreSQL ohnehin am Baustein `postgres-database`; Break-glass betrifft praktisch den Agenten.
 
-**Nachtrag nach Wiederherstellung (Pflicht):** Mit den Angaben aus der Zusammenfassung den Vorgang ins Aktionsprotokoll übernehmen, Verfahren und Syntax laut C unter `platform/operations/state/`:
+**Nachtrag nach Wiederherstellung (Pflicht):** Die Zusammenfassung des Laufs enthält den fertigen Befehl; `--outcome` nach dem Ergebnis des Laufs setzen und lokal mit Datenbankzugang aus den Foundation-Ausgaben (`PG*`-Variablen) ausführen. Verfahren laut C in `platform/operations/state/locks.md`:
 
 ```bash
-ops lock backfill --app <app-id> --env <env> --operation-id <operationId> \
-  --external-ref <Lauf-URL> --note break-glass
+ops lock backfill --app <app-id> --env <env> --git-sha <sha> \
+  --workflow-run <Lauf-URL> --at <Zeitpunkt aus dem Vermerk> --outcome succeeded --note "operationId <operationId>"
 ```
+
+Der Nachtrag legt eine Operation `break-glass-…` mit einer Aktion `deploy` an und ist je Workflow-Lauf idempotent.
 
 ## Außerbetriebnahme
 
@@ -116,3 +114,5 @@ Das Löschen einer Sollzustands- oder Katalogdatei ändert keinen Stack; `app-de
    scripts/pulumi-stack.sh <app-id> <env> stack rm --yes
    ```
 3. Erst danach Katalogeintrag und Sollzustand per PR entfernen; A rollt den Foundation-Stack aus, um Verfügbarkeitstest und Alarm zu entfernen.
+
+Lokal auf kind durchgespielt (30.10.2026): 18 Ressourcen gelöscht, Namespace und Datenbank entfernt, Stack entfernt.

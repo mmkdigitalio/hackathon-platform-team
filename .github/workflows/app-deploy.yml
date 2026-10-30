@@ -36,6 +36,11 @@ on:
         required: false
         type: boolean
         default: false
+      clusterRebuilt:
+        description: Nur nach Cluster-Verlust - Objekte des alten Clusters aus dem Stack-State entfernen und neu anlegen
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -120,6 +125,9 @@ jobs:
       PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
       APP_RUNTIME_GIT_SHA: ${{ github.sha }}
       APP_RUNTIME_SKIP_BUILD: "1"
+      # Nach Cluster-Verlust: refresh entfernt unerreichbare Objekte aus dem State statt abzubrechen.
+      # Nie standardmäßig, sonst würde eine kurze Netzwerkstörung existierende Objekte aus dem State löschen.
+      PULUMI_K8S_DELETE_UNREACHABLE: ${{ inputs.clusterRebuilt && 'true' || 'false' }}
       SCRIPTS: platform/infra/app-runtime/scripts
     steps:
       - uses: actions/checkout@v5
@@ -141,6 +149,8 @@ jobs:
           backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
           backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
           config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          environment: ${{ matrix.environment }}
+          expected-contract-version: ${{ env.FOUNDATION_CONTRACT_VERSION }}
       - name: Vertragsversion der Foundation-Ausgaben
         id: contract
         env:

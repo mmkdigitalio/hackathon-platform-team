@@ -114,9 +114,9 @@ Die Validierung liest A's Verträge und bricht ab, wenn sie fehlen:
 
 | Vertrag | Standardpfad | Erwartete Form |
 | --- | --- | --- |
-| Konventionen | `platform/schemas/conventions/conventions.json` | `{ "appId": { "pattern": "…" }, "environments": ["staging", …] }` |
+| Konventionen | `platform/schemas/conventions/conventions.json` | `{ "appId": { "pattern": "…", "endPattern": "…", "reserved": [...] }, "environments": ["staging", …] }` |
 | Foundation-Ausgaben | `platform/schemas/foundation-outputs/foundation-outputs.schema.json` | JSON-Schema mit einer Eigenschaft je Ausgabe unter `properties` |
 
-Abweichende Pfade über `--conventions`, `--foundation-outputs` oder `APP_CATALOG_CONVENTIONS`, `APP_CATALOG_FOUNDATION_OUTPUTS`. Die Tests verwenden Kopien unter `test/fixtures/`, die den Tabellen in `platform-bootstrap` und `shared-platform-runtime` entsprechen.
+Geprüft werden außerdem `appId.endPattern` (kein Bindestrich am Ende) und `appId.reserved`. Abweichende Pfade über `--conventions`, `--foundation-outputs` oder `APP_CATALOG_CONVENTIONS`, `APP_CATALOG_FOUNDATION_OUTPUTS`. Die Tests verwenden A's gelieferte Dateien.
 
 Weitere Befehle: `show`, `set-desired`, `affected`, `verification-result`, `deployment-result` (`npx tsx src/cli.ts` ohne Argumente zeigt die Hilfe).

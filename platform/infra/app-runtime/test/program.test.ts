@@ -6,8 +6,6 @@ import type { AppStackOptions } from "../src/program";
 
 const repoRoot = path.resolve(__dirname, "../../../..");
 const catalogDir = path.join(repoRoot, "platform/schemas/app-catalog");
-process.env.APP_CATALOG_CONVENTIONS = path.join(catalogDir, "test/fixtures/conventions.json");
-process.env.APP_CATALOG_FOUNDATION_OUTPUTS = path.join(catalogDir, "test/fixtures/foundation-outputs.schema.json");
 
 import { FOUNDATION } from "./foundation-fixture";
 
@@ -70,9 +68,6 @@ const options = (appId: string): AppStackOptions => ({
   gitSha: "f".repeat(40),
   operationId: "op-test-1",
   storageClass: "managed-csi",
-  ingressClassName: "nginx",
-  clusterIssuer: "letsencrypt",
-  tls: true,
   postgresSslMode: "require",
 });
 
@@ -113,6 +108,8 @@ describe("App-Stack affine (Platzhalter-Ausgaben)", () => {
     assert.equal(ingress.spec.rules[0].host, "affine.20-0-0-1.sslip.io");
     assert.deepEqual(ingress.spec.rules[0].http.paths[0].backend.service, { name: "affine", port: { number: 3010 } });
     assert.equal(ingress.spec.tls[0].secretName, "affine-tls");
+    assert.equal(ingress.spec.ingressClassName, "traefik");
+    assert.equal(ingress.metadata.annotations["cert-manager.io/cluster-issuer"], "letsencrypt");
   });
 
   it("legt Image-Pull-Secret aus dem ACR-Admin-User an", () => {
@@ -179,5 +176,20 @@ describe("App-Stack operations-agent (Platzhalter-Ausgaben)", () => {
     assert.equal(release.values.image.repository, "mmkplatformstaging.azurecr.io/operations-agent");
     const secret = ofType("core/v1:Secret").find((r) => r.name === "operations-agent-platform")!.inputs.stringData;
     assert.equal(secret.POSTGRES_PASSWORD, "pg-secret");
+  });
+});
+
+describe("HTTP-Fallback (publicScheme http)", () => {
+  let outputs: Awaited<ReturnType<typeof run>>;
+  before(async () => {
+    foundation = { ...FOUNDATION, publicScheme: "http" };
+    outputs = await run("affine");
+  });
+
+  it("legt Ingress ohne TLS und ohne Zertifikatsanforderung an", async () => {
+    const ingress = ofType("networking.k8s.io/v1:Ingress")[0].inputs;
+    assert.deepEqual(ingress.spec.tls, []);
+    assert.deepEqual(ingress.metadata.annotations, {});
+    assert.equal(await value(outputs.url), "http://affine.20-0-0-1.sslip.io");
   });
 });

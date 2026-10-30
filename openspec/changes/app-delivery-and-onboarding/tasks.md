@@ -20,8 +20,8 @@ B startet lokal mit Schema, App-Programm und Workflows gegen lokalen Cluster und
 
 - [ ] 3.1 `app-plan.yml` mit Validierung und Preview der betroffenen Stacks liefern; Abschluss durch roten Check bei ungültigem Sollzustand und grünen Check ohne Secret-Werte in der Ausgabe prüfen.
 - [ ] 3.2 `app-deploy.yml` mit Push- und `workflow_dispatch`-Auslöser, `run-name` mit `operationId` und `actionId`, Zugängen über Repo-Secrets und `foundation-outputs` liefern; Abschluss durch Lauf ohne Azure-Login und Ausrollen nur der geänderten Stacks prüfen.
-- [ ] 3.3 C's Operations-Client mit Erwerb, Erneuerung, Besitzprüfung, Freigabe und Aktionsnachweis integrieren; Abschluss durch Sperrerwerb bei gestoppter Agenten-API und Abbruch nach 15 Minuten bei belegter Sperre prüfen.
-- [ ] 3.4 Break-glass mit `force` umsetzen; Abschluss durch Lauf ohne Sperre bei nicht erreichbarem PostgreSQL mit Vermerk in der Zusammenfassung und abgelehntes `force` bei erreichbarem PostgreSQL prüfen.
+- [x] 3.3 C's Operations-Client mit Erwerb, Erneuerung, Besitzprüfung, Freigabe und Aktionsnachweis integrieren; Abschluss durch Sperrerwerb bei gestoppter Agenten-API und Abbruch nach 15 Minuten bei belegter Sperre prüfen.
+- [x] 3.4 Break-glass mit `force` umsetzen; Abschluss durch Lauf ohne Sperre bei nicht erreichbarem PostgreSQL mit Vermerk in der Zusammenfassung und abgelehntes `force` bei erreichbarem PostgreSQL prüfen.
 - [ ] 3.5 Smoke-Job, Rollout-Prüfung und Deployment-Ergebnis verbinden; Abschluss durch echten Erfolg sowie fehlschlagenden Smoke-Test ohne Erfolgsmeldung prüfen.
 - [ ] 3.6 `app-update-desired-state.yml` mit `OPS_GITHUB_TOKEN` und Auto-Merge liefern; Abschluss durch Aufruf mit neuem Digest, gemergten PR nach grünem Plan und automatisch gestarteten Deploy-Lauf prüfen.
 - [ ] 3.7 Betriebsverfahren unter `platform/operations/apps/` dokumentieren (Release, Rollback mit Kompatibilitätsprüfung, Stopp und Wiederanlauf, Break-glass-Nachtrag, Repository-Einstellungen); Abschluss durch Durchspielen anhand der Anleitung prüfen.
@@ -29,7 +29,7 @@ B startet lokal mit Schema, App-Programm und Workflows gegen lokalen Cluster und
 ## 4. Agentenpaket integrieren, Anteil P1-08
 
 - [x] 4.1 `platform/catalog/operations-agent/app.yaml` mit `foundation:`-Secrets, `smoke-http` und Prüfpfad `/healthz` sowie Sollzustand für `staging` liefern; Abschluss durch erfolgreiche Validierung prüfen.
-- [ ] 4.2 API und Worker über den App-Pfad ausrollen; Abschluss durch getrennte Deployments, erfolgreichen Migrations-Hook, Host gleich `operationsApiHost` und Weiterverarbeitung gespeicherter Aufträge nach einem zweiten Release prüfen.
+- [x] 4.2 API und Worker über den App-Pfad ausrollen; Abschluss durch getrennte Deployments, erfolgreichen Migrations-Hook, Host gleich `operationsApiHost` und Weiterverarbeitung gespeicherter Aufträge nach einem zweiten Release prüfen.
 
 ## 5. AFFiNE aufnehmen, P1-11
 

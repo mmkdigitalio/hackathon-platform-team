@@ -32,8 +32,7 @@ Konfiguration (`APP_RUNTIME_CONFIG_<key>=<wert>` an das Skript oder `pulumi conf
 | `foundationStack` | `organization/foundation/<env>` | Stack-Referenz |
 | `expectedContractVersion` | `1` | erwartete `contractVersion` der Foundation-Ausgaben |
 | `storageClass` | `managed-csi` | StorageClass für `persistent-volume` |
-| `ingressClassName`, `clusterIssuer` | `nginx`, `letsencrypt` | mit A's Ingress-Controller und Zertifikatsverwaltung abzustimmen |
-| `tls` | `true` | `false` für den HTTP-Fallback (E8) |
+| `ingressClassName`, `clusterIssuer`, `publicScheme` | Foundation-Ausgaben `ingressClassName`, `clusterIssuerName`, `publicScheme` | nur lokal übersteuern; `publicScheme: http` ist der HTTP-Fallback (E8) ohne Zertifikat |
 | `postgresSslMode` | `require` | lokal `disable` |
 | `treeDir` | – | nur lokal: Baum mit `catalog/` und `environments/` statt `platform/`, z. B. `platform/infra/app-runtime/dev/test-tree` |
 
@@ -63,9 +62,7 @@ docker build -t localhost:5001/platform/smoke-http:local smoke-http && docker pu
 
 # Umgebung
 export PULUMI_BACKEND_URL=file://$HOME/.pulumi-local PULUMI_CONFIG_PASSPHRASE=local
-export APP_CATALOG_CONVENTIONS=$PWD/../../schemas/app-catalog/test/fixtures/conventions.json
-export APP_CATALOG_FOUNDATION_OUTPUTS=$PWD/../../schemas/app-catalog/test/fixtures/foundation-outputs.schema.json
-export APP_RUNTIME_CONFIG_storageClass=standard APP_RUNTIME_CONFIG_tls=false APP_RUNTIME_CONFIG_postgresSslMode=disable
+export APP_RUNTIME_CONFIG_storageClass=standard APP_RUNTIME_CONFIG_publicScheme=http APP_RUNTIME_CONFIG_postgresSslMode=disable
 export APP_RUNTIME_CONFIG_treeDir=platform/infra/app-runtime/dev/test-tree
 export KUBECONFIG=$(mktemp) && kind get kubeconfig --name app-runtime > "$KUBECONFIG"
 

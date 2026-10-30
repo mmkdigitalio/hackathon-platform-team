@@ -29,6 +29,15 @@ config:
   postgresOperationsDatabase:
     type: string
     default: operations
+  ingressClassName:
+    type: string
+    default: nginx
+  clusterIssuerName:
+    type: string
+    default: letsencrypt
+  publicScheme:
+    type: string
+    default: http
 outputs:
   contractVersion: 1
   environment: ${pulumi.stack}
@@ -36,6 +45,11 @@ outputs:
   resourceGroupName: local
   baseDomain: ${baseDomain}
   ingressIp: 127.0.0.1
+  ingressClassName: ${ingressClassName}
+  clusterIssuerName: ${clusterIssuerName}
+  publicScheme: ${publicScheme}
+  platformVersions:
+    kubernetes: local
   aksClusterName: local
   kubeconfig: ${kubeconfig}
   acrLoginServer: ${acrLoginServer}
