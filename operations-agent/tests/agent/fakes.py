@@ -47,6 +47,7 @@ class FakeCluster:
         self.forbid: set[tuple[str, str]] = set()
         self.timeouts: set[tuple[str, str]] = set()
         self.calls: list[tuple[str, str]] = []
+        self.lose_patch_response = False
         self.smoke: Callable[[FakeCluster], tuple[int, str] | None] = lambda c: (0, '{"success": true, "startedAt": "x", "finishedAt": "y", "evidence": {}}')
         self.on_patch: Callable[[FakeCluster, str, str], None] = lambda c, ns, name: None
         self.apps = _Apps(self)
@@ -110,6 +111,8 @@ class _Apps:
         d.annotations.update(body["spec"]["template"]["metadata"]["annotations"])
         d.generation += 1
         self.c.on_patch(self.c, ns, name)
+        if self.c.lose_patch_response:
+            raise ReadTimeoutError(None, "/", "response lost")
         return _deployment(name, ns, d)
 
 

@@ -18,6 +18,8 @@ Jedes Werkzeug liefert ein JSON-Objekt `ToolOutcome`:
 | `evidence_refs` | Evidenzreferenzen (siehe unten) |
 | `operation_id`, `action_id` | Verknüpfung mit Operation und Aktion, falls zutreffend |
 
+Logtext wird vor der Weitergabe an Modell und Ergebnis maskiert: Passwörter in Verbindungs-URLs, `password=`/`token=`/`api_key=`-Werte, Bearer-Tokens sowie die bekannten Werte von GitHub-PAT und Modell-Key.
+
 Ein verweigerter Zugriff ist nie ein leeres Erfolgsergebnis. Eine HTTP-Antwort 503 der App ist ein Befund mit `status: ok` und `statusCode: 503`, kein Werkzeugfehler.
 
 Fachliche Fehler gehen an das Modell zurück. Folgende Ereignisse beenden den Lauf sofort: erreichte Grenze, belegte Sperre, unklarer externer Ausgang, verlorener Besitz, von C abgelehnter Zustandsübergang.

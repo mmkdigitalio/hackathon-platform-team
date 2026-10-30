@@ -87,7 +87,8 @@ Stand 30.10.2026, lokal auf macOS mit Python 3.12.6:
 | Nachweis | Ergebnis |
 | --- | --- |
 | Installation aus Lockdatei in leerer Umgebung (`uv sync --frozen --no-cache`) | erfolgreich, Versionen wie oben |
-| Agenten- und Adaptertests (`uv run pytest`) | 47 bestanden, davon 1 gegen lokales PostgreSQL 18 |
+| Agenten- und Adaptertests (`uv run pytest`) | 62 bestanden, davon 1 gegen lokales PostgreSQL 18 (`OPS_TEST_POSTGRES_DSN`) |
+| Unabhängiges Review mit Codex (`gpt-6.1-sol`, high) | 10 Befunde bestätigt und behoben, je ein Regressionstest in `tests/agent/test_review_regressions.py` |
 | Checkpoint gegen PostgreSQL, neue Verbindung liest Thread weiter | bestanden (`tests/agent/test_persistence.py`) |
 | `helm lint` / `helm template` mit `deploy/ci-values.yaml` | bestanden |
 | Echter Tool-Calling-Lauf Azure OpenAI `gpt-6.1-terra` | bestanden: ein `http_probe`-Aufruf, Status 200, 2 Modellaufrufe, 361 Tokens |

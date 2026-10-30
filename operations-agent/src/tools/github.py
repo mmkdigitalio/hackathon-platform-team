@@ -115,14 +115,27 @@ class GitHubClient:
             return int(run_id) if run_id else None
         return None
 
-    def dispatch_runs(self, workflow: str, created_since: datetime) -> list[dict[str, Any]]:
-        r = self._request(
-            "GET",
-            f"/repos/{self.repository}/actions/workflows/{workflow}/runs",
-            f"Läufe von {workflow} lesen",
-            params={"event": "workflow_dispatch", "created": f">={created_since.strftime('%Y-%m-%dT%H:%M:%SZ')}", "per_page": 50},
-        )
-        return [_run(x) for x in r.json().get("workflow_runs", [])]
+    def dispatch_runs(self, workflow: str, created_since: datetime, max_pages: int = 5) -> tuple[list[dict[str, Any]], bool]:
+        """Läufe seit ``created_since``; ``True`` heißt vollständig gelesen."""
+        runs: list[dict[str, Any]] = []
+        for page in range(1, max_pages + 1):
+            r = self._request(
+                "GET",
+                f"/repos/{self.repository}/actions/workflows/{workflow}/runs",
+                f"Läufe von {workflow} lesen",
+                params={
+                    "event": "workflow_dispatch",
+                    "created": f">={created_since.strftime('%Y-%m-%dT%H:%M:%SZ')}",
+                    "per_page": 100,
+                    "page": page,
+                },
+            )
+            body = r.json()
+            batch = body.get("workflow_runs", [])
+            runs += [_run(x) for x in batch]
+            if len(batch) < 100 or len(runs) >= body.get("total_count", 0):
+                return runs, True
+        return runs, False
 
     def get_run(self, run_id: int) -> dict[str, Any]:
         return _run(self._request("GET", f"/repos/{self.repository}/actions/runs/{run_id}", f"Lauf {run_id} lesen").json())
