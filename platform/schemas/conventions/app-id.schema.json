@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mmkdigitalio/hackathon-platform-team/platform/schemas/conventions/app-id.schema.json",
+  "title": "App ID",
+  "description": "Identifier of an app on the platform. Keep in sync with appId in conventions.json; a test enforces this.",
+  "type": "string",
+  "pattern": "^[a-z][a-z0-9-]{1,30}$",
+  "allOf": [{ "pattern": "[a-z0-9]$" }],
+  "not": { "enum": ["mmk-platform", "foundation"] }
+}

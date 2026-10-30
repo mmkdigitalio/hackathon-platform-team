@@ -1,0 +1,13 @@
+# Stack organization/foundation/staging. `pulumi stack init` adds encryptionsalt here;
+# commit it. The required values are chosen at bootstrap for the actual subscription
+# (operations/foundation/bootstrap.md, step 4) and set with `pulumi config set`;
+# secrets only through scripts/bootstrap/foundation.sh secrets (stored encrypted here).
+#
+# Required: location, kubernetesVersion, nodeVmSize, nodeCount, humansEmail,
+#   budgetAmount, budgetStartDate,
+#   modelApiKeys (secret object, e.g. modelApiKeys.azure-openai), githubWebhookSecret (secret),
+#   opsGithubToken (secret)
+# Optional: acmeEmail, acmeServer, httpFallback, containerInsights, postgresVersion,
+#   postgresSkuName, postgresSkuTier, postgresStorageGb, traefikChartVersion,
+#   certManagerChartVersion, catalogDir
+config: {}

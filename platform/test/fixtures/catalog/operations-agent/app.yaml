@@ -1,0 +1,4 @@
+schemaVersion: "0.1"
+appId: operations-agent
+availability:
+  path: /healthz

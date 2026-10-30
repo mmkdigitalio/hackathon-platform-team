@@ -1,0 +1,38 @@
+{
+  "$schema": "./conventions.schema.json",
+  "conventionsVersion": 1,
+  "appId": {
+    "pattern": "^[a-z][a-z0-9-]{1,30}$",
+    "endPattern": "[a-z0-9]$",
+    "reserved": ["mmk-platform", "foundation"]
+  },
+  "environments": ["staging", "production"],
+  "activeEnvironments": ["staging"],
+  "operationsAgentAppId": "operations-agent",
+  "names": {
+    "appStack": "organization/app-{appId}/{env}",
+    "appNamespace": "{appId}-{env}",
+    "appHost": "{appId}.{baseDomain}",
+    "alertRule": "alert-{appId}-{env}-{check}",
+    "availabilityTest": "webtest-{appId}-{env}-{check}",
+    "baseDomain": "{ingressIpWithDashes}.sslip.io",
+    "foundationStack": "organization/foundation/{env}",
+    "foundationResourceGroup": "rg-mmk-platform-{env}"
+  },
+  "checkPattern": "^[a-z][a-z0-9-]{0,30}[a-z0-9]$",
+  "stateBackend": {
+    "resourceGroup": "rg-mmk-platform-state",
+    "container": "pulumi-state"
+  },
+  "platformNamespaces": {
+    "ingress": "platform-ingress",
+    "certificates": "platform-certs"
+  },
+  "requiredTags": ["app-id", "environment", "stack", "managed-by"],
+  "managedBy": "pulumi",
+  "releaseReference": {
+    "gitSha": "^[0-9a-f]{40}$",
+    "imageDigest": "^sha256:[0-9a-f]{64}$",
+    "chartVersion": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mmkdigitalio/hackathon-platform-team/platform/schemas/conventions/release-reference.schema.json",
+  "title": "Release reference",
+  "description": "Immutable reference to one released app version. Keep the patterns in sync with releaseReference in conventions.json; a test enforces this.",
+  "type": "object",
+  "required": ["gitSha", "imageDigest", "chartVersion"],
+  "properties": {
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "imageDigest": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+    "chartVersion": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(-[0-9A-Za-z.-]+)?(\\+[0-9A-Za-z.-]+)?$"
+    }
+  },
+  "additionalProperties": false
+}

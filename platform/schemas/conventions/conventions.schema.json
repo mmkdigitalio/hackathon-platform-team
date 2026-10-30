@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mmkdigitalio/hackathon-platform-team/platform/schemas/conventions/conventions.schema.json",
+  "title": "Platform naming and release conventions",
+  "type": "object",
+  "required": [
+    "conventionsVersion",
+    "appId",
+    "environments",
+    "activeEnvironments",
+    "operationsAgentAppId",
+    "names",
+    "checkPattern",
+    "stateBackend",
+    "platformNamespaces",
+    "requiredTags",
+    "managedBy",
+    "releaseReference"
+  ],
+  "properties": {
+    "$schema": { "type": "string" },
+    "conventionsVersion": { "type": "integer", "minimum": 1 },
+    "appId": {
+      "type": "object",
+      "required": ["pattern", "endPattern", "reserved"],
+      "properties": {
+        "pattern": { "type": "string" },
+        "endPattern": {
+          "type": "string",
+          "description": "Second pattern an app ID must match; the host {appId}.{baseDomain} needs a DNS label that does not end with a hyphen."
+        },
+        "reserved": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "environments": { "type": "array", "items": { "enum": ["staging", "production"] }, "minItems": 1 },
+    "activeEnvironments": { "type": "array", "items": { "enum": ["staging", "production"] }, "minItems": 1 },
+    "operationsAgentAppId": {
+      "type": "string",
+      "description": "App ID of the operations agent; its API host is operationsApiHost and it is monitored only through /healthz."
+    },
+    "names": {
+      "type": "object",
+      "required": [
+        "appStack",
+        "appNamespace",
+        "appHost",
+        "alertRule",
+        "availabilityTest",
+        "baseDomain",
+        "foundationStack",
+        "foundationResourceGroup"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "appStack": { "type": "string" },
+        "appNamespace": { "type": "string" },
+        "appHost": { "type": "string" },
+        "alertRule": { "type": "string" },
+        "availabilityTest": { "type": "string" },
+        "baseDomain": { "type": "string" },
+        "foundationStack": { "type": "string" },
+        "foundationResourceGroup": { "type": "string" }
+      }
+    },
+    "checkPattern": {
+      "type": "string",
+      "description": "Pattern for the {check} part of alert rule and availability test names, e.g. availability or healthz."
+    },
+    "stateBackend": {
+      "type": "object",
+      "required": ["resourceGroup", "container"],
+      "additionalProperties": false,
+      "properties": {
+        "resourceGroup": { "type": "string" },
+        "container": { "type": "string" }
+      }
+    },
+    "platformNamespaces": { "type": "object", "additionalProperties": { "type": "string" } },
+    "requiredTags": { "type": "array", "items": { "type": "string" } },
+    "managedBy": { "type": "string" },
+    "releaseReference": {
+      "type": "object",
+      "required": ["gitSha", "imageDigest", "chartVersion"],
+      "additionalProperties": false,
+      "properties": {
+        "gitSha": { "type": "string" },
+        "imageDigest": { "type": "string" },
+        "chartVersion": { "type": "string" }
+      }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,9 @@
+name: foundation
+description: Shared platform foundation (AKS, ACR, ingress, PostgreSQL, monitoring). Stack organization/foundation/<env>, deployed locally.
+runtime:
+  name: nodejs
+  options:
+    # Compiled by `npm run build` in platform/ (tsconfig.json at the package root).
+    typescript: false
+    packagemanager: npm
+main: ../../dist/infra/foundation/index.js

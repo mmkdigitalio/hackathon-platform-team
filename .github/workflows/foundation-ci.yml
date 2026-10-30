@@ -1,0 +1,52 @@
+# Strand A: checks for the foundation code, conventions, output contract and the
+# foundation-outputs action. Uses no Azure identity and no secrets.
+name: foundation-ci
+
+on:
+  pull_request:
+    paths:
+      - platform/**
+      - .github/actions/foundation-outputs/**
+      - .github/workflows/foundation-*.yml
+  push:
+    branches: [main]
+    paths:
+      - platform/**
+      - .github/actions/foundation-outputs/**
+      - .github/workflows/foundation-*.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundation-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: platform/package-lock.json
+      - run: npm ci
+      - name: Build and test
+        run: npm test
+      - name: Placeholder outputs through the composite action
+        id: placeholder
+        uses: ./.github/actions/foundation-outputs
+        with:
+          source: placeholder
+      - name: Placeholder outputs are usable
+        env:
+          BASE_DOMAIN: ${{ steps.placeholder.outputs.baseDomain }}
+          CONTRACT_VERSION: ${{ steps.placeholder.outputs.contractVersion }}
+        run: |
+          test "$CONTRACT_VERSION" = 1
+          test "$BASE_DOMAIN" = 203-0-113-10.sslip.io

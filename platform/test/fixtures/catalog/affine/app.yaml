@@ -1,0 +1,4 @@
+schemaVersion: "0.1"
+appId: affine
+availability:
+  path: /info

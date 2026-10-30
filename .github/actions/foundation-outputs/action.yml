@@ -1,0 +1,149 @@
+name: Foundation outputs
+description: >
+  Reads the output contract of organization/foundation/<environment> from the Pulumi
+  state backend, fails before any change when the contract version differs, masks
+  secret values and exposes every output as a step output
+  (e.g. steps.<id>.outputs.acrLoginServer). Needs no Azure login: the state backend is
+  read with the storage key from the repository secrets.
+inputs:
+  backend-account:
+    description: Storage account of the Pulumi state backend (secret PULUMI_BACKEND_ACCOUNT).
+    required: false
+  backend-key:
+    description: Storage account key of the state backend (secret PULUMI_BACKEND_KEY).
+    required: false
+  config-passphrase:
+    description: Pulumi passphrase (secret PULUMI_CONFIG_PASSPHRASE).
+    required: false
+  expected-contract-version:
+    description: Contract version the caller was written against.
+    required: false
+    default: "1"
+  environment:
+    description: Platform environment.
+    required: false
+    default: staging
+  source:
+    description: >
+      "stack" reads the real stack outputs; "placeholder" reads
+      platform/schemas/foundation-outputs/example.staging.json, so consumers can develop
+      before the foundation exists.
+    required: false
+    default: stack
+  pulumi-version:
+    description: Pulumi CLI version.
+    required: false
+    default: 3.273.0
+# Keep in sync with the schema properties; platform/test/foundation-outputs-action.test.mjs checks this.
+outputs:
+  contractVersion:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.contractVersion }}
+  environment:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.environment }}
+  location:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.location }}
+  resourceGroupName:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.resourceGroupName }}
+  baseDomain:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.baseDomain }}
+  ingressIp:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.ingressIp }}
+  aksClusterName:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.aksClusterName }}
+  kubeconfig:
+    description: Secret, masked. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.kubeconfig }}
+  acrLoginServer:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.acrLoginServer }}
+  acrUsername:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.acrUsername }}
+  acrPassword:
+    description: Secret, masked. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.acrPassword }}
+  appInsightsConnectionString:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.appInsightsConnectionString }}
+  actionGroupIntakeId:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.actionGroupIntakeId }}
+  actionGroupHumansId:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.actionGroupHumansId }}
+  operationsApiHost:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.operationsApiHost }}
+  postgresHost:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.postgresHost }}
+  postgresAdminUser:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.postgresAdminUser }}
+  postgresAdminPassword:
+    description: Secret, masked. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.postgresAdminPassword }}
+  postgresOperationsDatabase:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.postgresOperationsDatabase }}
+  diagnosticsStorageAccount:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.diagnosticsStorageAccount }}
+  diagnosticsContainer:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.diagnosticsContainer }}
+  diagnosticsStorageKey:
+    description: Secret, masked. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.diagnosticsStorageKey }}
+  alertWebhookKey:
+    description: Secret, masked. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.alertWebhookKey }}
+  maintenanceApiKey:
+    description: Secret, masked. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.maintenanceApiKey }}
+  githubWebhookSecret:
+    description: Secret, masked. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.githubWebhookSecret }}
+  modelApiKeys:
+    description: Secret, masked; JSON object keyed by provider. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.modelApiKeys }}
+  opsGithubToken:
+    description: Secret, masked. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.opsGithubToken }}
+  ingressClassName:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.ingressClassName }}
+  clusterIssuerName:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.clusterIssuerName }}
+  publicScheme:
+    description: See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.publicScheme }}
+runs:
+  using: composite
+  steps:
+    - name: Install Pulumi CLI
+      if: inputs.source == 'stack'
+      uses: pulumi/actions@v7
+      with:
+        pulumi-version: ${{ inputs.pulumi-version }}
+    - name: Read foundation outputs
+      id: read
+      shell: bash
+      env:
+        OUTPUTS_SOURCE: ${{ inputs.source }}
+        FOUNDATION_STACK: organization/foundation/${{ inputs.environment }}
+        EXPECTED_CONTRACT_VERSION: ${{ inputs.expected-contract-version }}
+        # State container from platform/schemas/conventions/conventions.json (stateBackend.container).
+        PULUMI_BACKEND_URL: azblob://pulumi-state
+        AZURE_STORAGE_ACCOUNT: ${{ inputs.backend-account }}
+        AZURE_STORAGE_KEY: ${{ inputs.backend-key }}
+        PULUMI_CONFIG_PASSPHRASE: ${{ inputs.config-passphrase }}
+      run: node "$GITHUB_ACTION_PATH/read-outputs.mjs"
