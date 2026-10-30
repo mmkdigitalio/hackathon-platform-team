@@ -259,3 +259,18 @@ def test_parse_result_and_job_name() -> None:
     assert parse_result('log line\n{"success": true}\n') == {"success": True}
     assert parse_result("kein json") is None
     assert job_name("ACT_0001") == "smoke-act-0001"
+
+
+def test_kubeconfig_path_is_read_at_call_time(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    from tools import kubernetes as k
+
+    seen = {}
+    monkeypatch.delenv("KUBERNETES_SERVICE_HOST", raising=False)
+    monkeypatch.setenv("OPS_KUBECONFIG", "/tmp/sa.kubeconfig")
+    monkeypatch.setenv("OPS_KUBE_CONTEXT", "kind-ops-agent-sa")
+    monkeypatch.setattr(k.config, "load_kube_config", lambda **kw: seen.update(kw))
+    k.KubernetesAdapter.from_environment(world.policy())
+    assert seen == {"config_file": "/tmp/sa.kubeconfig", "context": "kind-ops-agent-sa"}
+    monkeypatch.delenv("OPS_KUBE_CONTEXT")
+    with pytest.raises(ValidationFailed):
+        k.KubernetesAdapter.from_environment(world.policy())

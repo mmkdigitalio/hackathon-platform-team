@@ -47,7 +47,7 @@ D beginnt mit dem lokalen echten Framework-Nachweis. C liefert Ausführungs-, Pe
 - [ ] 6.1 C's API-/Worker-Einstiegspunkte und Tests in `operations-agent/Dockerfile` integrieren; Abschluss durch getrennten Prozessstart aus demselben Image prüfen.
 - [ ] 6.2 Helm-Chart unter `operations-agent/deploy/` mit Deployments `api` und `worker`, Service und Werten für Image-Digest, Secret-Name und Image-Pull-Secret-Name liefern; Abschluss durch `helm lint`, Template-Prüfung und Start gegen ein vom App-Stack angelegtes Secret prüfen.
 - [ ] 6.3 Helm-Hook-Job (`pre-install,pre-upgrade`) mit C's Migrations-CLI und Schema-Versionsprüfung in API und Worker einbinden; Abschluss durch Upgrade mit neuer Migration ohne konkurrierende Schemaänderung prüfen.
-- [ ] 6.4 ServiceAccount `operations-agent`, ClusterRole und ClusterRoleBinding im Chart liefern; Abschluss durch `kubectl auth can-i` für erlaubte und verweigerte Verben prüfen.
+- [x] 6.4 ServiceAccount `operations-agent`, ClusterRole und ClusterRoleBinding im Chart liefern; Abschluss durch `kubectl auth can-i` für erlaubte und verweigerte Verben prüfen.
 - [ ] 6.5 `.github/workflows/agent-build.yml` mit Tests, Image-Push und Chart-Veröffentlichung über den ACR-Admin-User aus `foundation-outputs` sowie Aufruf von `app-update-desired-state.yml` anlegen; Abschluss durch aktualisiertes `platform/environments/staging/operations-agent.yaml` ohne Azure-Anmeldung prüfen.
 - [ ] 6.6 Paketstart, Stopp, Wiederanlauf und kompatibles Rollback in `platform/operations/agent/` dokumentieren; Abschluss durch Agenten-Update mit erhaltenem Auftrag und fortgesetzter Workflow-Beobachtung prüfen.
 
