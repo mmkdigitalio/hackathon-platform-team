@@ -77,3 +77,16 @@ def test_agent_build_calls_desired_state_workflow_correctly() -> None:
     required = {k for k, v in callee["inputs"].items() if v.get("required")}
     assert required <= given <= set(callee["inputs"])
     assert caller["with"]["appId"] == "operations-agent" and caller["secrets"] == "inherit"
+
+
+def test_real_affine_delivery_is_understood(world: World) -> None:
+    rb = {("mmkdigitalio/hackathon-platform-affine", "runbook/README.md"): "# AFFiNE Runbook"}
+    ctx = load(world, "affine", ROOT / "platform/catalog/affine/app.yaml", ROOT / "platform/environments/staging/affine.yaml", rb)
+    assert ctx.allowed_actions == {"restart", "redeploy"} and ctx.deployment == "affine" and ctx.check_path == "/info"
+    assert desired_replicas(ctx.desired.value) == 1
+    assert desired_digest(ctx.desired.value).startswith("sha256:b649f5ce")
+    assert ctx.runbook is not None and ctx.errors == []
+    image = ctx.smoke_test["image"]
+    assert smoke(world).resolve_image(image) == image and "@sha256:" in image
+    fault = yaml.safe_load((ROOT / "platform/operations/apps/affine/fault-invalid-config.yaml").read_text())
+    assert fault["path"] == ["affine", "nodeOptions"]  # Fehlerwert liegt in values, nicht in Replicas/Digest -> in_sync

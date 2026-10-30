@@ -75,12 +75,17 @@ Der Abgleich SHALL anhand der Annotation `ops.mmk/action-id` am Pod-Template ent
 - **THEN** patcht das Werkzeug das Deployment nicht erneut
 - **AND** setzt es die Beobachtung des Rollouts fort
 
-### Requirement: GitHub-Zugang über PAT
-GitHub-Werkzeuge SHALL den Fine-grained PAT aus der Foundation-Ausgabe `opsGithubToken` verwenden. Eine GitHub App SHALL nicht vorausgesetzt werden.
+### Requirement: GitHub-Zugang über GitHub App
+GitHub-Werkzeuge SHALL über die GitHub App des Agenten mit kurzlebigen Installations-Tokens zugreifen, die vor Ablauf erneuert werden. App-ID und Installations-ID SHALL Konfiguration sein, der private Schlüssel SHALL nur aus dem Secret des Agenten stammen und weder in Git noch in Prompts, Logs oder Ergebnissen erscheinen. Ist keine App konfiguriert, SHALL der Fine-grained PAT aus `opsGithubToken` als Rückfall dienen.
 
 #### Scenario: Token fehlt die Berechtigung
-- **WHEN** der PAT keine Actions-Rechte besitzt und ein Dispatch angefordert wird
+- **WHEN** das Token keine Actions-Rechte besitzt und ein Dispatch angefordert wird
 - **THEN** meldet das Werkzeug einen strukturierten Berechtigungsfehler mit dem fehlenden Recht
+
+#### Scenario: Installations-Token läuft ab
+- **WHEN** ein Lauf länger dauert als die Gültigkeit des Installations-Tokens
+- **THEN** fordert das Werkzeug vor Ablauf ein neues Token an
+- **AND** schlägt kein Aufruf wegen eines abgelaufenen Tokens fehl
 
 ### Requirement: Versionierten Kontext aus GitHub lesen
 Werkzeuge SHALL Dateien und Commit-Historie aus dem Monorepo zu einer Git-Referenz lesen können, insbesondere Katalog, Sollzustand und Runbook-Verweise. Für eine Sollzustandsdatei SHALL der letzte Commit mit SHA, Autor, Zeitpunkt und Diff abrufbar sein.
@@ -117,13 +122,25 @@ Jeder Dispatch SHALL `operationId` und `actionId` als Workflow-Eingaben übergeb
 - **THEN** ruft der Adapter genau diesen Lauf über Lauf-ID oder `actionId` ab
 - **AND** startet er keinen weiteren Lauf
 
-### Requirement: Keine Repository-Änderungen durch den Agenten
-Der Agent SHALL in Phase 1 keine Branches, Commits, Pull Requests oder Merges erzeugen und Pulumi oder Helm nicht aus seiner Sitzung ausführen. Dauerhafte Änderungen SHALL ausschließlich über vorgegebene Workflows und den versionierten Sollzustand erfolgen.
+### Requirement: Repository-Änderungen nur als Pull Request
+Der Agent SHALL freigegebene Repositories klonen, Dateien ändern, Änderungen auf einen eigenen Branch `agent/<operationId>` pushen und daraus einen Pull Request mit der Markierung `<!-- mmk-ops-agent -->` öffnen können. Commits SHALL Auftrags- und Operationsreferenz tragen. Ein Pull Request SHALL nicht als Behebung gelten.
 
 #### Scenario: Reparatur braucht Konfigurationsänderung
 - **WHEN** die Diagnose ergibt, dass nur eine Änderung am Sollzustand hilft
-- **THEN** erzeugt der Agent keinen Commit und keinen Pull Request
-- **AND** liefert er `needs_attention` mit der nötigen Änderung als Befund
+- **THEN** kann der Agent die Änderung auf `agent/<operationId>` pushen und einen Pull Request öffnen
+- **AND** liefert er `needs_attention` mit der nötigen Änderung und dem Pull Request als Befund
+
+### Requirement: Grenzen für Repository-Änderungen
+Der Agent SHALL nie auf den Standard-Branch pushen, keinen Force-Push ausführen, nichts mergen, keine Dateien unter `.github/workflows/` ändern und Pulumi oder Helm nicht aus seiner Sitzung ausführen. Vor jedem Push und jedem Pull Request SHALL ein Aktionsdatensatz entstehen.
+
+#### Scenario: Unzulässige Änderung
+- **WHEN** ein Werkzeugaufruf auf den Standard-Branch pushen, ein nicht freigegebenes Repository klonen oder eine Datei unter `.github/workflows/` ändern soll
+- **THEN** lehnt das Werkzeug den Aufruf vor jedem externen Schreibzugriff ab
+
+#### Scenario: Push-Antwort geht verloren
+- **WHEN** ein Push möglicherweise angenommen wurde, die Antwort aber verloren ging
+- **THEN** vergleicht der Adapter den Remote-Stand des Agenten-Branches mit dem lokalen Commit
+- **AND** wiederholt er den Push ohne eindeutige Klärung nicht
 
 ### Requirement: Unklare externe Ausgänge abgleichen
 Jeder ändernde Adapter SHALL einen Abgleich für unklare Ergebnisse unterstützen. Ist ein Aufruf möglicherweise ausgeführt worden, SHALL vor Wiederholung dessen externer Zustand geprüft werden. Ein nicht eindeutig aufklärbarer Ausgang SHALL zu `needs_attention` führen.

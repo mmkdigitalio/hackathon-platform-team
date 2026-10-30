@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field
 CONTRACT_VERSION = "0.1"
 
 ResultProposal = Literal["resolved", "needs_attention", "failed"]
-ActionKind = Literal["restart", "workflow_dispatch", "smoke_test", "issue_comment"]
+ActionKind = Literal["restart", "workflow_dispatch", "smoke_test", "issue_comment", "git_push", "pull_request"]
 ActionStatus = Literal["planned", "started", "succeeded", "failed", "unclear"]
 JobState = Literal["investigating", "acting", "verifying"]
 

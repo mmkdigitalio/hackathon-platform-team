@@ -93,7 +93,8 @@ Stand 30.10.2026, lokal auf macOS mit Python 3.12.6:
 | Lesender Abgleich mit dem echten Repository (Katalog, Runbook-Verzeichnis, letzter Sollzustands-Commit, Laufliste) | bestanden |
 | Gesamtsuite nach Lieferung von B und C (`uv run pytest` mit PostgreSQL) | 202 bestanden, davon C's Worker mit D's echtem `agent.execute` |
 | Teststufe im Image (Repository-Struktur unter `/repo`) | 103 bestanden, 99 ohne PostgreSQL übersprungen |
-| Agenten- und Adaptertests (`uv run pytest`) | 69 bestanden (davon 4 Vertragstests gegen Strang B), 1 weiterer nur mit PostgreSQL (`OPS_TEST_POSTGRES_DSN`) |
+| GitHub App: Installations-Token, Klon und Push auf `agent/selftest-20261030-145009` über die App, Commit unter `hackathonplatformagent[bot]`; Push auf `main` und Workflow-Änderung abgewiesen | bestanden ([Commit `d978f3e`](https://github.com/mmkdigitalio/hackathon-platform-team/commit/d978f3e8a76cfef8e1247b1c63e76d1800d10c44)) |
+| Agenten- und Adaptertests (`uv run pytest`) | 81 bestanden (davon 4 Vertragstests gegen Strang B), 1 weiterer nur mit PostgreSQL (`OPS_TEST_POSTGRES_DSN`) |
 | Unabhängiges Review mit Codex (`gpt-6.1-sol`, high) | 10 Befunde bestätigt und behoben, je ein Regressionstest in `tests/agent/test_review_regressions.py` |
 | Checkpoint gegen PostgreSQL, neue Verbindung liest Thread weiter | bestanden (`tests/agent/test_persistence.py`) |
 | `helm lint` / `helm template` mit `deploy/ci-values.yaml` | bestanden |
@@ -108,7 +109,7 @@ Protokoll ohne Secrets: [nachweise/2026-10-30-p1-02-azure.json](nachweise/2026-1
 
 ## Umsetzungsstand je Task
 
-Abgehakt sind in `tasks.md` nur Tasks, deren Abschlussprüfung vollständig lief (1.1–1.4, 2.1, 2.3–2.5, 3.5, 6.4). Für die übrigen ist der Code fertig, mit simulierten Gegenstellen und größtenteils im lokalen kind-Cluster getestet; es fehlt die genannte Prüfung:
+Abgehakt sind in `tasks.md` nur Tasks, deren Abschlussprüfung vollständig lief (1.1–1.4, 2.1, 2.3–2.5, 3.5, 6.4, 8.1, 8.2). Für die übrigen ist der Code fertig, mit simulierten Gegenstellen und größtenteils im lokalen kind-Cluster getestet; es fehlt die genannte Prüfung:
 
 | Task | Offene Abschlussprüfung | Wartet auf |
 | --- | --- | --- |

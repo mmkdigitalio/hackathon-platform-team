@@ -1,7 +1,6 @@
 """Tasks 1.1 und 1.2: Ereignisschema und Aufruf-/Ergebnisverträge."""
 
 import json
-from pathlib import Path
 
 import pytest
 

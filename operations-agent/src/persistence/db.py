@@ -68,7 +68,8 @@ def check_schema(conn: psycopg.Connection, *, include_sdk: bool = False) -> int:
     if version != expected:
         raise SchemaVersionMismatch(expected, version)
     if include_sdk:
-        from agent.persistence import CheckpointSchemaMissing, check_schema as check_sdk
+        from agent.persistence import CheckpointSchemaMissing
+        from agent.persistence import check_schema as check_sdk
 
         try:
             check_sdk(conn)

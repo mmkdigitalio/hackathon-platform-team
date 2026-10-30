@@ -23,6 +23,7 @@ from agent.toolset import VERIFY_RESERVE_SECONDS, RunScope, TransitionRejected, 
 from contracts import AgentInvocation, AgentResult, OperationsServices, OwnershipLost, ResultProposal
 from tools.common import LockBusy, ToolError, UnclearOutcome, github_ref, k8s_ref, register_secret
 from tools.dispatch import WorkflowDispatcher
+from tools.git_repo import GitWorkspace
 from tools.github import GitHubClient
 from tools.http_check import HttpProbe
 from tools.kubernetes import KubernetesAdapter
@@ -50,6 +51,7 @@ class Dependencies:
     sleep: Callable[[float], None] = time.sleep
     clock: Callable[[], float] = time.monotonic
     poll_seconds: dict[str, float] = field(default_factory=dict)
+    git_remote_url: Callable[[str], str] | None = None
 
 
 def execute(
@@ -67,7 +69,9 @@ def execute(
     rec = RunRecorder()
     register_secret(settings.github_token.get_secret_value())
     register_secret(model.api_key.get_secret_value())
-    gh = deps.github or GitHubClient(settings.github_token.get_secret_value(), settings.github_repository)
+    if settings.github_app_private_key:
+        register_secret(settings.github_app_private_key.get_secret_value())
+    gh = deps.github or GitHubClient(settings.github_auth(), settings.github_repository)
     loader_k8s: KubernetesAdapter | None = None
     stop: Stop | None = None
     ctx: OperationalContext | None = None
@@ -105,6 +109,17 @@ def execute(
                 deps.clock,
                 poll.get("smoke", 5.0),
                 acr_login_server=settings.acr_login_server,
+            ),
+            git=GitWorkspace(
+                gh,
+                services,
+                invocation.operation_id,
+                invocation.job_id,
+                settings.git_workdir,
+                settings.git_repositories,
+                settings.git_branch_prefix,
+                settings.git_denied_paths,
+                **({"remote_url": deps.git_remote_url} if deps.git_remote_url else {}),
             ),
         )
         _context_findings(scope)

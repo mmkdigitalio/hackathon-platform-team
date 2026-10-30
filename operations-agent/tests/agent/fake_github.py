@@ -25,6 +25,8 @@ class FakeGitHub:
         self.comments: list[dict[str, Any]] = []
         self.dispatches: list[dict[str, Any]] = []
         self.requests: list[tuple[str, str]] = []
+        self.branches: dict[str, str] = {}
+        self.pulls: list[dict[str, Any]] = []
         self.dispatch_mode = "ok"  # ok | timeout_after_accept | forbidden | no_run
         self.conclusion = "success"
         self.polls_until_done = 1
@@ -62,6 +64,19 @@ class FakeGitHub:
                 return httpx.Response(404, json={"message": "Not Found"})
             content = base64.b64encode(self.files[(repo, p)].encode()).decode()
             return httpx.Response(200, json={"type": "file", "sha": "blob1", "content": content})
+        if re.fullmatch(r"/repos/[^/]+/[^/]+", path):
+            return httpx.Response(200, json={"default_branch": "main"})
+        if m := re.fullmatch(r"/repos/[^/]+/[^/]+/branches/(.+)", path):
+            sha = self.branches.get(m.group(1))
+            return httpx.Response(200, json={"commit": {"sha": sha}}) if sha else httpx.Response(404, json={"message": "Branch not found"})
+        if re.fullmatch(r"/repos/[^/]+/[^/]+/pulls", path):
+            if request.method == "GET":
+                head = request.url.params["head"].split(":", 1)[1]
+                return httpx.Response(200, json=[p for p in self.pulls if p["head"] == head])
+            data = json.loads(request.content)
+            pr = {"number": len(self.pulls) + 1, "html_url": f"https://github.com/{REPO}/pull/{len(self.pulls) + 1}", "head": data["head"], "body": data["body"]}
+            self.pulls.append(pr)
+            return httpx.Response(201, json=pr)
         if m := re.fullmatch(r"/repos/[^/]+/[^/]+/commits", path):
             c = self.commits.get(request.url.params["path"])
             return httpx.Response(200, json=[{"sha": c["sha"]}] if c else [])
