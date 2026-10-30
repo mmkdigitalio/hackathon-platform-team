@@ -66,6 +66,7 @@ or with `source: placeholder` in the composite action.
 
 ## Documentation
 
+- [Platform status UI](operations/state/status-ui.md): read-only overview in the operations API, local preview, live checks and deployment
 - [Bootstrap](operations/foundation/bootstrap.md): prerequisites, preflight, state backend,
   first foundation run and access check
 - [Operations](operations/foundation/operations.md): upgrades, stop and start, recovery of

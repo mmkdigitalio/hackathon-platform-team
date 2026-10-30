@@ -1,0 +1,201 @@
+/* ============================================================
+   MMK DIGITAL — Color tokens  (audit-skip-lang: Token-Datei — Kommentare DE/EN gemischt, kein Trägertext)
+   A strictly monochrome, NEUTRAL light scale with a warm ink.
+   Palette = white, neutral greys, warm near-black.
+   One restrained AMBER accent, used sparingly to highlight
+   (thin rules, active states, key numbers) — never as fill
+   across large areas.
+   ============================================================ */
+
+:root {
+  /* ---- Neutral scale — HELL: Stein (entsättigt), DUNKEL: warm (unverändert) ----
+     Seit 2026-08-18 (User-Entscheid, Exploration „Grund Stein vs Warm"):
+     helle Stufen 50–700 entsättigt und eine Spur heller (Beige raus, Papier bleibt).
+     Rückweg Warm v1: 50 #faf8f5 · 100 #f4f1ec · 150 #eeeae3 · 200 #e6e1d8
+       300 #d8d2c7 · 400 #b7b0a4 · 500 #786f62 · 600 #6f685d · 700 #4c463d */
+  --gray-0:   #ffffff; /* pure white — cards, nav */
+  --gray-50:  #fafafa; /* page paper — komplett neutral (User-Entscheid 2026-08-18) */
+  --gray-100: #f4f4f4; /* alternating section band */
+  --gray-150: #eeeeee; /* quiet surface */
+  --gray-200: #e5e5e5; /* hairline-strong / chips */
+  --gray-300: #d6d6d6; /* borders on light */
+  --gray-400: #b2b2b2; /* disabled ink, dividers on dark */
+  --gray-500: #6e6e6e; /* muted / meta text — AA 5.0:1 on paper */
+  --gray-600: #666666; /* secondary body text */
+  --gray-700: #464646; /* strong body */
+  --gray-800: #2a2a2a; /* dark surface (footer alt) — warm, unverändert */
+  --gray-900: #181818; /* ink — headings, footer, dark hero — warm, unverändert */
+
+  /* ---- Host chrome (nicht Marken-Surface) ---- */
+  --desk: #b5b5b5; /* Desk hinter Sheets/Post-Canvases — neutral (Rückweg warm: #b9b4ab) */
+
+  /* ---- Hairline ---- */
+  --line-soft: #ebebeb; /* neutral — Rückweg warm: #ebe7df */
+  --line:      #e0e0e0; /* neutral — Rückweg warm: #e0dbd1 */
+  --line-dark: rgba(255, 255, 255, 0.14);
+
+  /* ---- Amber accent (the ONLY chromatic note) ----
+     Seit 2026-08-18 (User-Entscheid, Farb-Labor E1): Basis #D98B26.
+     Rückweg = diesen Block gegen die Clay-v1-Werte tauschen:
+     Clay v1: 700 #8a5e3d · 600 #a06e48 · 500 #b0805a · 400 #c39a78
+              300 #d9b391 · 200 #e8d3c0 · 100 #efe4d9 · 50 #f7efe6 */
+  --amber-700: #8b5918; /* Text auf hell — AA 5.6:1 auf warm-50, 5.3:1 auf warm-100 */
+  --amber-600: #ad701f;
+  --amber-500: #d98b26; /* accent base */
+  --amber-400: #e5b06c; /* Text auf dunkel — 9.1:1 auf ink */
+  --amber-300: #eec584;
+  --amber-200: #f4d9ac;
+  --amber-100: #f8e6c7; /* accent tint surface */
+  --amber-50:  #faecd2;
+
+  /* ============================================================
+     SEMANTIC ALIASES — reference these in components
+     ============================================================ */
+  --color-bg:            var(--gray-50);
+  --surface:             var(--gray-0);
+  --surface-alt:         var(--gray-100);
+  --surface-sunken:      var(--gray-150);
+  --surface-chip:        var(--gray-200);
+  --surface-dark:        var(--gray-900);
+  --surface-dark-alt:    var(--gray-800);
+
+  --text-primary:        var(--gray-900);
+  --text-secondary:      var(--gray-600);
+  --text-muted:          #6b6b6b; /* neutral (Rückweg warm: #746b5e): AA 5.2:1 auf warm-50, 4.9:1 auf warm-100 (§20) */
+  --text-disabled:       var(--gray-400);
+  --text-on-dark:        #fafafa; /* neutral — kein warmes Weiß mehr (User-Entscheid 2026-08-26); warm bleibt nur die Ink-Fläche selbst */
+  --text-on-dark-muted:  rgba(250, 250, 250, 0.62);
+
+  --border:              var(--line);
+  --border-soft:         var(--line-soft);
+  --border-strong:       var(--gray-300);
+  --border-on-dark:      var(--line-dark);
+
+  --accent:              var(--amber-500);
+  --accent-strong:       var(--amber-600); /* NUR Hover-/Pressed-Vertiefung von --accent — nie Default-Text/Icon-Farbe (v1.8, §8) */
+  --accent-text:         var(--amber-700); /* clay as TEXT on light — AA ≥5:1 for small labels; fills/ticks stay --accent */
+  --text-on-accent:      #ffffff; /* §20 rev.: Text/Glyphen auf Amber-Flächen sind IMMER weiß */
+  --accent-text-on-dark: var(--amber-400); /* clay as TEXT on dark/ink — AA ≥6:1; light clay for legibility */
+  --accent-tint:         var(--amber-100);
+  --num-stroke:          var(--amber-400); /* §16: Outline-Ziffern-Stroke auf hell — EIN Token, keine Rampenstufen in Artefakten */
+  --accent-tint-soft:    var(--amber-50);
+
+  /* Interaction ink for dark controls (primary button) */
+  --control-dark:        var(--gray-900);
+  --control-dark-hover:  var(--gray-800);
+
+  /* Focus ring */
+  --focus-ring:          rgba(217, 139, 38, 0.30); /* Halo um die harte Amber-Kante (Alt-Clay-Rückweg: rgba(176,128,90,.45)) */
+
+  /* ---- Status (muted, warm-toned — never neon) ---- */
+  --error:               #a3563e;
+  --error-tint:          #f5e7e1;
+  --success:             #5d6e4e;
+  --success-tint:        #e9ede2;
+  --warning:             var(--amber-600);
+  --warning-tint:        var(--amber-50);
+
+  /* ============================================================
+     DATAVIZ — chart series, scales, chrome
+     Datenpunkte sind CLAY-FREI: Clay bleibt strukturell (Ticks,
+     Annotationen, Referenzlinien, aktive Zustände) — nie Serie.
+     Kategorial: die harmonisierten Töne aus der Akzent-Exploration
+     (explorations/Akzent Alternativen.html), entsättigt und in der
+     Helligkeit alternierend für Nachbar-Unterscheidbarkeit. Auf
+     --gray-900 (Ink-Slides) das Chart-Root mit data-dv-on-dark
+     scopen — hebt die dunklen Serien & das Achsen-Chrom an,
+     Reihenfolge bleibt identisch.
+     ============================================================ */
+  --dv-1: #5b7285;  /* Schiefer — die Hauptserie */
+  --dv-2: #c0a46a;  /* Messing, hell */
+  --dv-3: #96525a;  /* Burgunder */
+  --dv-4: #9f9f73;  /* Oliv, hell */
+  --dv-5: #7e5a77;  /* Pflaume */
+  --dv-6: #739a7d;  /* Kiefer, hell */
+  --dv-7: #b56a4e;  /* Terracotta */
+  --dv-8: #7ba99d;  /* Petrol, hell */
+  --dv-9: var(--gray-400); /* neutrales Warm — Restkategorie („Sonstige“) */
+
+  /* Sequenziell (hell→dunkel) — Heatmaps, Intensitäten. Schiefer-Ramp. */
+  --dv-seq-1: #e9eef1;
+  --dv-seq-2: #cfdae1;
+  --dv-seq-3: #b0c2cd;
+  --dv-seq-4: #8ea9b8;
+  --dv-seq-5: #6d8ea1;
+  --dv-seq-6: #52707f;
+  --dv-seq-7: #3a525e;
+
+  /* Semantik in Diagrammen — an Status-Tokens ausgerichtet */
+  --dv-pos:     var(--success);
+  --dv-neg:     var(--error);
+  --dv-neutral: var(--gray-400);
+
+  /* Achsen / Grid / Labels */
+  --dv-grid:  var(--gray-200);
+  --dv-axis:  var(--gray-300);
+  --dv-label: var(--gray-500); /* Mono, uppercase — wie Meta-Labels */
+}
+
+/* Dark-Slides (--gray-900/-800): Chart-Root mit data-dv-on-dark scopen. */
+[data-dv-on-dark] {
+  --dv-1: #7e97ab;
+  --dv-3: #b17a80;
+  --dv-5: #a184ad;
+  --dv-7: #c98a72;
+  --dv-8: #7fb0b4;
+  --dv-pos:     #8fa07c;
+  --dv-neg:     #c98a72;
+  --dv-neutral: var(--gray-500);
+  --dv-grid:  rgba(255, 255, 255, 0.10);
+  --dv-axis:  rgba(255, 255, 255, 0.22);
+  --dv-label: var(--text-on-dark-muted);
+}
+
+
+/* ============================================================
+   INK THEME — one attribute flips a surface into the dark world.
+   Scope: <section data-theme="ink"> … — remaps the SEMANTIC
+   aliases (and the dataviz chrome) for all descendants, so
+   components built on semantics need no hand-recoloring.
+   Raw scale tokens (--gray-*, --amber-*) stay untouched on purpose.
+   Grenzen: --control-dark (Solid-Button) bleibt Ink — auf Ink-
+   Flächen accent/outline-Buttons verwenden; Status-TINTS bleiben
+   hell (auf Ink Status nur als Text/Badge, nicht als Fläche).
+   ============================================================ */
+[data-theme="ink"] {
+  --color-bg:        var(--gray-900);
+  --surface:         var(--gray-800);
+  --surface-alt:     #212121; /* zwischen warm-900 und warm-800 */
+  --surface-sunken:  var(--gray-900);
+  --surface-chip:    rgba(255, 255, 255, 0.08);
+
+  --text-primary:    var(--text-on-dark);
+  --text-secondary:  rgba(250, 250, 250, 0.78);
+  --text-muted:      var(--text-on-dark-muted);
+  --text-disabled:   rgba(250, 250, 250, 0.38);
+
+  --border:          var(--line-dark);
+  --border-soft:     rgba(255, 255, 255, 0.10);
+  --border-strong:   rgba(255, 255, 255, 0.24);
+
+  --accent-text:     var(--accent-text-on-dark);
+  --text-on-accent: #ffffff; /* §20 rev.: Text/Glyphen auf Amber-Flächen sind IMMER weiß */
+  --accent-tint:     rgba(229, 176, 108, 0.16);
+  --accent-tint-soft: rgba(229, 176, 108, 0.10);
+
+  --chip-bg: rgba(250, 250, 250, 0.1);
+  --chip-bg-on-paper: rgba(250, 250, 250, 0.08);
+
+  /* Dataviz-Anhebung inklusive — kein zweites data-dv-on-dark nötig */
+  --dv-1: #7e97ab;
+  --dv-3: #b17a80;
+  --dv-5: #a184ad;
+  --dv-7: #c98a72;
+  --dv-8: #7fb0b4;
+  --dv-pos:     #8fa07c;
+  --dv-neg:     #c98a72;
+  --dv-neutral: var(--gray-500);
+  --dv-grid:  rgba(255, 255, 255, 0.10);
+  --dv-axis:  rgba(255, 255, 255, 0.22);
+  --dv-label: var(--text-on-dark-muted);
+}

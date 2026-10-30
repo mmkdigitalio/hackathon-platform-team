@@ -1,0 +1,123 @@
+/* ============================================================
+   MMK DIGITAL — Typography tokens
+   Bricolage Grotesque (display) · Hanken Grotesk (text) · JetBrains Mono (labels)
+
+   Voice of the brand:
+   - HEADINGS: Bricolage, tight negative tracking, sentence/title case
+     (NOT uppercase — labels speak in Hanken small-caps, mono measures).
+   - EYEBROWS / LABELS: Hanken Small-Caps 600, .05-.09em tracking,
+     Massline-Anschlag in Clay. Mono misst: Werte, Zaehler, technische Meta.
+   - BODY / LEAD: Hanken Grotesk, 1.6 line-height, warm-grey.
+   ============================================================ */
+
+:root {
+  /* ---- Families ---- */
+  --font-sans: "Hanken Grotesk", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Bricolage Grotesque", "Hanken Grotesk", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* ---- Weights (available in the chosen fonts) ---- */
+  --fw-regular: 400;    /* @kind other */
+  --fw-medium: 500;     /* @kind other */
+  --fw-semibold: 600;   /* @kind other */
+  --fw-bold: 700;       /* @kind other */
+  --fw-extrabold: 800;  /* @kind other */
+  /* Back-compat aliases (no 300/900 in these families) */
+  --fw-light: 400;      /* @kind other */
+  --fw-black: 800;      /* @kind other */
+
+  /* ---- Type scale (fluid) ---- */
+  --fs-hero: clamp(44px, 6vw, 92px);   /* @kind font */
+  --fs-display: clamp(38px, 5vw, 68px);   /* @kind font */
+  --fs-h1: clamp(32px, 4.4vw, 56px);   /* @kind font */
+  --fs-h2: clamp(30px, 4vw, 52px);     /* @kind font */
+  --fs-h3: clamp(22px, 2.2vw, 26px);   /* @kind font */
+  --fs-slide-title: 34px;              /* @kind font */
+  --fs-card-title: 22px;               /* @kind font */
+  --fs-h4: 20px;                       /* @kind font */
+  --fs-lead: clamp(18px, 1.4vw, 20px); /* @kind font */
+  --fs-body-lg: 18px;                  /* @kind font */
+  --fs-body: 16px;                     /* @kind font */
+  --fs-sm: 14px;                       /* @kind font */
+  --fs-xs: 12px;                       /* @kind font */
+  --fs-eyebrow: 14px;                  /* @kind font */ /* Small-Caps laufen kleiner als Uppercase-Mono */
+
+  /* ---- Line heights ---- */
+  --lh-hero: 0.98;     /* @kind other */
+  --lh-tight: 1.02;    /* @kind other */
+  --lh-heading: 1.06;  /* @kind other */
+  --lh-snug: 1.25;     /* @kind other */
+  --lh-body: 1.6;      /* @kind other */
+  --lh-relaxed: 1.75;  /* @kind other */
+
+  /* ---- Letter spacing ---- */
+  --tracking-tighter: -0.03em;  /* @kind other */
+  --tracking-tight: -0.02em;    /* @kind other */
+  --tracking-normal: 0;         /* @kind other */
+  --tracking-label: 0.14em;     /* @kind other */
+  --tracking-eyebrow: 0.08em;  /* @kind other */ /* Hanken Small-Caps (Aug 2026) — vorher 0.2em Mono */
+  --eyebrow-gap: 12px;          /* @kind other */ /* §5: Abstand Maßlinie↔Text — IMMER flex gap */
+  --eyebrow-bracket-gap: var(--eyebrow-gap); /* @deprecated Alias — Klammern retired Aug 2026 */
+  --tracking-label-sc: 0.05em;  /* @kind other */ /* Meta-Labels in Small-Caps (§5) */
+  /* Small-Caps-Größenstaffel (§5) — verbindlich für NEUE Stellen; Bestand liegt im Raster */
+  --sc-size-sm: 12px;     /* @kind font */ /* dichte Slide-/Karten-Meta */
+  --sc-size-md: 13.5px;   /* @kind font */ /* Standard: Slides, Tabellenkopf, Web-Labels */
+  --sc-size-lg: 15px;     /* @kind font */ /* Website-Hero-/Sektions-Meta */
+  --sc-size-social: 19px; /* @kind font */ /* Social-Kicker (1080px-Formate) */
+  --tracking-wide: 0.2em;       /* @kind other */
+
+  /* ---- Wordmark (Bricolage 800, tight) ---- */
+  --wordmark-weight: 800;            /* @kind other */
+  --wordmark-tracking: -0.045em;     /* @kind other */
+  --wordmark-slide: 26px;            /* @kind font */ /* retired in Kopfzeilen — Slide-Header nutzen überall --wordmark-footer (§14) */
+  --wordmark-slide-sm: 24px;         /* @kind font */ /* retired in Kopfzeilen — siehe --wordmark-footer (§14) */
+  --wordmark-footer: 20px;           /* @kind font */
+  --wordmark-compact: 17px;          /* @kind font */ /* dense formats */
+  --wordmark-compact-lg: 22px;       /* @kind font */ /* compact cover */
+  --wordmark-social: 44px;           /* @kind font */ /* Social-Kopf (1080px-Formate) */
+  --wordmark-social-sm: 26px;        /* @kind font */ /* LinkedIn-Banner (396px hoch) */
+  --social-url-size: 22px;           /* @kind font */ /* Footer-URL mmkdigital.io, Hanken 600 */
+
+  /* ---- Ghost numbers (hollow divider digits) ---- */
+  --ghost-num-size: 380px;      /* @kind font */ /* section divider */
+  --ghost-num-size-sm: 340px;   /* @kind font */ /* case opener */
+
+  --table-head-border-w: 2px;        /* @kind other */ /* never 1.5px */
+
+  /* ---- Outline-Ziffern (§16) — Staffel nach Ziffergröße ---- */
+  --num-stroke-w-sm: 1px;    /* @kind other */ /* Ziffern ≤ 32px (Listen-, Regel-, Step-Nummern) */
+  --num-stroke-w-md: 1.2px;  /* @kind other */ /* 33–55px (Karten-Index, OutlineNum, Stat) */
+  --num-stroke-w-lg: 1.4px;  /* @kind other */ /* ≥ 56px u. Ghost-Ziffern */
+
+  /* ---- Outline headline (hollow text via CSS text-stroke) ---- */
+  --outline-stroke-w: 2px;                         /* @kind other */ /* standard outline headline */
+  --outline-stroke-w-fine: 1.2px;                  /* @kind other */ /* hero/cover second line on dark */
+  --outline-stroke-w-ghost: 1.4px;                 /* @kind other */ /* giant ghost digits (300px+) */
+  --outline-stroke-w-display: 2.5px;               /* @kind other */ /* display KPIs 150-200px (social) */
+  --outline-ink: rgba(24, 24, 24, 1);              /* on light backgrounds */
+  --outline-on-dark: rgba(245, 245, 246, 0.98);    /* on dark backgrounds */
+  --outline-fill-dark: #f5f5f6;
+
+  /* ============================================================
+     SEMANTIC TEXT ROLES
+     ============================================================ */
+  --text-hero-size: var(--fs-hero);
+  --text-hero-weight: var(--fw-bold);
+  --text-hero-lh: var(--lh-hero);
+  --text-hero-tracking: var(--tracking-tighter);
+
+  --text-section-size: var(--fs-h2);
+  --text-section-weight: var(--fw-bold);
+  --text-section-tracking: var(--tracking-tighter);
+
+  --text-subhead-size: var(--fs-h3);
+  --text-subhead-weight: var(--fw-medium);
+
+  --text-eyebrow-size: var(--fs-eyebrow);
+  --text-eyebrow-weight: var(--fw-medium);
+  --text-eyebrow-tracking: var(--tracking-eyebrow);
+
+  --text-body-size: var(--fs-body);
+  --text-body-weight: var(--fw-regular);
+  --text-body-lh: var(--lh-body);
+}

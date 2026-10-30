@@ -4,6 +4,8 @@ metadata:
   name: {{ include "ops.name" . }}-config
   labels: {{- include "ops.labels" . | nindent 4 }}
 data:
+  # Der App-Stack übergibt platform.environment.
+  OPS_STATUS_ENVIRONMENT: {{ default "staging" (get (default dict .Values.platform) "environment") | quote }}
   OPS_MODEL_PROVIDER: {{ .Values.model.provider | quote }}
   OPS_MODEL_NAME: {{ .Values.model.name | quote }}
   {{- with .Values.model.endpoint }}
