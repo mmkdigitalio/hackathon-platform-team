@@ -50,6 +50,7 @@ const outputs = {
     acrPassword: "acr-admin-password",
     postgresAdminPassword: "pg-secret",
     modelApiKeys: { anthropic: "sk-ant", "azure-openai": "aoai" },
+    githubAppPrivateKey: "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----",
 };
 
 const tempFile = () => join(mkdtempSync(join(tmpdir(), "foundation-outputs-")), "out");
@@ -166,7 +167,7 @@ test("spec scenario: the action reads the placeholder outputs end to end", () =>
             GITHUB_OUTPUT: outputFile,
         },
     });
-    assert.match(stdout, /Read 31 foundation outputs \(placeholder\)/);
+    assert.match(stdout, /Read 32 foundation outputs \(placeholder\)/);
     assert.match(readFileSync(outputFile, "utf8"), /^baseDomain=203-0-113-10\.sslip\.io$/m);
 });
 
@@ -199,7 +200,9 @@ test("source stack masks every output Pulumi holds as secret, also ones unknown 
     });
     assert.match(stdout, /^::add-mask::future-secret-value-123$/m);
     assert.match(stdout, /^::add-mask::pg-secret$/m);
-    assert.match(stdout, /Read 32 foundation outputs \(stack\)/);
+    // A multi-line PEM is masked line by line, as the runner masks only single lines.
+    assert.match(stdout, /^::add-mask::MIIEvQIBADANBgkqhkiG9w0BAQEFAASC$/m);
+    assert.match(stdout, /Read 33 foundation outputs \(stack\)/);
     assert.match(readFileSync(outputFile, "utf8"), /^futureSecret=future-secret-value-123$/m);
 });
 

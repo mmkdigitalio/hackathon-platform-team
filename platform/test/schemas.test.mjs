@@ -62,6 +62,7 @@ test("contract marks exactly the secrets named in the spec", () => {
         "acrPassword",
         "alertWebhookKey",
         "diagnosticsStorageKey",
+        "githubAppPrivateKey",
         "githubWebhookSecret",
         "kubeconfig",
         "maintenanceApiKey",
@@ -79,6 +80,7 @@ test("every spec output is required", () => {
         "postgresHost", "postgresAdminUser", "postgresAdminPassword", "postgresOperationsDatabase",
         "diagnosticsStorageAccount", "diagnosticsContainer", "diagnosticsStorageKey", "alertWebhookKey",
         "maintenanceApiKey", "githubWebhookSecret", "modelApiKeys", "opsGithubToken",
+        "githubAppPrivateKey",
     ]) {
         assert.ok(outputsSchema.required.includes(name), name);
     }

@@ -54,7 +54,9 @@ jobs:
           DIAGNOSTICS_ACCOUNT: ${{ steps.foundation.outputs.diagnosticsStorageAccount }}
           DIAGNOSTICS_CONTAINER: ${{ steps.foundation.outputs.diagnosticsContainer }}
           DIAGNOSTICS_KEY: ${{ steps.foundation.outputs.diagnosticsStorageKey }}
-          AGENT_GITHUB_TOKEN: ${{ steps.foundation.outputs.opsGithubToken }}
+          GITHUB_APP_PRIVATE_KEY: ${{ steps.foundation.outputs.githubAppPrivateKey }}
+          GITHUB_APP_ID: "5542094"
+          GITHUB_APP_INSTALLATION_ID: "176901698"
           WORKFLOW_GITHUB_TOKEN: ${{ secrets.OPS_GITHUB_TOKEN }}
-          PAT_REPOS: mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine
+          AGENT_REPOS: mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine
         run: platform/scripts/bootstrap/access-check.sh

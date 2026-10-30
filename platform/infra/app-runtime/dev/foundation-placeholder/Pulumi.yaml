@@ -71,3 +71,4 @@ outputs:
   githubWebhookSecret: local-webhook-secret
   modelApiKeys: "{}"
   opsGithubToken: ""
+  githubAppPrivateKey: ""

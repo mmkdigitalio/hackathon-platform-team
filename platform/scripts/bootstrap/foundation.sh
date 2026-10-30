@@ -3,14 +3,15 @@
 # foundation has no CI deployment). Selects or creates organization/foundation/<env> in
 # the state backend from the bootstrap and passes secrets only through stdin.
 #
-#   foundation.sh <env-file> secrets     store model keys, webhook secret and PAT as stack secrets
+#   foundation.sh <env-file> secrets     store model keys, webhook secret and GitHub App key as stack secrets
 #   foundation.sh <env-file> preview [pulumi args, e.g. --expect-no-changes]
 #   foundation.sh <env-file> up          deploy after confirmation, then print the summary
 #   foundation.sh <env-file> outputs     non-secret view of the output contract
 #   foundation.sh <env-file> ingress-check   HTTPS call of a temporary test ingress (task 3.3)
 #
 # Environment: PULUMI_CONFIG_PASSPHRASE (always); for "secrets" GITHUB_WEBHOOK_SECRET,
-# OPS_GITHUB_TOKEN (or DEFER_PAT=1) and at least one of MODEL_KEY_ANTHROPIC, MODEL_KEY_AZURE_OPENAI.
+# GITHUB_APP_PRIVATE_KEY_FILE (.pem of the agent's GitHub App), at least one of
+# MODEL_KEY_ANTHROPIC, MODEL_KEY_AZURE_OPENAI and optionally the fallback PAT OPS_GITHUB_TOKEN.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR source=lib.sh
@@ -38,6 +39,17 @@ pulumi stack select --create "$FOUNDATION_STACK" --secrets-provider passphrase >
 set_secret_config() { printf '%s' "$2" | pulumi config set --secret --stack "$FOUNDATION_STACK" --path "$1"; }
 
 output() { pulumi stack output "$1" --stack "$FOUNDATION_STACK" "${@:2}"; }
+
+# retry <attempts> <pause seconds> <command...>
+retry() {
+    local attempts="$1" pause="$2" attempt
+    shift 2
+    for ((attempt = 1; attempt <= attempts; attempt++)); do
+        "$@" && return 0
+        ((attempt == attempts)) || sleep "$pause"
+    done
+    return 1
+}
 
 # Task 3.3: a temporary whoami app behind ingress-check.<baseDomain> with a Let's Encrypt
 # certificate, called over HTTPS, then removed again (namespace ingress-check).
@@ -87,8 +99,9 @@ spec:
 MANIFEST
     kubectl -n ingress-check rollout status deployment/whoami --timeout=180s >/dev/null
     log "Waiting up to 5 minutes for the certificate of $host"
+    # Traefik keeps serving its default certificate until it has loaded the new TLS secret.
     if kubectl -n ingress-check wait --for=condition=Ready certificate/ingress-check-tls --timeout=300s >/dev/null &&
-        curl -fsS --max-time 20 "https://$host/" >/dev/null; then
+        retry 12 5 curl -fsS --max-time 20 "https://$host/" >/dev/null 2>&1; then
         log "OK: https://$host/ answers with a valid Let's Encrypt certificate."
         return 0
     fi
@@ -102,14 +115,17 @@ MANIFEST
 case "$command" in
     secrets)
         [[ -n "${GITHUB_WEBHOOK_SECRET:-}" ]] || die "GITHUB_WEBHOOK_SECRET is not set."
-        [[ -n "${OPS_GITHUB_TOKEN:-}" || "${DEFER_PAT:-}" == 1 ]] || die "OPS_GITHUB_TOKEN is not set (or set DEFER_PAT=1)."
+        [[ -n "${GITHUB_APP_PRIVATE_KEY_FILE:-}" ]] ||
+            die "GITHUB_APP_PRIVATE_KEY_FILE is not set: path to the private key (.pem) of the agent's GitHub App."
+        grep -q -- '-----BEGIN .*PRIVATE KEY-----' "$GITHUB_APP_PRIVATE_KEY_FILE" 2>/dev/null ||
+            die "$GITHUB_APP_PRIVATE_KEY_FILE is not a readable PEM private key."
         [[ -n "${MODEL_KEY_ANTHROPIC:-}${MODEL_KEY_AZURE_OPENAI:-}" ]] ||
             die "Set MODEL_KEY_ANTHROPIC and/or MODEL_KEY_AZURE_OPENAI; the agent needs at least one model key."
         set_secret_config githubWebhookSecret "$GITHUB_WEBHOOK_SECRET"
+        set_secret_config githubAppPrivateKey "$(<"$GITHUB_APP_PRIVATE_KEY_FILE")"
+        # Fallback only; the agent prefers its GitHub App.
         if [[ -n "${OPS_GITHUB_TOKEN:-}" ]]; then
             set_secret_config opsGithubToken "$OPS_GITHUB_TOKEN"
-        else
-            log "opsGithubToken deferred: the output stays empty until 'secrets' and 'up' run with the PAT."
         fi
         if [[ -n "${MODEL_KEY_ANTHROPIC:-}" ]]; then
             set_secret_config 'modelApiKeys["anthropic"]' "$MODEL_KEY_ANTHROPIC"
@@ -117,7 +133,7 @@ case "$command" in
         if [[ -n "${MODEL_KEY_AZURE_OPENAI:-}" ]]; then
             set_secret_config 'modelApiKeys["azure-openai"]' "$MODEL_KEY_AZURE_OPENAI"
         fi
-        log "Stored encrypted in Pulumi.$ENVIRONMENT.yaml; commit that file. Run 'up' to pass them on as outputs."
+        log "Stored encrypted in Pulumi.$ENVIRONMENT.yaml; commit that file. Run 'up' to pass them on as outputs, then delete the downloaded .pem."
         ;;
     preview)
         pulumi preview --diff --stack "$FOUNDATION_STACK" "${@:3}"

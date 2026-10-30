@@ -120,6 +120,9 @@ outputs:
   opsGithubToken:
     description: Secret, masked. See foundation-outputs.schema.json.
     value: ${{ steps.read.outputs.opsGithubToken }}
+  githubAppPrivateKey:
+    description: Secret, masked; PEM. See foundation-outputs.schema.json.
+    value: ${{ steps.read.outputs.githubAppPrivateKey }}
   ingressClassName:
     description: See foundation-outputs.schema.json.
     value: ${{ steps.read.outputs.ingressClassName }}

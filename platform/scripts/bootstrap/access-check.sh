@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Exercises every access path from CI and reports each category separately: foundation
 # state, Kubernetes (admin kubeconfig), ACR (admin user), PostgreSQL (TLS), diagnostics
-# storage (key: write, read, delete) and GitHub (agent PAT). Runs once without retries;
+# storage (key: write, read, delete) and GitHub (agent's GitHub App). Runs once without retries;
 # with keys instead of role assignments there is nothing to wait for. Never prints
 # secret values: the kubeconfig goes to a private file, passwords and tokens through
 # stdin or the environment.
@@ -10,7 +10,8 @@
 #   FOUNDATION_STATE_OUTCOME   outcome of the foundation-outputs step (success|failure)
 #   KUBECONFIG_CONTENT, ACR_LOGIN_SERVER, ACR_USERNAME, ACR_PASSWORD, POSTGRES_HOST,
 #   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DATABASE, DIAGNOSTICS_ACCOUNT,
-#   DIAGNOSTICS_CONTAINER, DIAGNOSTICS_KEY, AGENT_GITHUB_TOKEN, PAT_REPOS
+#   DIAGNOSTICS_CONTAINER, DIAGNOSTICS_KEY, GITHUB_APP_ID, GITHUB_APP_INSTALLATION_ID,
+#   GITHUB_APP_PRIVATE_KEY, AGENT_REPOS
 #   WORKFLOW_GITHUB_TOKEN      optional: repository secret OPS_GITHUB_TOKEN, checked as well
 #   BREAK_CATEGORY             optional: replace this category's credential with an invalid one
 set -uo pipefail
@@ -40,7 +41,7 @@ if [[ "$break_category" != none ]]; then
         acr) ACR_PASSWORD="invalid-access-check-password" ;;
         postgres) POSTGRES_PASSWORD="invalid-access-check-password" ;;
         diagnostics-storage) DIAGNOSTICS_KEY="aW52YWxpZC1hY2Nlc3MtY2hlY2sta2V5" ;;
-        github) AGENT_GITHUB_TOKEN="github_pat_invalid_access_check" ;;
+        github) GITHUB_APP_PRIVATE_KEY=$'-----BEGIN PRIVATE KEY-----\ninvalid-access-check-key\n-----END PRIVATE KEY-----' ;;
         github-workflow-token) WORKFLOW_GITHUB_TOKEN="github_pat_invalid_access_check" ;;
         foundation-state) ;; # broken by the workflow: the composite action gets an invalid backend key
     esac
@@ -102,7 +103,7 @@ check_diagnostics_storage() {
 
 github_reads() {
     local token="$1" repo code
-    for repo in $PAT_REPOS; do
+    for repo in $AGENT_REPOS; do
         code="$(github_status "$token" GET "repos/$repo")"
         [[ "$code" == "200" ]] || { detail="repository $repo: HTTP $code"; return 1; }
         code="$(github_status "$token" GET "repos/$repo/issues?per_page=1")"
@@ -111,12 +112,15 @@ github_reads() {
 }
 
 check_github() {
-    need AGENT_GITHUB_TOKEN PAT_REPOS && tools curl || return 1
-    github_reads "$AGENT_GITHUB_TOKEN"
+    need GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID GITHUB_APP_PRIVATE_KEY AGENT_REPOS && tools curl openssl jq || return 1
+    local token
+    token="$(github_app_token "$GITHUB_APP_ID" "$GITHUB_APP_PRIVATE_KEY" "$GITHUB_APP_INSTALLATION_ID")" ||
+        { detail="no installation token for GitHub App $GITHUB_APP_ID"; return 1; }
+    github_reads "$token"
 }
 
 check_github_workflow_token() {
-    need WORKFLOW_GITHUB_TOKEN PAT_REPOS && tools curl || return 1
+    need WORKFLOW_GITHUB_TOKEN AGENT_REPOS && tools curl || return 1
     github_reads "$WORKFLOW_GITHUB_TOKEN"
 }
 

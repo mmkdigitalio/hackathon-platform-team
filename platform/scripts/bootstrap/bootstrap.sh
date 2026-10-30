@@ -5,7 +5,7 @@
 # fails the run when the lookup itself fails, instead of treating the object as missing.
 # Needs Contributor only: no role assignments, no locks, no Entra objects.
 #
-#   OPS_GITHUB_TOKEN=... (or DEFER_PAT=1) [PULUMI_CONFIG_PASSPHRASE=...] \
+#   [OPS_GITHUB_TOKEN=...] [PULUMI_CONFIG_PASSPHRASE=...] \
 #       platform/scripts/bootstrap/bootstrap.sh platform/scripts/bootstrap/staging.env
 #
 # PULUMI_CONFIG_PASSPHRASE is only needed on the very first run (when the repository
@@ -76,16 +76,15 @@ AZURE_STORAGE_KEY="$state_key" az storage container create --name "$STATE_CONTAI
 
 log "Repository secrets in $GITHUB_REPO"
 # Values go through stdin without a trailing newline (printf is a builtin, so they never
-# appear in a process list). Account, key and PAT are re-synchronized on every run
-# (repairs a rotated key or token); the passphrase is never replaced.
+# appear in a process list). Account, key and the optional PAT are re-synchronized on
+# every run (repairs a rotated key or token); the passphrase is never replaced.
 set_secret() { printf '%s' "$2" | gh secret set "$1" --repo "$GITHUB_REPO" >/dev/null; }
 set_secret PULUMI_BACKEND_ACCOUNT "$STATE_STORAGE_ACCOUNT"
 set_secret PULUMI_BACKEND_KEY "$state_key"
 unset state_key
+# The agent uses its GitHub App; a PAT is only stored when one is given.
 if [[ -n "${OPS_GITHUB_TOKEN:-}" ]]; then
     set_secret OPS_GITHUB_TOKEN "$OPS_GITHUB_TOKEN"
-else
-    log "  OPS_GITHUB_TOKEN deferred (DEFER_PAT=1); re-run the bootstrap with the PAT later"
 fi
 if [[ "$passphrase_action" == create ]]; then
     set_secret PULUMI_CONFIG_PASSPHRASE "$PULUMI_CONFIG_PASSPHRASE"

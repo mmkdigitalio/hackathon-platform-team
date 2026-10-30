@@ -28,6 +28,7 @@
     "anthropic": "<secret>"
   },
   "opsGithubToken": "<secret>",
+  "githubAppPrivateKey": "<secret>",
   "ingressClassName": "traefik",
   "clusterIssuerName": "letsencrypt",
   "publicScheme": "https",

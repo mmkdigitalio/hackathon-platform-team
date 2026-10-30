@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { renderSummary } from "../scripts/bootstrap/summary.mjs";
-import { sandbox, skipWithoutBash as skip } from "./helpers/script-stubs.mjs";
+import { appKeys, sandbox, skipWithoutBash as skip } from "./helpers/script-stubs.mjs";
 
 const stateKey = "STATE-ACCOUNT-KEY-VALUE";
 
@@ -47,25 +47,28 @@ esac
     pulumi: pulumiStub,
 };
 
+const app = appKeys();
 const secretEnv = {
     PULUMI_CONFIG_PASSPHRASE: "stack-passphrase",
     GITHUB_WEBHOOK_SECRET: "webhook-secret-value",
-    OPS_GITHUB_TOKEN: "github_pat_agent_value",
+    GITHUB_APP_PRIVATE_KEY_FILE: app.privateKeyFile,
 };
 
 test("secrets stores every value through stdin, never on a command line", { skip }, () => {
     const box = sandbox(stubs);
     const result = box.run("foundation.sh", [box.config, "secrets"], {
         ...secretEnv,
+        OPS_GITHUB_TOKEN: "github_pat_agent_value",
         MODEL_KEY_ANTHROPIC: "anthropic-model-key",
         MODEL_KEY_AZURE_OPENAI: "aoai-model-key",
     });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(box.read("config-githubWebhookSecret"), "webhook-secret-value");
+    assert.equal(box.read("config-githubAppPrivateKey"), app.privateKey.trimEnd());
     assert.equal(box.read("config-opsGithubToken"), "github_pat_agent_value");
     assert.equal(box.read("config-modelApiKeys__anthropic__"), "anthropic-model-key");
     assert.equal(box.read("config-modelApiKeys__azure-openai__"), "aoai-model-key");
-    for (const secret of [stateKey, "stack-passphrase", "webhook-secret-value", "github_pat_agent_value", "anthropic-model-key", "aoai-model-key"]) {
+    for (const secret of [stateKey, "stack-passphrase", "webhook-secret-value", "github_pat_agent_value", "PRIVATE KEY", "anthropic-model-key", "aoai-model-key"]) {
         assert.ok(!result.calls.some((call) => call.includes(secret)), `${secret} appeared on a command line`);
     }
 });
@@ -78,21 +81,23 @@ test("secrets with only the Azure OpenAI key sets only that provider", { skip },
     assert.equal(box.read("config-modelApiKeys__azure-openai__"), "aoai-model-key");
 });
 
-test("secrets with DEFER_PAT=1 stores everything but the PAT; without it a missing PAT stops", { skip }, () => {
-    const { OPS_GITHUB_TOKEN, ...withoutPat } = secretEnv;
-    const deferred = sandbox(stubs);
-    const result = deferred.run("foundation.sh", [deferred.config, "secrets"], {
-        ...withoutPat,
-        DEFER_PAT: "1",
-        MODEL_KEY_AZURE_OPENAI: "aoai-model-key",
-    });
+test("secrets stores the GitHub App key without a PAT; a missing or invalid key stops before any write", { skip }, () => {
+    const box = sandbox(stubs);
+    const result = box.run("foundation.sh", [box.config, "secrets"], { ...secretEnv, MODEL_KEY_AZURE_OPENAI: "aoai-model-key" });
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(deferred.read("config-githubWebhookSecret"), "webhook-secret-value");
+    assert.equal(box.read("config-githubAppPrivateKey"), app.privateKey.trimEnd());
     assert.ok(!result.calls.some((call) => call.includes("opsGithubToken")));
-    const strict = sandbox(stubs);
-    const stopped = strict.run("foundation.sh", [strict.config, "secrets"], { ...withoutPat, MODEL_KEY_AZURE_OPENAI: "aoai-model-key" });
-    assert.equal(stopped.status, 1);
-    assert.match(stopped.stderr, /OPS_GITHUB_TOKEN is not set/);
+    const { GITHUB_APP_PRIVATE_KEY_FILE, ...withoutKey } = secretEnv;
+    for (const [env, message] of [
+        [withoutKey, /GITHUB_APP_PRIVATE_KEY_FILE is not set/],
+        [{ ...withoutKey, GITHUB_APP_PRIVATE_KEY_FILE: box.config }, /is not a readable PEM private key/],
+    ]) {
+        const strict = sandbox(stubs);
+        const stopped = strict.run("foundation.sh", [strict.config, "secrets"], { ...env, MODEL_KEY_AZURE_OPENAI: "aoai-model-key" });
+        assert.equal(stopped.status, 1);
+        assert.match(stopped.stderr, message);
+        assert.ok(!stopped.calls.some((call) => call.includes("config set")), "nothing written");
+    }
 });
 
 test("secrets without any model key stops before writing stack config", { skip }, () => {

@@ -2,6 +2,7 @@
 // Kubernetes access). Stubs append every call to $STUB_LOG as "<tool> <args>" and keep
 // state as files in $STUB_STATE.
 import { spawnSync } from "node:child_process";
+import { generateKeyPairSync } from "node:crypto";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -43,7 +44,9 @@ export function sandbox(stubs, { envFile } = {}) {
                 "LOCATION=germanywestcentral",
                 "ENVIRONMENT=staging",
                 "GITHUB_REPO=mmkdigitalio/hackathon-platform-team",
-                'PAT_REPOS="mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine"',
+                "GITHUB_APP_ID=5542094",
+                "GITHUB_APP_INSTALLATION_ID=176901698",
+                'AGENT_REPOS="mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine"',
                 "STATE_STORAGE_ACCOUNT=stmmkstatetest",
             ].join("\n"),
     );
@@ -73,25 +76,69 @@ export function sandbox(stubs, { envFile } = {}) {
     };
 }
 
+// Throwaway RSA key pair of a GitHub App, written as PEM files into a new directory.
+export function appKeys() {
+    const dir = mkdtempSync(join(tmpdir(), "github-app-"));
+    const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: "spki", format: "pem" },
+        privateKeyEncoding: { type: "pkcs8", format: "pem" },
+    });
+    const privateKeyFile = join(dir, "app.pem");
+    const publicKeyFile = join(dir, "app.pub.pem");
+    writeFileSync(privateKeyFile, privateKey, { mode: 0o600 });
+    writeFileSync(publicKeyFile, publicKey);
+    return { privateKey, privateKeyFile, publicKeyFile };
+}
+
 // GitHub REST stub for curl: status per "<METHOD> <path>"; $CURL_DENY lists
-// "<METHOD> <repo-relative path prefix>@<repo>" entries answered with 403.
+// "<METHOD> <repo-relative path prefix>@<repo>" entries answered with 403. GitHub App
+// calls need a JWT that verifies against $APP_PUBLIC_KEY; repositories in $APP_MISSING have
+// no installation and "<permission>@<repo>" entries in $APP_READ_ONLY are granted read only.
+// Calls with -w '\n%{http_code}' get the body, a newline and the status.
 export const curlStub = `
-method=GET; url=""; prev=""
-for a in "$@"; do [[ "$prev" == "-X" ]] && method="$a"; [[ "$a" == https://* ]] && url="$a"; prev="$a"; done
+method=GET; url=""; prev=""; with_body=0
+for a in "$@"; do
+  [[ "$prev" == "-X" ]] && method="$a"; [[ "$a" == https://* ]] && url="$a"
+  [[ "$prev" == "-w" && "$a" == '\\n%{http_code}' ]] && with_body=1; prev="$a"
+done
+reply() { if (( with_body )); then printf '%s\\n%s' "$2" "$1"; else printf '%s' "$1"; fi; exit 0; }
 config="$(cat)"
-[[ "$config" == *'Authorization: Bearer '* ]] || { printf 401; exit 0; }
+[[ "$config" == *'Authorization: Bearer '* ]] || reply 401 '{}'
 token="\${config#*Bearer }"; token="\${token%%\\"*}"
-[[ "$token" == invalid* || "$token" == github_pat_invalid* ]] && { printf 401; exit 0; }
+[[ "$token" == invalid* || "$token" == github_pat_invalid* ]] && reply 401 '{}'
 echo "$method $url" >>"$STUB_STATE/curl-requests"
+jwt=0
+if [[ "$token" == eyJ* ]]; then
+  b64() { local b; b="$(tr '_-' '/+')"; while (( \${#b} % 4 )); do b="$b="; done; printf '%s' "$b" | openssl base64 -d -A; }
+  printf '%s' "\${token##*.}" | b64 >"$STUB_STATE/jwt-signature"
+  printf '%s' "\${token%.*}" | openssl dgst -sha256 -verify "\${APP_PUBLIC_KEY:-/nonexistent}" \\
+    -signature "$STUB_STATE/jwt-signature" >/dev/null 2>&1 || reply 401 '{}'
+  jwt=1
+fi
+if [[ "$method:$url" == POST:https://api.github.com/app/installations/176901698/access_tokens ]]; then
+  (( jwt )) || reply 401 '{}'
+  reply 201 '{"token":"ghs_installation_token"}'
+fi
 path="\${url#https://api.github.com/repos/}"
 owner="\${path%%/*}"; rest="\${path#*/}"; name="\${rest%%[/?]*}"; repo="$owner/$name"
 sub="\${rest#"$name"}"; sub="\${sub%%\\?*}"
+if [[ "$sub" == /installation ]]; then
+  (( jwt )) || reply 401 '{}'
+  [[ " \${APP_MISSING:-} " == *" $repo "* ]] && reply 404 '{"message":"Not Found"}'
+  permissions=""
+  for permission in issues pull_requests contents actions; do
+    access=write; [[ " \${APP_READ_ONLY:-} " == *" $permission@$repo "* ]] && access=read
+    permissions+="\\"$permission\\":\\"$access\\","
+  done
+  reply 200 "{\\"id\\":176901698,\\"permissions\\":{\${permissions%,}}}"
+fi
 for deny in \${CURL_DENY:-}; do
-  [[ "$deny" == "$method:$sub@$repo" || "$deny" == "$method:*@$repo" ]] && { printf 403; exit 0; }
+  [[ "$deny" == "$method:$sub@$repo" || "$deny" == "$method:*@$repo" ]] && reply 403 '{}'
 done
 case "$method:$sub" in
-  GET:*) printf 200 ;;
-  POST:/actions/workflows/0/dispatches) printf 404 ;;
-  POST:*) printf 422 ;;
+  GET:*) reply 200 '{}' ;;
+  POST:/actions/workflows/0/dispatches) reply 404 '{}' ;;
+  POST:*) reply 422 '{}' ;;
 esac
 `;

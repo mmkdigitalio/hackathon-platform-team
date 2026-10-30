@@ -32,7 +32,7 @@ load_bootstrap_env() {
     # shellcheck disable=SC1090
     source "$file"
     local name
-    for name in SUBSCRIPTION_ID LOCATION ENVIRONMENT GITHUB_REPO PAT_REPOS STATE_STORAGE_ACCOUNT; do
+    for name in SUBSCRIPTION_ID LOCATION ENVIRONMENT GITHUB_REPO AGENT_REPOS STATE_STORAGE_ACCOUNT; do
         [[ -n "${!name:-}" ]] || die "$name is empty in $file."
     done
     [[ "$ENVIRONMENT" =~ ^(staging|production)$ ]] || die "ENVIRONMENT must be staging or production."
@@ -42,8 +42,8 @@ load_bootstrap_env() {
     STATE_RESOURCE_GROUP="$(jq -er .stateBackend.resourceGroup "$conventions_file")"
     STATE_CONTAINER="$(jq -er .stateBackend.container "$conventions_file")"
     FOUNDATION_STACK="organization/foundation/$ENVIRONMENT"
-    export SUBSCRIPTION_ID LOCATION ENVIRONMENT GITHUB_REPO PAT_REPOS STATE_STORAGE_ACCOUNT \
-        STATE_RESOURCE_GROUP STATE_CONTAINER FOUNDATION_STACK
+    export SUBSCRIPTION_ID LOCATION ENVIRONMENT GITHUB_REPO AGENT_REPOS STATE_STORAGE_ACCOUNT \
+        STATE_RESOURCE_GROUP STATE_CONTAINER FOUNDATION_STACK GITHUB_APP_ID GITHUB_APP_INSTALLATION_ID
 }
 
 # HTTP status of a GitHub REST call. The token goes to curl through a config on stdin,
@@ -55,6 +55,39 @@ github_status() {
     [[ -z "$body" ]] || args+=(--data "$body")
     code="$(curl "${args[@]}" "https://api.github.com/$path" <<<"header = \"Authorization: Bearer $token\"" 2>/dev/null || true)"
     printf '%s' "${code:-000}"
+}
+
+# Response body of a GitHub REST call; fails unless the status is 2xx.
+github_json() {
+    local token="$1" method="$2" path="$3" out
+    out="$(curl -sS -w '\n%{http_code}' -X "$method" -H 'Accept: application/vnd.github+json' \
+        -H 'X-GitHub-Api-Version: 2022-11-28' -K - "https://api.github.com/$path" \
+        <<<"header = \"Authorization: Bearer $token\"" 2>/dev/null)" || return 1
+    [[ "${out##*$'\n'}" == 2?? ]] || return 1
+    printf '%s' "${out%$'\n'*}"
+}
+
+base64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+
+# JWT of the agent's GitHub App (RS256, backdated 60 s against clock skew, valid 9 minutes).
+# The PEM comes as a value, also with escaped line breaks, and reaches openssl through a
+# file descriptor, never through argv.
+github_app_jwt() {
+    local app_id="$1" key="${2//\\n/$'\n'}" header payload signature now
+    now="$(date +%s)"
+    header="$(printf '%s' '{"alg":"RS256","typ":"JWT"}' | base64url)"
+    payload="$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' $((now - 60)) $((now + 540)) "$app_id" | base64url)"
+    signature="$(printf '%s.%s' "$header" "$payload" |
+        openssl dgst -sha256 -sign <(printf '%s\n' "$key") 2>/dev/null | base64url)" || return 1
+    [[ -n "$signature" ]] || return 1
+    printf '%s.%s.%s' "$header" "$payload" "$signature"
+}
+
+# Installation token of the GitHub App (valid one hour), the same access the agent uses.
+github_app_token() {
+    local app_id="$1" key="$2" installation_id="$3" jwt
+    jwt="$(github_app_jwt "$app_id" "$key")" || return 1
+    github_json "$jwt" POST "app/installations/$installation_id/access_tokens" | jq -er .token
 }
 
 # Storage key of the state backend; requires an Azure CLI login.

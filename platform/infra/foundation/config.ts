@@ -27,6 +27,7 @@ export interface FoundationConfig {
     modelApiKeys: pulumi.Output<Record<string, string>>;
     githubWebhookSecret: pulumi.Output<string>;
     opsGithubToken: pulumi.Output<string>;
+    githubAppPrivateKey: pulumi.Output<string>;
 }
 
 // Comma-separated list, e.g. "a@example.org, b@example.org"; repeated addresses are dropped.
@@ -87,7 +88,9 @@ export function loadConfig(): FoundationConfig {
         catalogDir: config.get("catalogDir") ?? defaultCatalogDir,
         modelApiKeys,
         githubWebhookSecret: config.requireSecret("githubWebhookSecret"),
-        // Empty until the agent PAT is added (DEFER_PAT, operations/foundation/bootstrap.md).
+        // Fallback only: the agent uses its GitHub App; empty without a PAT.
         opsGithubToken: config.getSecret("opsGithubToken") ?? pulumi.secret(""),
+        // PEM of the agent's GitHub App; empty until foundation.sh secrets stores it.
+        githubAppPrivateKey: config.getSecret("githubAppPrivateKey") ?? pulumi.secret(""),
     };
 }

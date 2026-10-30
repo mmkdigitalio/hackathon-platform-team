@@ -30,6 +30,10 @@ test("spec: baseDomain is the ingress IP with dashes under sslip.io", () => {
     assert.deepEqual(run.outputs.modelApiKeys, { "azure-openai": "aoai-test-key" });
 });
 
+test("the GitHub App key is passed on as a multi-line secret output", () => {
+    assert.equal(run.outputs.githubAppPrivateKey, "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----");
+});
+
 test("platformVersions reports the configured component versions", () => {
     assert.deepEqual(run.outputs.platformVersions, {
         kubernetes: "1.34.0",

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
-import { curlStub, sandbox, skipWithoutBash as skip } from "./helpers/script-stubs.mjs";
+import { appKeys, curlStub, sandbox, skipWithoutBash as skip } from "./helpers/script-stubs.mjs";
 
 const kubeconfig = [
     "apiVersion: v1",
@@ -44,6 +44,7 @@ esac
     curl: curlStub,
 };
 
+const app = appKeys();
 const outputs = {
     FOUNDATION_STATE_OUTCOME: "success",
     KUBECONFIG_CONTENT: kubeconfig,
@@ -57,8 +58,12 @@ const outputs = {
     DIAGNOSTICS_ACCOUNT: "stmmkdiag",
     DIAGNOSTICS_CONTAINER: "diagnostics",
     DIAGNOSTICS_KEY: "ZGlhZ25vc3RpY3Mta2V5",
-    AGENT_GITHUB_TOKEN: "github_pat_agent_value",
-    PAT_REPOS: "mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine",
+    // The foundation output may carry the PEM with escaped line breaks.
+    GITHUB_APP_PRIVATE_KEY: app.privateKey.replaceAll("\n", "\\n"),
+    GITHUB_APP_ID: "5542094",
+    GITHUB_APP_INSTALLATION_ID: "176901698",
+    APP_PUBLIC_KEY: app.publicKeyFile,
+    AGENT_REPOS: "mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine",
 };
 
 function runCheck(env = {}) {
@@ -78,7 +83,8 @@ test("spec scenario: all access paths pass and every category is reported on its
         assert.match(row(result.summary, category), /\| pass \|/, category);
     }
     assert.throws(() => result.box.read("blob"), /ENOENT/, "the test blob is deleted again");
-    for (const secret of ["acr-admin-password", "pg-admin-password", "ZGlhZ25vc3RpY3Mta2V5", "KUBE-TOKEN-VALUE", "github_pat_agent_value"]) {
+    assert.match(result.box.read("curl-requests"), /POST https:\/\/api.github.com\/app\/installations\/176901698\/access_tokens/);
+    for (const secret of ["acr-admin-password", "pg-admin-password", "ZGlhZ25vc3RpY3Mta2V5", "KUBE-TOKEN-VALUE", "PRIVATE KEY", "ghs_installation_token"]) {
         assert.ok(!result.calls.some((call) => call.includes(secret)), `${secret} appeared on a command line`);
         assert.ok(!result.stderr.includes(secret) && !result.summary.includes(secret), `${secret} was printed`);
     }

@@ -32,6 +32,7 @@
     "githubWebhookSecret",
     "modelApiKeys",
     "opsGithubToken",
+    "githubAppPrivateKey",
     "ingressClassName",
     "clusterIssuerName",
     "publicScheme"
@@ -73,7 +74,8 @@
       "minProperties": 1,
       "additionalProperties": { "type": "string", "minLength": 1 }
     },
-    "opsGithubToken": { "type": "string", "x-secret": true, "description": "Fine-grained PAT of the agent." },
+    "opsGithubToken": { "type": "string", "x-secret": true, "description": "Optional fine-grained PAT of the agent; empty when only the GitHub App is used." },
+    "githubAppPrivateKey": { "type": "string", "x-secret": true, "description": "Addition: PEM private key of the agent's GitHub App; empty until stored." },
     "ingressClassName": { "type": "string", "minLength": 1, "description": "Addition: IngressClass for app Ingress rules." },
     "clusterIssuerName": { "type": "string", "minLength": 1, "description": "Addition: cert-manager ClusterIssuer (Let's Encrypt, HTTP-01) for app Ingress rules." },
     "publicScheme": {

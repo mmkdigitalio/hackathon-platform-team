@@ -6,8 +6,13 @@ import { contractValidator, runFoundation } from "./helpers/foundation-mocks.mjs
 
 let run;
 before(async () => {
-    // Also the first deployment without the agent PAT (DEFER_PAT, bootstrap.md).
-    run = await runFoundation({ httpFallback: "true", containerInsights: "false", opsGithubToken: undefined });
+    // Also a deployment before the GitHub App key is stored, and without the optional PAT.
+    run = await runFoundation({
+        httpFallback: "true",
+        containerInsights: "false",
+        opsGithubToken: undefined,
+        githubAppPrivateKey: undefined,
+    });
 });
 
 const webTest = (name) =>
@@ -37,6 +42,7 @@ test("without Container Insights there is no add-on and no data collection rule"
     assert.equal(run.resources.some((r) => r.type.startsWith("azure-native:monitor:DataCollectionRule")), false);
 });
 
-test("without opsGithubToken the contract output is an empty secret", () => {
+test("without PAT and GitHub App key both contract outputs are empty secrets", () => {
     assert.equal(run.outputs.opsGithubToken, "");
+    assert.equal(run.outputs.githubAppPrivateKey, "");
 });

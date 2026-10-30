@@ -26,6 +26,7 @@ export const baseConfig = {
     modelApiKeys: JSON.stringify({ "azure-openai": "aoai-test-key" }),
     githubWebhookSecret: "github-webhook-secret-value",
     opsGithubToken: "github_pat_test_value",
+    githubAppPrivateKey: "-----BEGIN PRIVATE KEY-----\ntest\n-----END PRIVATE KEY-----",
 };
 
 // Input property that carries the Azure name, per resource type.
@@ -82,11 +83,12 @@ export async function runFoundation(overrides = {}) {
     process.env.PULUMI_CONFIG = JSON.stringify(
         Object.fromEntries(Object.entries(config).map(([key, value]) => [`foundation:${key}`, value])),
     );
-    // modelApiKeys, githubWebhookSecret and opsGithubToken are secret config values.
+    // modelApiKeys, githubWebhookSecret, opsGithubToken and githubAppPrivateKey are secret config values.
     process.env.PULUMI_CONFIG_SECRET_KEYS = JSON.stringify([
         "foundation:modelApiKeys",
         "foundation:githubWebhookSecret",
         "foundation:opsGithubToken",
+        "foundation:githubAppPrivateKey",
     ]);
 
     const resources = [];

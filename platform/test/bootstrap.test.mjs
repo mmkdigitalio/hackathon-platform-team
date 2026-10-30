@@ -2,11 +2,14 @@
 // before anything is created, every step only creates what is missing, and secret values
 // never reach a command line.
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { test } from "node:test";
-import { curlStub, sandbox, skipWithoutBash as skip } from "./helpers/script-stubs.mjs";
+import { appKeys, curlStub, sandbox, skipWithoutBash as skip } from "./helpers/script-stubs.mjs";
 
 const stateKey = "STATE-ACCOUNT-KEY-VALUE";
 const pat = "github_pat_agent_token_value";
+const app = appKeys();
+const withApp = { GITHUB_APP_PRIVATE_KEY_FILE: app.privateKeyFile, APP_PUBLIC_KEY: app.publicKeyFile };
 
 const azStub = `
 case "$*" in
@@ -51,60 +54,62 @@ const created = (calls) => calls.filter((call) => / create|secret set|provider r
 
 // ---- preflight ----
 
-test("preflight passes with Contributor, repository admin and a complete PAT, creating nothing", { skip }, () => {
+test("preflight passes with Contributor, repository admin and a complete GitHub App installation, creating nothing", { skip }, () => {
     const box = newSandbox();
-    const result = box.run("preflight.sh", [box.config], { OPS_GITHUB_TOKEN: pat });
+    const result = box.run("preflight.sh", [box.config], withApp);
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stderr, /OK +Contributor \(or higher\)/);
-    assert.match(result.stderr, /OK +PAT Actions \(write\) on mmkdigitalio\/hackathon-platform-affine/);
+    assert.match(result.stderr, /OK +GitHub App actions \(write\) on mmkdigitalio\/hackathon-platform-affine/);
     assert.match(result.stderr, /Preflight passed/);
     assert.deepEqual(created(result.calls), []);
+    assert.ok(box.read("curl-requests").split("\n").filter(Boolean).every((call) => call.startsWith("GET ")), "only reads");
+    assert.ok(!result.calls.some((call) => call.includes("PRIVATE KEY")), "the key stays off the command line");
 });
 
-test("spec scenario: a PAT without Actions rights stops the preflight and names the right", { skip }, () => {
+test("spec scenario: a GitHub App without Actions write stops the preflight and names the right", { skip }, () => {
     const box = newSandbox();
     const result = box.run("preflight.sh", [box.config], {
-        OPS_GITHUB_TOKEN: pat,
-        CURL_DENY: "GET:/actions/runs@mmkdigitalio/hackathon-platform-affine POST:/actions/workflows/0/dispatches@mmkdigitalio/hackathon-platform-affine",
+        ...withApp,
+        APP_READ_ONLY: "actions@mmkdigitalio/hackathon-platform-affine",
     });
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /- PAT permission Actions \(read\) on mmkdigitalio\/hackathon-platform-affine \(HTTP 403\)/);
-    assert.match(result.stderr, /- PAT permission Actions \(write\) on mmkdigitalio\/hackathon-platform-affine \(HTTP 403\)/);
+    assert.match(result.stderr, /- GitHub App permission actions \(write\) on mmkdigitalio\/hackathon-platform-affine \(granted: read\)/);
     assert.doesNotMatch(result.stderr, /MISSING.*hackathon-platform-team/);
 });
 
-test("missing write permissions are detected through the invalid-body probes", { skip }, () => {
+test("a repository without the app installation is reported by name", { skip }, () => {
     const box = newSandbox();
-    const result = box.run("preflight.sh", [box.config], {
-        OPS_GITHUB_TOKEN: pat,
-        CURL_DENY: "POST:/issues@mmkdigitalio/hackathon-platform-team POST:/git/refs@mmkdigitalio/hackathon-platform-team",
-    });
+    const result = box.run("preflight.sh", [box.config], { ...withApp, APP_MISSING: "mmkdigitalio/hackathon-platform-affine" });
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /PAT permission Issues \(write\) on mmkdigitalio\/hackathon-platform-team/);
-    assert.match(result.stderr, /PAT permission Contents \(write\) on mmkdigitalio\/hackathon-platform-team/);
+    assert.match(result.stderr, /- GitHub App 5542094 installed on mmkdigitalio\/hackathon-platform-affine/);
+    assert.match(result.stderr, /OK +GitHub App issues \(write\) on mmkdigitalio\/hackathon-platform-team/);
+});
+
+test("a key of another app and an unreadable key file are reported", { skip }, () => {
+    const box = newSandbox();
+    const other = appKeys();
+    const wrong = box.run("preflight.sh", [box.config], { ...withApp, GITHUB_APP_PRIVATE_KEY_FILE: other.privateKeyFile });
+    assert.equal(wrong.status, 1);
+    assert.match(wrong.stderr, /- GitHub App 5542094 installed on mmkdigitalio\/hackathon-platform-team \(or the key belongs to another app\)/);
+    const missing = box.run("preflight.sh", [box.config], { ...withApp, GITHUB_APP_PRIVATE_KEY_FILE: join(box.dir, "missing.pem") });
+    assert.equal(missing.status, 1);
+    assert.match(missing.stderr, /- GitHub App private key .*missing\.pem \(no readable PEM private key\)/);
 });
 
 test("missing Contributor and missing repository admin are both reported", { skip }, () => {
     const box = newSandbox();
-    const result = box.run("preflight.sh", [box.config], { OPS_GITHUB_TOKEN: pat, NOT_CONTRIBUTOR: "1", NOT_ADMIN: "1" });
+    const result = box.run("preflight.sh", [box.config], { ...withApp, NOT_CONTRIBUTOR: "1", NOT_ADMIN: "1" });
     assert.equal(result.status, 1);
     assert.match(result.stderr, /- Contributor on subscription sub-1/);
     assert.match(result.stderr, /- Admin on mmkdigitalio\/hackathon-platform-team/);
 });
 
-test("an invalid PAT is reported per repository", { skip }, () => {
-    const box = newSandbox();
-    const result = box.run("preflight.sh", [box.config], { OPS_GITHUB_TOKEN: "invalid-token" });
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /PAT access to repository mmkdigitalio\/hackathon-platform-affine \(HTTP 401\)/);
-});
-
-test("preflight without OPS_GITHUB_TOKEN stops before any call", { skip }, () => {
+test("without GITHUB_APP_PRIVATE_KEY_FILE the GitHub App checks are skipped with a notice", { skip }, () => {
     const box = newSandbox();
     const result = box.run("preflight.sh", [box.config]);
-    assert.equal(result.status, 1);
-    assert.match(result.stderr, /OPS_GITHUB_TOKEN is not set/);
-    assert.deepEqual(result.calls, []);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /INFO +GitHub App checks skipped/);
+    assert.ok(!result.calls.some((call) => call.startsWith("curl")), "no GitHub call");
 });
 
 // A node pool without availability zones only needs the size in the region, so a
@@ -114,7 +119,8 @@ const defaultEnvLines = [
     "LOCATION=germanywestcentral",
     "ENVIRONMENT=staging",
     "GITHUB_REPO=mmkdigitalio/hackathon-platform-team",
-    'PAT_REPOS="mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine"',
+    "GITHUB_APP_ID=5542094",
+    'AGENT_REPOS="mmkdigitalio/hackathon-platform-team mmkdigitalio/hackathon-platform-affine"',
     "STATE_STORAGE_ACCOUNT=stmmkstatetest",
 ];
 const sku = (name, family, vcpus, restrictions) =>
@@ -130,7 +136,6 @@ test("a VM size restricted only in single zones passes and its vCPU quota is che
         { envFile: [...defaultEnvLines, "NODE_VM_SIZE=Standard_D2als_v6", "NODE_COUNT=1"].join("\n") },
     );
     const result = box.run("preflight.sh", [box.config], {
-        OPS_GITHUB_TOKEN: pat,
         SKUS_JSON: sku("Standard_D2als_v6", "standardDalv6Family", 2, [zoneRestriction]),
         USAGE_JSON: usage([["standardDalv6Family", "0", "10"], ["cores", "0", "10"]]),
     });
@@ -147,7 +152,6 @@ test("a regional restriction and a missing vCPU quota are both reported", { skip
         { envFile: [...defaultEnvLines, "NODE_VM_SIZE=Standard_D4s_v5", "NODE_COUNT=2"].join("\n") },
     );
     const result = box.run("preflight.sh", [box.config], {
-        OPS_GITHUB_TOKEN: pat,
         SKUS_JSON: sku("Standard_D4s_v5", "standardDSv5Family", 4, [locationRestriction, zoneRestriction]),
         USAGE_JSON: usage([["standardDSv5Family", "0", "0"], ["cores", "6", "10"]]),
     });
@@ -157,20 +161,11 @@ test("a regional restriction and a missing vCPU quota are both reported", { skip
     assert.match(result.stderr, /- vCPU quota cores in germanywestcentral: 2 x Standard_D4s_v5 need 8, 4 free/);
 });
 
-test("DEFER_PAT=1 skips the PAT checks with a notice instead of stopping", { skip }, () => {
-    const box = newSandbox();
-    const result = box.run("preflight.sh", [box.config], { DEFER_PAT: "1" });
-    assert.equal(result.status, 0, result.stderr);
-    assert.match(result.stderr, /INFO +PAT checks skipped \(DEFER_PAT=1\)/);
-    assert.ok(!result.calls.some((call) => call.startsWith("curl")), "no PAT probe");
-});
-
 test("a region where PostgreSQL Flexible Server is restricted fails the preflight", { skip }, () => {
     const box = newSandbox();
-    const ok = box.run("preflight.sh", [box.config], { OPS_GITHUB_TOKEN: pat });
+    const ok = box.run("preflight.sh", [box.config]);
     assert.match(ok.stderr, /OK +PostgreSQL Flexible Server can be provisioned in germanywestcentral/);
     const result = box.run("preflight.sh", [box.config], {
-        OPS_GITHUB_TOKEN: pat,
         PG_REASON: "Provisioning is restricted in this region. Please choose a different region.",
     });
     assert.equal(result.status, 1);
@@ -179,7 +174,7 @@ test("a region where PostgreSQL Flexible Server is restricted fails the prefligh
 
 test("an invalid env file is rejected", { skip }, () => {
     const box = sandbox({}, { envFile: "SUBSCRIPTION_ID=sub-1\n" });
-    const result = box.run("preflight.sh", [box.config], { OPS_GITHUB_TOKEN: pat });
+    const result = box.run("preflight.sh", [box.config]);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /LOCATION is empty/);
 });
@@ -192,7 +187,7 @@ function assertNoSecretInArgv(calls) {
     }
 }
 
-test("first run creates the state backend and all four repository secrets", { skip }, () => {
+test("first run creates the state backend and all four repository secrets, the PAT when given", { skip }, () => {
     const box = newSandbox();
     const result = box.run("bootstrap.sh", [box.config], { OPS_GITHUB_TOKEN: pat, PULUMI_CONFIG_PASSPHRASE: "first-passphrase" });
     assert.equal(result.status, 0, result.stderr);
@@ -232,14 +227,13 @@ test("spec scenario: an interrupted first bootstrap is completed without clean-u
     assert.equal(box.read("secret-PULUMI_CONFIG_PASSPHRASE"), "first-passphrase");
 });
 
-test("a bootstrap with DEFER_PAT=1 creates the backend and every secret except the PAT", { skip }, () => {
+test("a bootstrap without OPS_GITHUB_TOKEN creates the backend and every secret except the PAT", { skip }, () => {
     const box = newSandbox();
-    const result = box.run("bootstrap.sh", [box.config], { DEFER_PAT: "1", PULUMI_CONFIG_PASSPHRASE: "first-passphrase" });
+    const result = box.run("bootstrap.sh", [box.config], { PULUMI_CONFIG_PASSPHRASE: "first-passphrase" });
     assert.equal(result.status, 0, result.stderr);
     assert.equal(box.read("secret-PULUMI_BACKEND_KEY"), stateKey);
     assert.equal(box.read("secret-PULUMI_CONFIG_PASSPHRASE"), "first-passphrase");
     assert.ok(!result.calls.some((call) => call.startsWith("gh secret set OPS_GITHUB_TOKEN")));
-    assert.match(result.stderr, /OPS_GITHUB_TOKEN deferred/);
 });
 
 test("a first run without passphrase stops before anything is created", { skip }, () => {

@@ -1,20 +1,17 @@
 #!/usr/bin/env bash
 # Read-only check that the person running the bootstrap has every required right:
 # Contributor on the subscription, admin on the repository (repository secrets, issue
-# webhook) and a fine-grained PAT with Issues, Contents, Pull requests and Actions on
-# every repository in PAT_REPOS. Creates nothing. Exits non-zero and names each gap.
+# webhook) and, given its private key, the agent's GitHub App installed on every repository
+# in AGENT_REPOS with write access to issues, pull requests, contents and actions. Creates
+# nothing. Exits non-zero and names each gap.
 #
-#   OPS_GITHUB_TOKEN=... platform/scripts/bootstrap/preflight.sh platform/scripts/bootstrap/staging.env
+#   [GITHUB_APP_PRIVATE_KEY_FILE=...] platform/scripts/bootstrap/preflight.sh platform/scripts/bootstrap/staging.env
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR source=lib.sh
 source "$here/lib.sh"
 load_bootstrap_env "${1:-}"
-require_tools az gh jq curl
-# DEFER_PAT=1 deploys the foundation before the agent PAT exists; the PAT checks are then
-# skipped and the PAT is added later (bootstrap.md, "Deferred PAT").
-[[ -n "${OPS_GITHUB_TOKEN:-}" || "${DEFER_PAT:-}" == 1 ]] ||
-    die "OPS_GITHUB_TOKEN is not set: export the fine-grained PAT of the agent (bootstrap.md, step 1), or set DEFER_PAT=1 to add it later."
+require_tools az gh jq curl openssl
 
 missing=()
 pass() { log "OK      $*"; }
@@ -47,36 +44,30 @@ else
     fail "Admin on $GITHUB_REPO (repository secrets, issue webhook)"
 fi
 
-# PAT permissions. Reads must return 200. Writes are probed with an invalid body: 422
-# (validation failed) proves the permission without creating anything, 403 means it is
-# missing. 409 is an empty repository.
-probe() {
-    local repo="$1" permission="$2" method="$3" path="$4" body="$5" accepted="$6" code
-    code="$(github_status "$OPS_GITHUB_TOKEN" "$method" "repos/$repo$path" "$body")"
-    if [[ " $accepted " == *" $code "* ]]; then
-        pass "PAT $permission on $repo"
-    else
-        fail "PAT permission $permission on $repo (HTTP $code)"
-    fi
-}
-[[ -n "${OPS_GITHUB_TOKEN:-}" ]] ||
-    info "PAT checks skipped (DEFER_PAT=1): the agent and the PR workflows stay blocked until the PAT is added."
-for repo in ${OPS_GITHUB_TOKEN:+$PAT_REPOS}; do
-    code="$(github_status "$OPS_GITHUB_TOKEN" GET "repos/$repo")"
-    if [[ "$code" != "200" ]]; then
-        fail "PAT access to repository $repo (HTTP $code)"
-        continue
-    fi
-    probe "$repo" "Issues (read)" GET "/issues?per_page=1" "" "200"
-    probe "$repo" "Pull requests (read)" GET "/pulls?per_page=1" "" "200"
-    probe "$repo" "Contents (read)" GET "/commits?per_page=1" "" "200 409"
-    probe "$repo" "Actions (read)" GET "/actions/runs?per_page=1" "" "200"
-    probe "$repo" "Issues (write)" POST "/issues" "{}" "422"
-    probe "$repo" "Pull requests (write)" POST "/pulls" "{}" "422"
-    probe "$repo" "Contents (write)" POST "/git/refs" "{}" "422"
-    # A dispatch to a workflow that does not exist: 404 or 422 with the permission.
-    probe "$repo" "Actions (write)" POST "/actions/workflows/0/dispatches" "{}" "404 422"
-done
+# GitHub App of the agent (replaces the PAT since 2026-10-30). The installation of each
+# repository carries the permissions the organization granted to the app.
+if [[ -z "${GITHUB_APP_PRIVATE_KEY_FILE:-}" ]]; then
+    info "GitHub App checks skipped: set GITHUB_APP_PRIVATE_KEY_FILE to the app's private key (bootstrap.md, step 1)."
+elif [[ -z "${GITHUB_APP_ID:-}" ]]; then
+    fail "GitHub App: GITHUB_APP_ID is empty in the bootstrap config"
+elif ! jwt="$(github_app_jwt "$GITHUB_APP_ID" "$(cat "$GITHUB_APP_PRIVATE_KEY_FILE" 2>/dev/null)")"; then
+    fail "GitHub App private key $GITHUB_APP_PRIVATE_KEY_FILE (no readable PEM private key)"
+else
+    for repo in $AGENT_REPOS; do
+        if ! installation="$(github_json "$jwt" GET "repos/$repo/installation")"; then
+            fail "GitHub App $GITHUB_APP_ID installed on $repo (or the key belongs to another app)"
+            continue
+        fi
+        for permission in issues pull_requests contents actions; do
+            access="$(jq -r --arg p "$permission" '.permissions[$p] // "none"' <<<"$installation")"
+            if [[ "$access" == write ]]; then
+                pass "GitHub App $permission (write) on $repo"
+            else
+                fail "GitHub App permission $permission (write) on $repo (granted: $access)"
+            fi
+        done
+    done
+fi
 
 # Region information for choosing the stack configuration.
 if versions="$(az aks get-versions --location "$LOCATION" --query 'values[?!isPreview].version' -o tsv 2>/dev/null)"; then
