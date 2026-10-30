@@ -50,7 +50,7 @@ Für `postgres-database` SHALL der App-Stack über das PostgreSQL-Protokoll, z. 
 - **AND** wurde dafür keine Azure-Anmeldung benötigt
 
 ### Requirement: Datenbaustein redis
-Für `redis` SHALL der App-Stack Redis per Chart mit fester Version im App-Namespace bereitstellen und das Passwort als `app:`-Secret liefern. Redis SHALL als flüchtig gelten; dauerhafte App-Daten SHALL in `postgres-database` oder `persistent-volume` liegen.
+Für `redis` SHALL der App-Stack Redis mit fester, per Digest referenzierter Image-Version im App-Namespace bereitstellen und das Passwort als `app:`-Secret liefern. Redis SHALL als flüchtig gelten; dauerhafte App-Daten SHALL in `postgres-database` oder `persistent-volume` liegen.
 
 #### Scenario: Redis neu gestartet
 - **WHEN** der Redis-Pod von AFFiNE neu startet

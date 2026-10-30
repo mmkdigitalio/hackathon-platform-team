@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.platform.replicas }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecretName }}
+      containers:
+        - name: web
+          image: {{ .Values.image.repository }}@{{ .Values.image.digest }}
+          ports:
+            - containerPort: 80
+          env:
+            - name: MESSAGE
+              value: {{ .Values.message | quote }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}
+          readinessProbe:
+            httpGet: { path: /, port: 80 }
+          {{- if .Values.platform.persistentVolumeClaim }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+      {{- if .Values.platform.persistentVolumeClaim }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.platform.persistentVolumeClaim }}
+      {{- end }}

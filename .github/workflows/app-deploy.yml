@@ -1,0 +1,289 @@
+# Rollt den Git-Sollzustand von Apps aus: einziger automatischer Weg nach staging (Phase 1).
+# Ablauf je App und Umgebung: Foundation-Ausgaben, Validierung, Host-Prüfung, Sperre, Plan,
+# pulumi up --refresh, Rollout-Prüfung, Smoke-Job, Ergebnis, Freigabe.
+name: app-deploy
+run-name: >-
+  app-deploy ${{ inputs.appId || 'push' }}/${{ inputs.environment || 'environments' }}
+  op=${{ inputs.operationId || (github.event_name == 'workflow_dispatch' && format('gha-{0}-{1}', github.run_id, github.run_attempt) || format('gha-{0}-{1}-*', github.run_id, github.run_attempt)) }}
+  action=${{ inputs.actionId || '-' }}
+
+on:
+  push:
+    branches: [main]
+    paths: ["platform/environments/**"]
+  workflow_dispatch:
+    inputs:
+      appId:
+        description: App-ID aus platform/catalog/
+        required: true
+        type: string
+      environment:
+        description: Umgebung
+        required: true
+        type: choice
+        options: [staging]
+        default: staging
+      operationId:
+        description: operationId des Auftraggebers; leer erzeugt gha-<run>-<versuch>
+        required: false
+        type: string
+      actionId:
+        description: actionId des Agenten zur Zuordnung des Laufs
+        required: false
+        type: string
+      force:
+        description: Break-glass, nur wirksam wenn PostgreSQL nicht erreichbar ist
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  PULUMI_VERSION: "3.273.0"
+  FOUNDATION_CONTRACT_VERSION: "1"
+
+jobs:
+  targets:
+    name: Ziele
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: platform/infra/app-runtime/scripts/ci-setup.sh --catalog-only
+      - name: Ziele bestimmen
+        id: targets
+        working-directory: platform/schemas/app-catalog
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          APP_ID: ${{ inputs.appId }}
+          ENVIRONMENT: ${{ inputs.environment }}
+          OPERATION_ID: ${{ inputs.operationId }}
+          ACTION_ID: ${{ inputs.actionId }}
+        run: |
+          if [[ "$EVENT" == "workflow_dispatch" ]]; then
+            [[ "$APP_ID" =~ ^[a-z][a-z0-9-]{1,30}$ ]] || { echo "::error::ungültige appId"; exit 1; }
+            for v in "$OPERATION_ID" "$ACTION_ID"; do
+              [[ -z "$v" || "$v" =~ ^[A-Za-z0-9._:-]{1,100}$ ]] || { echo "::error::ungültige operationId/actionId"; exit 1; }
+            done
+            if [[ ! -f "../../environments/$ENVIRONMENT/$APP_ID.yaml" ]]; then
+              echo "::error::platform/environments/$ENVIRONMENT/$APP_ID.yaml fehlt"; exit 1
+            fi
+            echo "matrix=[{\"appId\":\"$APP_ID\",\"environment\":\"$ENVIRONMENT\"}]" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-status "$BEFORE" "$GITHUB_SHA" -- ../../environments > "$RUNNER_TEMP/changes.txt"
+          npx tsx src/cli.ts affected --changed "$RUNNER_TEMP/changes.txt" --mode deploy > "$RUNNER_TEMP/affected.json"
+          python3 - "$RUNNER_TEMP/affected.json" <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, sys
+          print("matrix=" + json.dumps(json.load(open(sys.argv[1]))["stacks"]))
+          EOF
+          python3 - "$RUNNER_TEMP/affected.json" <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import json, sys
+          for d in json.load(open(sys.argv[1]))["decommission"]:
+              print(f"⚠️ `{d['file']}` wurde gelöscht. Der Stack bleibt unverändert; die Außerbetriebnahme "
+                    "ist ein separater Vorgang laut platform/operations/apps/README.md.")
+          EOF
+
+  deploy:
+    name: Deploy ${{ matrix.appId }}/${{ matrix.environment }}
+    needs: targets
+    if: needs.targets.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.targets.outputs.matrix) }}
+    # Ergänzt die Operations-Sperre, ersetzt sie nicht
+    concurrency:
+      group: app-deploy-${{ matrix.appId }}-${{ matrix.environment }}
+      cancel-in-progress: false
+    env:
+      APP_ID: ${{ matrix.appId }}
+      ENVIRONMENT: ${{ matrix.environment }}
+      OPERATION_ID: ${{ inputs.operationId || (github.event_name == 'workflow_dispatch' && format('gha-{0}-{1}', github.run_id, github.run_attempt) || format('gha-{0}-{1}-{2}-{3}', github.run_id, github.run_attempt, matrix.appId, matrix.environment)) }}
+      ACTION_ID: ${{ inputs.actionId }}
+      FORCE: ${{ inputs.force && 'true' || 'false' }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      DESIRED_GIT_SHA: ${{ github.sha }}
+      PULUMI_BACKEND_ACCOUNT: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+      PULUMI_BACKEND_KEY: ${{ secrets.PULUMI_BACKEND_KEY }}
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      APP_RUNTIME_GIT_SHA: ${{ github.sha }}
+      APP_RUNTIME_SKIP_BUILD: "1"
+      SCRIPTS: platform/infra/app-runtime/scripts
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Abhängigkeiten und Pulumi
+        run: |
+          "$SCRIPTS"/ci-setup.sh
+
+      # Keine Azure-Anmeldung: Zugänge kommen aus dem Pulumi-State über A's Composite Action
+      - name: Foundation-Ausgaben
+        id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      - name: Vertragsversion der Foundation-Ausgaben
+        id: contract
+        env:
+          ACTUAL: ${{ steps.foundation.outputs.contractVersion }}
+        run: |
+          [[ "$ACTUAL" == "$FOUNDATION_CONTRACT_VERSION" ]] || {
+            echo "::error::Foundation-Ausgabevertrag: erwartet contractVersion $FOUNDATION_CONTRACT_VERSION, vorhanden '${ACTUAL}'"; exit 1; }
+
+      - name: Validierung
+        id: validate
+        working-directory: platform/schemas/app-catalog
+        run: |
+          npx tsx src/cli.ts validate
+          npx tsx src/cli.ts show --app "$APP_ID" --env "$ENVIRONMENT" > "$RUNNER_TEMP/facts.json"
+          if python3 -c "import json,sys; sys.exit(0 if json.load(open('$RUNNER_TEMP/facts.json'))['placeholder'] else 1)"; then
+            echo "::error::Sollzustand enthält einen Platzhalter-Digest; kein Deployment"; exit 1
+          fi
+
+      - name: Zugänge vorbereiten und Host prüfen
+        id: access
+        env:
+          KUBECONFIG_CONTENT: ${{ steps.foundation.outputs.kubeconfig }}
+          BASE_DOMAIN: ${{ steps.foundation.outputs.baseDomain }}
+          OPERATIONS_API_HOST: ${{ steps.foundation.outputs.operationsApiHost }}
+          PGHOST: ${{ steps.foundation.outputs.postgresHost }}
+          PGUSER: ${{ steps.foundation.outputs.postgresAdminUser }}
+          PGPASSWORD: ${{ steps.foundation.outputs.postgresAdminPassword }}
+          PGDATABASE: ${{ steps.foundation.outputs.postgresOperationsDatabase }}
+        run: |
+          umask 077
+          printf '%s' "$KUBECONFIG_CONTENT" > "$RUNNER_TEMP/kubeconfig"
+          {
+            echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig"
+            echo "PGHOST=$PGHOST"
+            echo "PGUSER=$PGUSER"
+            echo "PGDATABASE=$PGDATABASE"
+            echo "PGSSLMODE=require"
+          } >> "$GITHUB_ENV"
+          printf 'PGPASSWORD=%s\n' "$PGPASSWORD" >> "$GITHUB_ENV"
+          host="$APP_ID.$BASE_DOMAIN"
+          echo "Host: $host"
+          if [[ "$APP_ID" == "operations-agent" && "$host" != "$OPERATIONS_API_HOST" ]]; then
+            echo "::error::Abgeleiteter Host $host weicht von operationsApiHost $OPERATIONS_API_HOST ab"; exit 1
+          fi
+
+      - name: Operations-Client installieren
+        run: |
+          [[ -d operations-agent ]] || { echo "::error::operations-agent/ fehlt (Lieferung von C/D)"; exit 1; }
+          python -m pip install --quiet ./operations-agent
+          ops --help >/dev/null
+
+      - name: Sperre erwerben
+        id: lock
+        run: |
+          "$SCRIPTS"/ops-lock.sh acquire && "$SCRIPTS"/ops-lock.sh renew-loop && "$SCRIPTS"/ops-lock.sh record started
+
+      - name: Plan prüfen
+        id: plan
+        run: |
+          "$SCRIPTS"/ops-lock.sh check
+          APP_RUNTIME_OPERATION_ID="$OPERATION_ID" "$SCRIPTS"/pulumi-stack.sh "$APP_ID" "$ENVIRONMENT" \
+            preview --refresh --diff --color never --suppress-outputs
+
+      - name: Ausrollen
+        id: up
+        run: |
+          "$SCRIPTS"/ops-lock.sh check
+          APP_RUNTIME_OPERATION_ID="$OPERATION_ID" "$SCRIPTS"/pulumi-stack.sh "$APP_ID" "$ENVIRONMENT" \
+            up --refresh --yes --skip-preview --color never --suppress-outputs
+          "$SCRIPTS"/pulumi-stack.sh "$APP_ID" "$ENVIRONMENT" stack output --json > "$RUNNER_TEMP/outputs.json"
+
+      - name: Rollout prüfen
+        id: rollout
+        run: |
+          ns="$APP_ID-$ENVIRONMENT"
+          for kind in deployment statefulset; do
+            for name in $(kubectl -n "$ns" get "$kind" -l "app.kubernetes.io/instance=$APP_ID" -o name); do
+              kubectl -n "$ns" rollout status "$name" --timeout=10m
+            done
+          done
+
+      - name: Smoke-Test
+        id: smoke
+        run: |
+          "$SCRIPTS"/ops-lock.sh check
+          "$SCRIPTS"/smoke-job.sh "$RUNNER_TEMP/outputs.json" "$RUNNER_TEMP/facts.json" "$RUNNER_TEMP/verification.json"
+
+      - name: Deployment-Ergebnis
+        if: always()
+        working-directory: platform/schemas/app-catalog
+        env:
+          OUTCOMES: >-
+            foundation=${{ steps.foundation.outcome }} contract=${{ steps.contract.outcome }}
+            validate=${{ steps.validate.outcome }} access=${{ steps.access.outcome }}
+            lock=${{ steps.lock.outcome }} plan=${{ steps.plan.outcome }} up=${{ steps.up.outcome }}
+            rollout=${{ steps.rollout.outcome }} smoke=${{ steps.smoke.outcome }}
+        run: |
+          failed=""
+          for o in $OUTCOMES; do
+            [[ "${o#*=}" == "failure" || "${o#*=}" == "cancelled" ]] && { failed="${o%=*}"; break; }
+          done
+          [[ -z "$failed" && "${{ steps.smoke.outcome }}" != "success" ]] && failed="smoke"
+          args=(--operation-id "$OPERATION_ID" --workflow-run "$RUN_URL" --app "$APP_ID" --env "$ENVIRONMENT"
+                --desired-git-sha "$DESIRED_GIT_SHA" --verification "$RUNNER_TEMP/verification.json")
+          if [[ -f "$RUNNER_TEMP/facts.json" ]]; then
+            image="$(python3 -c "import json; print(json.load(open('$RUNNER_TEMP/facts.json'))['image'])")"
+            chart="$(python3 -c "import json; print(json.load(open('$RUNNER_TEMP/facts.json'))['chartVersion'])")"
+            args+=(--desired-image-digest "${image##*@}" --desired-chart-version "$chart")
+          else
+            args+=(--desired-image-digest unbekannt --desired-chart-version unbekannt)
+          fi
+          [[ -n "$ACTION_ID" ]] && args+=(--action-id "$ACTION_ID")
+          [[ -n "$failed" ]] && args+=(--failed-step "$failed")
+          [[ -f "$RUNNER_TEMP/ops-lock-$APP_ID-$ENVIRONMENT/break-glass" ]] && args+=(--break-glass)
+          set +e
+          npx tsx src/cli.ts deployment-result "${args[@]}" > "$RUNNER_TEMP/deployment-result.json"
+          status=$?
+          set -e
+          {
+            echo "### Deployment $APP_ID/$ENVIRONMENT: $( [[ $status -eq 0 ]] && echo '✅ erfolgreich' || echo "❌ fehlgeschlagen${failed:+ ($failed)}" )"
+            echo ""
+            echo "operationId \`$OPERATION_ID\`${ACTION_ID:+, actionId \`$ACTION_ID\`}, Release \`$DESIRED_GIT_SHA\`"
+            echo '```json'
+            cat "$RUNNER_TEMP/deployment-result.json"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "${{ steps.lock.outcome }}" == "success" ]]; then
+            ../../infra/app-runtime/scripts/ops-lock.sh record "$( [[ $status -eq 0 ]] && echo succeeded || echo failed )" \
+              "$RUNNER_TEMP/deployment-result.json" || echo "::warning::Aktionsnachweis nicht geschrieben"
+          fi
+          exit $status
+
+      - name: Nachweise hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-${{ matrix.appId }}-${{ matrix.environment }}
+          path: |
+            ${{ runner.temp }}/deployment-result.json
+            ${{ runner.temp }}/verification.json
+          if-no-files-found: ignore
+
+      - name: Sperre freigeben
+        if: always() && steps.lock.outcome != 'skipped'
+        run: |
+          "$SCRIPTS"/ops-lock.sh release

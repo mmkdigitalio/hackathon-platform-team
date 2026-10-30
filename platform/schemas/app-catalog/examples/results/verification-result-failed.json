@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "0.1",
+  "appId": "affine",
+  "environment": "staging",
+  "release": {
+    "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "imageDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "chartVersion": "0.1.0"
+  },
+  "desiredRelease": {
+    "gitSha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "imageDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "chartVersion": "0.1.0"
+  },
+  "releaseMatchesDesired": true,
+  "deviations": [],
+  "checkRef": "ghcr.io/mmkdigitalio/affine-smoke@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "startedAt": "2026-10-30T12:00:00Z",
+  "finishedAt": "2026-10-30T12:00:12Z",
+  "success": false,
+  "exitCode": 1,
+  "failureReason": "Smoke-Test meldet Fehlschlag",
+  "evidence": [
+    { "check": "login", "success": true },
+    { "check": "document", "success": false, "detail": "GraphQL createDocument antwortet mit 500" },
+    { "check": "attachment", "success": false, "detail": "übersprungen, weil document fehlschlug" }
+  ],
+  "operationId": "op-2026-10-30-0042",
+  "workflowRun": "https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/1234567890"
+}

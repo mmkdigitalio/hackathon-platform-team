@@ -1,0 +1,4 @@
+apiVersion: v2
+name: runtime-test
+description: Nur lokal. Test-Chart für den App-Pfad (Werte-Vertrag platform, Pre-Install-Hook, Recreate, PVC).
+version: 0.2.0

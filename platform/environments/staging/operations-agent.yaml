@@ -1,0 +1,13 @@
+# Sollzustand des Betriebsagenten in staging. Image-Digest und Chart-Version setzt agent-build.yml
+# über app-update-desired-state.yml; bis zum ersten Agenten-Build steht hier ein Platzhalter,
+# den app-deploy.yml nicht ausrollt.
+schemaVersion: "0.1"
+image: acr:operations-agent@sha256:0000000000000000000000000000000000000000000000000000000000000000
+chart:
+  version: 0.1.0
+sizes:
+  replicas: 1
+values:
+  agent:
+    # Pull-Secret, das der App-Stack in jedem App-Namespace anlegt; für D's Smoke-Test-Jobs
+    appImagePullSecret: acr-pull

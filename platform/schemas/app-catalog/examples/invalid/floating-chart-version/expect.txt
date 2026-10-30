@@ -1,0 +1,1 @@
+Chart-Version muss eine feste SemVer-Version sein

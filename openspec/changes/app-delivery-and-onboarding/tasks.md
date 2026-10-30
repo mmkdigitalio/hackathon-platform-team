@@ -4,17 +4,17 @@ B startet lokal mit Schema, App-Programm und Workflows gegen lokalen Cluster und
 
 ## 1. App-Katalog v0.1, Anteil P1-05
 
-- [ ] 1.1 Schema für `app.yaml` und Sollzustand unter `platform/schemas/app-catalog/` mit gültigen Beispielen (AFFiNE-artig, `operations-agent`) und ungültigen Beispielen liefern; Abschluss durch Ablehnung unbekannter Versionen, Felder, Bausteine, Namespace-/Host-Felder, Tags ohne Digest und App-IDs entgegen den Konventionen prüfen.
-- [ ] 1.2 Secret-Referenzen `foundation:` und `app:` validieren; Abschluss durch Ablehnung unbekannter Foundation-Ausgaben laut `platform/schemas/foundation-outputs/` und nicht deklarierter App-Secrets prüfen.
+- [x] 1.1 Schema für `app.yaml` und Sollzustand unter `platform/schemas/app-catalog/` mit gültigen Beispielen (AFFiNE-artig, `operations-agent`) und ungültigen Beispielen liefern; Abschluss durch Ablehnung unbekannter Versionen, Felder, Bausteine, Namespace-/Host-Felder, Tags ohne Digest und App-IDs entgegen den Konventionen prüfen.
+- [x] 1.2 Secret-Referenzen `foundation:` und `app:` validieren; Abschluss durch Ablehnung unbekannter Foundation-Ausgaben laut `platform/schemas/foundation-outputs/` und nicht deklarierter App-Secrets prüfen.
 - [ ] 1.3 Smoke-Test-Vertrag und JSON-Schema des Verifikationsergebnisses veröffentlichen; Abschluss durch gemeinsame Vertragsprüfung mit C und D anhand eines fehlgeschlagenen Ergebnisses prüfen.
 - [ ] 1.4 Lieferanforderungen an den AFFiNE-Kollegen übergeben (Katalogeintrag nach Schema, Chart mit fester Version und Strategie `Recreate`, Smoke-Test-Image, Runbook mit Commit-SHA, Datenverfahren); Abschluss durch bestätigte Übergabe und validierten Entwurf von `platform/catalog/affine/app.yaml` prüfen.
 
 ## 2. App-Programm, Anteil P1-05
 
-- [ ] 2.1 Pulumi-Programm unter `platform/infra/app-runtime/` mit `StackReference`, Namespace, Image-Pull-Secret, Secret `<app-id>-platform`, Ingress und Namespace-Annotationen liefern; Abschluss durch Preview ohne Azure-Provider gegen Platzhalter-Ausgaben prüfen.
-- [ ] 2.2 Datenbausteine `postgres-database`, `redis` und `persistent-volume` mit Schutz vor Löschung umsetzen; Abschluss durch lokale Bereitstellung, stabile Secrets bei erneutem Lauf und scheiternden Plan bei entferntem Baustein prüfen.
-- [ ] 2.3 Helm-Ausrollung mit Hooks und Drift-Korrektur umsetzen; Abschluss durch ausgeführten Pre-Install-Hook und zurückgesetzte Replica-Zahl nach manuellem Skalieren ohne Sollzustandsänderung prüfen.
-- [ ] 2.4 Generisches Smoke-Test-Image `smoke-http` mit Build-Workflow liefern; Abschluss durch Vertragsausgabe bei erreichbarem und nicht erreichbarem Ziel prüfen.
+- [x] 2.1 Pulumi-Programm unter `platform/infra/app-runtime/` mit `StackReference`, Namespace, Image-Pull-Secret, Secret `<app-id>-platform`, Ingress und Namespace-Annotationen liefern; Abschluss durch Preview ohne Azure-Provider gegen Platzhalter-Ausgaben prüfen.
+- [x] 2.2 Datenbausteine `postgres-database`, `redis` und `persistent-volume` mit Schutz vor Löschung umsetzen; Abschluss durch lokale Bereitstellung, stabile Secrets bei erneutem Lauf und scheiternden Plan bei entferntem Baustein prüfen.
+- [x] 2.3 Helm-Ausrollung mit Hooks und Drift-Korrektur umsetzen; Abschluss durch ausgeführten Pre-Install-Hook und zurückgesetzte Replica-Zahl nach manuellem Skalieren ohne Sollzustandsänderung prüfen.
+- [x] 2.4 Generisches Smoke-Test-Image `smoke-http` mit Build-Workflow liefern; Abschluss durch Vertragsausgabe bei erreichbarem und nicht erreichbarem Ziel prüfen.
 
 ## 3. Workflows, Anteil P1-05
 
@@ -28,7 +28,7 @@ B startet lokal mit Schema, App-Programm und Workflows gegen lokalen Cluster und
 
 ## 4. Agentenpaket integrieren, Anteil P1-08
 
-- [ ] 4.1 `platform/catalog/operations-agent/app.yaml` mit `foundation:`-Secrets, `smoke-http` und Prüfpfad `/healthz` sowie Sollzustand für `staging` liefern; Abschluss durch erfolgreiche Validierung prüfen.
+- [x] 4.1 `platform/catalog/operations-agent/app.yaml` mit `foundation:`-Secrets, `smoke-http` und Prüfpfad `/healthz` sowie Sollzustand für `staging` liefern; Abschluss durch erfolgreiche Validierung prüfen.
 - [ ] 4.2 API und Worker über den App-Pfad ausrollen; Abschluss durch getrennte Deployments, erfolgreichen Migrations-Hook, Host gleich `operationsApiHost` und Weiterverarbeitung gespeicherter Aufträge nach einem zweiten Release prüfen.
 
 ## 5. AFFiNE aufnehmen, P1-11

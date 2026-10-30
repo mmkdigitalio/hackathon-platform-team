@@ -1,0 +1,2 @@
+# image, secretName, imagePullSecretName, rolloutMarker und platform setzt das App-Programm
+message: hallo

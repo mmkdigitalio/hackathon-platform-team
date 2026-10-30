@@ -1,0 +1,59 @@
+name: foundation
+description: >-
+  Nur lokal: Platzhalter für organization/foundation/<env> nach dem Foundation-Ausgabevertrag,
+  damit App-Stacks ohne Azure gegen einen lokalen Cluster und lokales PostgreSQL laufen.
+runtime: yaml
+config:
+  baseDomain:
+    type: string
+    default: 127-0-0-1.sslip.io
+  kubeconfig:
+    type: string
+  acrLoginServer:
+    type: string
+    default: localhost:5001
+  acrUsername:
+    type: string
+    default: local
+  acrPassword:
+    type: string
+    default: local
+  postgresHost:
+    type: string
+    default: localhost
+  postgresAdminUser:
+    type: string
+    default: platformadmin
+  postgresAdminPassword:
+    type: string
+  postgresOperationsDatabase:
+    type: string
+    default: operations
+outputs:
+  contractVersion: 1
+  environment: ${pulumi.stack}
+  location: local
+  resourceGroupName: local
+  baseDomain: ${baseDomain}
+  ingressIp: 127.0.0.1
+  aksClusterName: local
+  kubeconfig: ${kubeconfig}
+  acrLoginServer: ${acrLoginServer}
+  acrUsername: ${acrUsername}
+  acrPassword: ${acrPassword}
+  appInsightsConnectionString: ""
+  actionGroupIntakeId: ""
+  actionGroupHumansId: ""
+  operationsApiHost: operations-agent.${baseDomain}
+  postgresHost: ${postgresHost}
+  postgresAdminUser: ${postgresAdminUser}
+  postgresAdminPassword: ${postgresAdminPassword}
+  postgresOperationsDatabase: ${postgresOperationsDatabase}
+  diagnosticsStorageAccount: local
+  diagnosticsContainer: local
+  diagnosticsStorageKey: local
+  alertWebhookKey: local-alert-key
+  maintenanceApiKey: local-maintenance-key
+  githubWebhookSecret: local-webhook-secret
+  modelApiKeys: "{}"
+  opsGithubToken: ""

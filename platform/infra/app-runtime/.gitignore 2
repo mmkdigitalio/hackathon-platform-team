@@ -1,0 +1,4 @@
+node_modules/
+bin/
+.work/
+dev/foundation-placeholder/Pulumi.*.yaml

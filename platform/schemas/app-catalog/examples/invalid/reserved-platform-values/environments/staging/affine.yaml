@@ -1,0 +1,19 @@
+schemaVersion: "0.1"
+upstreamRelease: v0.21.0
+image: ghcr.io/toeverything/affine-graphql@sha256:e442d8e6a4923ecf037c44cfe6ce9a6c78de415250f029c1a57aac6ca37dc7c7
+chart:
+  version: 0.1.0
+sizes:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  volumeSize: 10Gi
+values:
+  affine:
+    telemetry: false
+  platform:
+    host: x

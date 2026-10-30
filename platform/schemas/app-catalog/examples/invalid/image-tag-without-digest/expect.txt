@@ -1,0 +1,1 @@
+/image: Image-Referenz ohne Digest

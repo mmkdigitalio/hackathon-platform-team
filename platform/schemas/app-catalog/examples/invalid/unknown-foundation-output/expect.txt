@@ -1,0 +1,1 @@
+'foundation:postgresPassword' ist keine Ausgabe des Foundation-Ausgabeschemas

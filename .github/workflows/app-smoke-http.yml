@@ -1,0 +1,91 @@
+# Generisches Smoke-Test-Image smoke-http: Vertragsprüfung bei Pull Requests, Build und Push in die ACR auf main.
+# Den Digest aus der Zusammenfassung per Pull Request in platform/catalog/<app-id>/app.yaml eintragen.
+name: app-smoke-http
+
+on:
+  pull_request:
+    paths: ["platform/infra/app-runtime/smoke-http/**", ".github/workflows/app-smoke-http.yml"]
+  push:
+    branches: [main]
+    paths: ["platform/infra/app-runtime/smoke-http/**", ".github/workflows/app-smoke-http.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CONTEXT: platform/infra/app-runtime/smoke-http
+  FOUNDATION_CONTRACT_VERSION: "1"
+
+jobs:
+  contract:
+    name: Vertragsprüfung
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: platform/infra/app-runtime/scripts/ci-setup.sh --catalog-only
+      - name: Image bauen
+        run: docker build -t smoke-http:test "$CONTEXT"
+      - name: Erreichbares und nicht erreichbares Ziel
+        working-directory: platform/schemas/app-catalog
+        run: |
+          docker network create smoke-net
+          docker run -d --name target --network smoke-net python:3.13-alpine python -m http.server 8000
+          sleep 3
+          check() { # name, erwarteter Exit-Code, docker-run-Argumente
+            local name="$1" expected="$2"; shift 2
+            set +e; docker run --rm --network smoke-net "$@" smoke-http:test > "$RUNNER_TEMP/$name.out"; code=$?; set -e
+            [[ "$code" == "$expected" ]] || { echo "::error::$name: Exit-Code $code, erwartet $expected"; exit 1; }
+            set +e
+            npx tsx src/cli.ts verification-result --smoke-output "$RUNNER_TEMP/$name.out" --exit-code "$code" \
+              --app smoke --env staging --check-ref "local/smoke-http@sha256:$(printf '0%.0s' {1..64})" \
+              --running-git-sha x --running-image-digest x --running-chart-version x \
+              --desired-git-sha x --desired-image-digest x --desired-chart-version x > "$RUNNER_TEMP/$name.json"
+            result=$?; set -e
+            [[ "$result" == "$expected" ]] || { echo "::error::$name: Verifikation $result, erwartet $expected"; exit 1; }
+            echo "$name: Exit-Code $code, Ergebnis vertragskonform"
+          }
+          check erreichbar 0 -e TARGET_URL=http://target:8000 -e CHECK_PATH=/
+          check falscher-status 1 -e TARGET_URL=http://target:8000 -e CHECK_PATH=/gibt-es-nicht
+          check nicht-erreichbar 1 -e TARGET_URL=http://nicht-da:8000 -e TIMEOUT_SECONDS=3
+
+  publish:
+    name: Build und Push
+    needs: contract
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Foundation-Ausgaben
+        id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      - name: Vertragsversion der Foundation-Ausgaben
+        env:
+          ACTUAL: ${{ steps.foundation.outputs.contractVersion }}
+        run: |
+          [[ "$ACTUAL" == "$FOUNDATION_CONTRACT_VERSION" ]] || {
+            echo "::error::Foundation-Ausgabevertrag: erwartet contractVersion $FOUNDATION_CONTRACT_VERSION, vorhanden '${ACTUAL}'"; exit 1; }
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.foundation.outputs.acrLoginServer }}
+          username: ${{ steps.foundation.outputs.acrUsername }}
+          password: ${{ steps.foundation.outputs.acrPassword }}
+      - uses: docker/setup-buildx-action@v3
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.CONTEXT }}
+          push: true
+          tags: ${{ steps.foundation.outputs.acrLoginServer }}/platform/smoke-http:${{ github.sha }}
+      - name: Referenz für den Katalog
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          echo "Katalogreferenz: \`acr:platform/smoke-http@$DIGEST\`" >> "$GITHUB_STEP_SUMMARY"

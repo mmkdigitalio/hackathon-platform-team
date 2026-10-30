@@ -1,0 +1,33 @@
+{
+  "$comment": "Testkopie des Ausgabevertrags aus shared-platform-runtime; maßgeblich ist platform/schemas/foundation-outputs/ von Strang A.",
+  "type": "object",
+  "properties": {
+    "contractVersion": { "type": "integer" },
+    "environment": { "type": "string" },
+    "location": { "type": "string" },
+    "resourceGroupName": { "type": "string" },
+    "baseDomain": { "type": "string" },
+    "ingressIp": { "type": "string" },
+    "aksClusterName": { "type": "string" },
+    "kubeconfig": { "type": "string", "x-secret": true },
+    "acrLoginServer": { "type": "string" },
+    "acrUsername": { "type": "string" },
+    "acrPassword": { "type": "string", "x-secret": true },
+    "appInsightsConnectionString": { "type": "string" },
+    "actionGroupIntakeId": { "type": "string" },
+    "actionGroupHumansId": { "type": "string" },
+    "operationsApiHost": { "type": "string" },
+    "postgresHost": { "type": "string" },
+    "postgresAdminUser": { "type": "string" },
+    "postgresAdminPassword": { "type": "string", "x-secret": true },
+    "postgresOperationsDatabase": { "type": "string" },
+    "diagnosticsStorageAccount": { "type": "string" },
+    "diagnosticsContainer": { "type": "string" },
+    "diagnosticsStorageKey": { "type": "string", "x-secret": true },
+    "alertWebhookKey": { "type": "string", "x-secret": true },
+    "maintenanceApiKey": { "type": "string", "x-secret": true },
+    "githubWebhookSecret": { "type": "string", "x-secret": true },
+    "modelApiKeys": { "type": "string", "x-secret": true },
+    "opsGithubToken": { "type": "string", "x-secret": true }
+  }
+}

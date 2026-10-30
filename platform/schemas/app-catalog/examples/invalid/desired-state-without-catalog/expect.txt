@@ -1,0 +1,1 @@
+Sollzustand ohne Katalogeintrag platform/schemas/app-catalog/examples/invalid/desired-state-without-catalog/catalog/foo/app.yaml

@@ -1,0 +1,48 @@
+# Betriebsagent als App über den gemeinsamen App-Pfad. Image und Chart baut D (agent-build.yml),
+# der App-Pfad referenziert sie unverändert. Keine Datenbausteine: der Agent nutzt die Foundation-Datenbank operations.
+schemaVersion: "0.1"
+appId: operations-agent
+description: Betriebsagent (API und Worker aus einem Image, getrennte Deployments)
+source:
+  repository: mmkdigitalio/hackathon-platform-team
+chart:
+  # von agent-build.yml als oci://<acrLoginServer>/helm/operations-agent veröffentlicht
+  acr:
+    repository: helm/operations-agent
+ingress:
+  # Service der API aus D's Chart (Port 80 -> http)
+  service: operations-agent
+  port: 80
+dataBlocks: []
+# Schlüssel im Secret operations-agent-platform laut platform/operations/agent/paket-betrieb.md
+secrets:
+  OPS_MODEL_API_KEYS: foundation:modelApiKeys
+  OPS_GITHUB_TOKEN: foundation:opsGithubToken
+  OPS_BASE_DOMAIN: foundation:baseDomain
+  POSTGRES_HOST: foundation:postgresHost
+  POSTGRES_USER: foundation:postgresAdminUser
+  POSTGRES_PASSWORD: foundation:postgresAdminPassword
+  POSTGRES_DATABASE: foundation:postgresOperationsDatabase
+  ALERT_WEBHOOK_KEY: foundation:alertWebhookKey
+  MAINTENANCE_API_KEY: foundation:maintenanceApiKey
+  GITHUB_WEBHOOK_SECRET: foundation:githubWebhookSecret
+  DIAGNOSTICS_STORAGE_ACCOUNT: foundation:diagnosticsStorageAccount
+  DIAGNOSTICS_CONTAINER: foundation:diagnosticsContainer
+  DIAGNOSTICS_STORAGE_KEY: foundation:diagnosticsStorageKey
+availability:
+  path: /healthz
+smokeTest:
+  # Platzhalter bis zum ersten Lauf von app-smoke-http.yml; Digest aus dessen Zusammenfassung eintragen
+  image: acr:platform/smoke-http@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  env:
+    CHECK_PATH: /healthz
+runbook:
+  repository: mmkdigitalio/hackathon-platform-team
+  path: platform/operations/agent
+  commit: 8e0751c1db3dd23f6ade9719304a08b43034ea7d
+# Der Agent repariert sich nicht selbst; seine Ausfallmeldung geht an Menschen (ops-humans)
+allowedActions: []
+dataProcedures:
+  migration: Helm-Hook-Job mit C's Migrations-CLI ops migrate (pre-install,pre-upgrade) aus dem Agenten-Chart
+  backup: Datenbank operations über die Sicherung des Foundation-PostgreSQL-Servers (Strang A)
+  restore: not-applicable

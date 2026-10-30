@@ -1,0 +1,7 @@
+# Nicht reparierbares Fehlerszenario: schemagültiger, fachlich ungültiger AFFiNE-Konfigurationswert.
+# Pfad und Wert werden mit der AFFiNE-Lieferung festgelegt (Open Question im Design). Anforderungen:
+#   - der Wert liegt unter values in platform/environments/staging/affine.yaml und besteht values.schema.json des Charts
+#   - AFFiNE startet damit nicht oder wird nicht erreichbar; Neustart und erneutes Deployment ändern daran nichts
+#   - der Wert berührt weder Datenbank noch PVC noch Secrets
+path: []      # z. B. [affine, server, port]
+value: null   # z. B. 1

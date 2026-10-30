@@ -1,0 +1,1 @@
+'foundation:kubeconfig' darf nicht an Apps weitergegeben werden

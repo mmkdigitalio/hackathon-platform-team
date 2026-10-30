@@ -62,7 +62,7 @@ Konfigurationswerte für das Chart sind im Sollzustand frei, weil sie dem Chart 
 | Baustein | Umsetzung | `app:`-Secrets |
 | --- | --- | --- |
 | `postgres-database` | Pulumi-postgresql-Provider mit `postgresAdminUser`/`postgresAdminPassword`, `sslmode=require`; Datenbank und Login nach App-ID (Bindestriche als Unterstriche) | `postgres-host`, `postgres-database`, `postgres-user`, `postgres-password`, `postgres-url` |
-| `redis` | Redis-Chart mit fester Version im App-Namespace, ohne Persistenz | `redis-host`, `redis-password` |
+| `redis` | Kubernetes-Deployment und Service mit per Digest fixiertem Redis-Image im App-Namespace, ohne Persistenz. Kein Chart, weil die frei verfügbaren Bitnami-Charts und -Images nicht mehr verlässlich bezogen werden können | `redis-host`, `redis-password` |
 | `persistent-volume` | PVC mit StorageClass `managed-csi`, ReadWriteOnce | keine |
 
 Der App-Stack schreibt alle aufgelösten Referenzen in das Secret `<app-id>-platform`, dessen Name dem Chart als Wert übergeben wird. Generierte Werte entstehen mit `random`-Ressourcen und liegen verschlüsselt im Stack-State, sodass sie stabil bleiben. Datenbank, Login und PVC erhalten `protect`.

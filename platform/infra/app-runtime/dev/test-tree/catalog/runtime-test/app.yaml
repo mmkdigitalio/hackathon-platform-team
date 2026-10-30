@@ -1,0 +1,37 @@
+# Nur lokal: Test-App für den App-Pfad gegen kind (siehe platform/infra/app-runtime/README.md)
+schemaVersion: "0.1"
+appId: runtime-test
+source:
+  repository: mmkdigitalio/hackathon-platform-team
+chart:
+  acr:
+    repository: charts/runtime-test
+ingress:
+  service: runtime-test
+  port: 80
+dataBlocks:
+  - postgres-database
+  - redis
+  - persistent-volume
+generatedSecrets:
+  - session-key
+secrets:
+  DATABASE_URL: app:postgres-url
+  REDIS_SERVER_HOST: app:redis-host
+  REDIS_SERVER_PASSWORD: app:redis-password
+  SESSION_KEY: app:session-key
+availability:
+  path: /
+smokeTest:
+  image: acr:platform/smoke-http@sha256:32b34b0132685e6dc299cd522a3005cd436cfe0e287f5b621d2dc30434555e5f
+  env:
+    CHECK_PATH: /
+runbook:
+  repository: mmkdigitalio/hackathon-platform-team
+  path: platform/infra/app-runtime/README.md
+  commit: bc6e932d84f295da8f313f3d1453556c3a2bfaf0
+allowedActions: [restart, redeploy]
+dataProcedures:
+  migration: not-applicable
+  backup: not-applicable
+  restore: not-applicable

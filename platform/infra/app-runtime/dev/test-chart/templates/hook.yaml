@@ -1,0 +1,22 @@
+# Wie ein Migrations-Hook: läuft vor Install und Upgrade und braucht das Secret des App-Stacks
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-pre-hook
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: {{ .Values.imagePullSecretName }}
+      containers:
+        - name: hook
+          image: {{ .Values.image.repository }}@{{ .Values.image.digest }}
+          command: ["sh", "-c", 'test -n "$DATABASE_URL" && test -n "$REDIS_SERVER_PASSWORD" && echo "hook ok $(date -u +%FT%TZ)"']
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretName }}

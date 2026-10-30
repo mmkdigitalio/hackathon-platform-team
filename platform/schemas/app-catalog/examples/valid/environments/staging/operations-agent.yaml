@@ -1,0 +1,6 @@
+schemaVersion: "0.1"
+image: acr:operations-agent@sha256:b8258f51a529f30203f7d46b3b58e628f8c598118bfe095a76477ad57c7cd00e
+chart:
+  version: 0.1.0
+sizes:
+  replicas: 1

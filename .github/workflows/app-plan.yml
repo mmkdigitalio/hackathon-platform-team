@@ -1,0 +1,148 @@
+# Plan-Prüfung für Pull Requests: Katalogvalidierung und Pulumi-Preview der betroffenen App-Stacks.
+# Läuft bei jedem Pull Request, damit "app-plan / Plan-Ergebnis" als erforderlicher Check immer berichtet;
+# ohne Änderungen am App-Pfad endet er sofort erfolgreich.
+name: app-plan
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-plan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PULUMI_VERSION: "3.273.0"
+
+jobs:
+  validate:
+    name: Validierung
+    runs-on: ubuntu-latest
+    outputs:
+      relevant: ${{ steps.affected.outputs.relevant }}
+      matrix: ${{ steps.affected.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Betroffene Stacks ermitteln
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --name-status "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changes.txt"
+          if grep -qE $'\t(platform/(catalog|environments|schemas/app-catalog|infra/app-runtime)/)' "$RUNNER_TEMP/changes.txt"; then
+            echo "relevant=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "relevant=false" >> "$GITHUB_OUTPUT"
+            echo "Keine Änderungen am App-Pfad." >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - uses: actions/setup-node@v5
+        if: steps.changes.outputs.relevant == 'true'
+        with:
+          node-version: 22
+      - name: Abhängigkeiten
+        if: steps.changes.outputs.relevant == 'true'
+        run: platform/infra/app-runtime/scripts/ci-setup.sh --catalog-only
+      - name: Tests des Katalogs
+        if: steps.changes.outputs.relevant == 'true'
+        working-directory: platform/schemas/app-catalog
+        run: npm test
+      - name: Katalog und Sollzustände validieren
+        if: steps.changes.outputs.relevant == 'true'
+        working-directory: platform/schemas/app-catalog
+        run: |
+          set -o pipefail
+          {
+            echo "### Validierung"
+            echo '```'
+            npx tsx src/cli.ts validate 2>&1
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Stack-Matrix
+        id: affected
+        working-directory: platform/schemas/app-catalog
+        env:
+          RELEVANT: ${{ steps.changes.outputs.relevant }}
+        run: |
+          if [[ "$RELEVANT" != "true" ]]; then
+            echo "relevant=false" >> "$GITHUB_OUTPUT"; echo 'matrix=[]' >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          npx tsx src/cli.ts affected --changed "$RUNNER_TEMP/changes.txt" --mode plan > "$RUNNER_TEMP/affected.json"
+          python3 - "$RUNNER_TEMP/affected.json" <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, sys
+          a = json.load(open(sys.argv[1]))
+          print("relevant=true")
+          print("matrix=" + json.dumps(a["stacks"]))
+          EOF
+          python3 - "$RUNNER_TEMP/affected.json" <<'EOF' >> "$GITHUB_STEP_SUMMARY"
+          import json, sys
+          a = json.load(open(sys.argv[1]))
+          print("### Betroffene Stacks")
+          for s in a["stacks"]:
+              print(f"- `organization/app-{s['appId']}/{s['environment']}`")
+          for d in a["decommission"]:
+              print(f"- ⚠️ `{d['file']}` gelöscht: kein Destroy; Außerbetriebnahme ist ein separater Vorgang (platform/operations/apps/README.md)")
+          EOF
+
+  preview:
+    name: Preview ${{ matrix.appId }}/${{ matrix.environment }}
+    needs: validate
+    if: needs.validate.outputs.relevant == 'true' && needs.validate.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.validate.outputs.matrix) }}
+    env:
+      PULUMI_BACKEND_ACCOUNT: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+      PULUMI_BACKEND_KEY: ${{ secrets.PULUMI_BACKEND_KEY }}
+      PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      APP_RUNTIME_GIT_SHA: ${{ github.event.pull_request.head.sha }}
+      APP_RUNTIME_OPERATION_ID: preview-pr-${{ github.event.pull_request.number }}
+      APP_RUNTIME_SKIP_BUILD: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Abhängigkeiten und Pulumi
+        run: platform/infra/app-runtime/scripts/ci-setup.sh
+      # Kein Foundation-Zugriff außer der StackReference im Programm; Secrets zeigt Pulumi nur als [secret]
+      - name: Pulumi-Preview
+        env:
+          APP_ID: ${{ matrix.appId }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          set -o pipefail
+          platform/infra/app-runtime/scripts/pulumi-stack.sh "$APP_ID" "$ENVIRONMENT" \
+            preview --refresh --diff --color never --suppress-outputs 2>&1 | tee "$RUNNER_TEMP/preview.txt"
+      - name: Zusammenfassung
+        if: always()
+        env:
+          APP_ID: ${{ matrix.appId }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        run: |
+          {
+            echo "### Preview \`organization/app-$APP_ID/$ENVIRONMENT\`"
+            echo '```diff'
+            tail -c 60000 "$RUNNER_TEMP/preview.txt" 2>/dev/null || echo "kein Preview"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  result:
+    name: Plan-Ergebnis
+    needs: [validate, preview]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ergebnis
+        env:
+          VALIDATE: ${{ needs.validate.result }}
+          PREVIEW: ${{ needs.preview.result }}
+        run: |
+          echo "Validierung: $VALIDATE, Preview: $PREVIEW"
+          [[ "$VALIDATE" == "success" && ( "$PREVIEW" == "success" || "$PREVIEW" == "skipped" ) ]]

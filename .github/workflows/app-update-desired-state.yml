@@ -1,0 +1,118 @@
+# Wiederverwendbar: setzt Image-Digest und Chart-Version im Sollzustand und legt einen Pull Request
+# mit Auto-Merge an. Commit, Push und PR laufen mit OPS_GITHUB_TOKEN, weil mit GITHUB_TOKEN
+# ausgelöste Ereignisse weder app-plan.yml noch nach dem Merge app-deploy.yml starten würden.
+#
+# Aufruf (z. B. aus agent-build.yml):
+#   uses: ./.github/workflows/app-update-desired-state.yml
+#   with: { appId: operations-agent, environment: staging, imageDigest: "sha256:...", chartVersion: 0.1.42 }
+#   secrets: inherit
+# Ohne imageRepository gilt acr:<appId>, ohne sourceSha der Commit des aufrufenden Laufs.
+name: app-update-desired-state
+
+on:
+  workflow_call:
+    inputs:
+      appId:
+        type: string
+        required: true
+      environment:
+        type: string
+        required: false
+        default: staging
+      imageDigest:
+        description: Digest des Images, sha256:<64 hex>
+        type: string
+        required: true
+      imageRepository:
+        description: Repository ohne Digest, z. B. acr:operations-agent oder ghcr.io/org/app; leer ergibt acr:<appId>
+        type: string
+        required: false
+        default: ""
+      chartVersion:
+        type: string
+        required: true
+      sourceSha:
+        description: Quell-Commit des Builds; leer ergibt den Commit des aufrufenden Laufs
+        type: string
+        required: false
+        default: ""
+      artifactRefs:
+        description: Weitere Artefaktreferenzen für die Commit-Nachricht (z. B. Chart-OCI-Referenz)
+        type: string
+        required: false
+        default: ""
+    secrets:
+      OPS_GITHUB_TOKEN:
+        required: true
+    outputs:
+      pullRequestUrl:
+        value: ${{ jobs.update.outputs.pullRequestUrl }}
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Sollzustand ${{ inputs.appId }}/${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    outputs:
+      pullRequestUrl: ${{ steps.pr.outputs.url }}
+    env:
+      APP_ID: ${{ inputs.appId }}
+      ENVIRONMENT: ${{ inputs.environment }}
+      IMAGE: ${{ inputs.imageRepository || format('acr:{0}', inputs.appId) }}@${{ inputs.imageDigest }}
+      CHART_VERSION: ${{ inputs.chartVersion }}
+      SOURCE_SHA: ${{ inputs.sourceSha || github.sha }}
+      ARTIFACT_REFS: ${{ inputs.artifactRefs }}
+    steps:
+      - name: Eingaben prüfen
+        run: |
+          [[ "$APP_ID" =~ ^[a-z][a-z0-9-]{1,30}$ ]] || { echo "::error::ungültige appId"; exit 1; }
+          [[ "$ENVIRONMENT" =~ ^[a-z]+$ ]] || { echo "::error::ungültige Umgebung"; exit 1; }
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sourceSha muss ein vollständiger Commit-SHA sein"; exit 1; }
+          [[ "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]] || { echo "::error::imageDigest muss sha256:<64 hex> sein"; exit 1; }
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          token: ${{ secrets.OPS_GITHUB_TOKEN }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: platform/infra/app-runtime/scripts/ci-setup.sh --catalog-only
+      - name: Sollzustand setzen und validieren
+        id: set
+        working-directory: platform/schemas/app-catalog
+        run: |
+          npx tsx src/cli.ts set-desired --app "$APP_ID" --env "$ENVIRONMENT" --image "$IMAGE" --chart-version "$CHART_VERSION"
+          if git diff --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Sollzustand bereits aktuell; kein Pull Request." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Commit und Pull Request mit Auto-Merge
+        id: pr
+        if: steps.set.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.OPS_GITHUB_TOKEN }}
+        run: |
+          digest="${IMAGE##*@sha256:}"
+          branch="desired-state/$APP_ID-$ENVIRONMENT-${digest:0:12}"
+          file="platform/environments/$ENVIRONMENT/$APP_ID.yaml"
+          title="desired-state($APP_ID/$ENVIRONMENT): chart $CHART_VERSION, image sha256:${digest:0:12}"
+          body="$(printf 'Quell-Commit: %s\nImage: %s\nChart-Version: %s\n%s' \
+            "$SOURCE_SHA" "$IMAGE" "$CHART_VERSION" "${ARTIFACT_REFS:+Artefakte: $ARTIFACT_REFS}")"
+          git config user.name "mmk-platform-automation"
+          git config user.email "platform-automation@users.noreply.github.com"
+          git switch -c "$branch"
+          git add "$file"
+          git commit -m "$title" -m "$body"
+          git push --force-with-lease origin "$branch"
+          url="$(gh pr list --head "$branch" --json url -q '.[0].url')"
+          if [[ -z "$url" ]]; then
+            url="$(gh pr create --base main --head "$branch" --title "$title" \
+              --body "$body"$'\n\nAutomatisch erzeugt von app-update-desired-state.yml; wird nach grünem app-plan.yml gemerged.')"
+          fi
+          gh pr merge "$url" --auto --squash
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Pull Request: $url (Auto-Merge aktiviert)" >> "$GITHUB_STEP_SUMMARY"
