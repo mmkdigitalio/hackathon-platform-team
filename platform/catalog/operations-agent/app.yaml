@@ -35,8 +35,8 @@ secrets:
 availability:
   path: /healthz
 smokeTest:
-  # Platzhalter bis zum ersten Lauf von app-smoke-http.yml; Digest aus dessen Zusammenfassung eintragen
-  image: acr:platform/smoke-http@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  # app-smoke-http.yml, Lauf 41105480558; öffentlicher /healthz-Check nach dem Rollout
+  image: acr:platform/smoke-http@sha256:7b7a96a1eff6af52baa061fb4973a88d6a3c98ed7ae4ed15f4398280dcf9ebba
   env:
     CHECK_PATH: /healthz
 runbook:
