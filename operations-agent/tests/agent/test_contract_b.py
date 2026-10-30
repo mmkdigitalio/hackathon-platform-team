@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -55,7 +56,9 @@ def test_agent_catalog_runbook_directory_and_acr_image(world: World) -> None:
     assert len(ctx.runbook.value) <= 20_000 and ctx.errors == []
     assert ctx.deployment == "operations-agent-api" and ctx.actual is not None
     assert ctx.allowed_actions == frozenset()
-    assert desired_digest(ctx.desired.value) == "sha256:" + "0" * 64
+    assert ctx.desired.value["image"].startswith("acr:operations-agent@sha256:")
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", desired_digest(ctx.desired.value))
+    assert desired_digest(ctx.desired.value) == ctx.desired.value["image"].split("@", 1)[1]
     s = smoke(world)
     s.acr = "mmkacr.azurecr.io"
     assert s.resolve_image(ctx.smoke_test["image"]).startswith("mmkacr.azurecr.io/platform/smoke-http@sha256:")

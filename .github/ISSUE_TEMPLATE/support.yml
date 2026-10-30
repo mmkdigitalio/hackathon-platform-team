@@ -18,6 +18,7 @@ body:
       description: Betroffene App laut Katalog (platform/catalog/)
       options:
         - affine
+        - platform-status
     validations:
       required: true
   - type: dropdown

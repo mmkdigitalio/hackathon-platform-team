@@ -1,5 +1,5 @@
 # Wiederverwendbar: setzt Image-Digest und Chart-Version im Sollzustand und legt einen Pull Request
-# mit Auto-Merge an. Commit, Push und PR laufen mit einem Installations-Token der GitHub App des
+# an; Auto-Merge wird genutzt, wenn das Repository ihn erlaubt. Commit, Push und PR laufen mit einem Installations-Token der GitHub App des
 # Agenten (Schlüssel aus den Foundation-Ausgaben), ersatzweise mit OPS_GITHUB_TOKEN. Mit GITHUB_TOKEN
 # ausgelöste Ereignisse würden weder app-plan.yml noch nach dem Merge app-deploy.yml starten.
 #
@@ -132,7 +132,7 @@ jobs:
           else
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-      - name: Commit und Pull Request mit Auto-Merge
+      - name: Commit und Pull Request
         id: pr
         if: steps.set.outputs.changed == 'true'
         env:
@@ -153,8 +153,13 @@ jobs:
           url="$(gh pr list --head "$branch" --json url -q '.[0].url')"
           if [[ -z "$url" ]]; then
             url="$(gh pr create --base main --head "$branch" --title "$title" \
-              --body "$body"$'\n\nAutomatisch erzeugt von app-update-desired-state.yml; wird nach grünem app-plan.yml gemerged.')"
+              --body "$body"$'\n\nAutomatisch erzeugt von app-update-desired-state.yml. Vor dem Merge app-plan.yml prüfen; Auto-Merge wird genutzt, wenn das Repository ihn erlaubt.')"
           fi
-          gh pr merge "$url" --auto --squash
+          if [[ "$(gh api "repos/$GITHUB_REPOSITORY" --jq '.allow_auto_merge')" == "true" ]]; then
+            gh pr merge "$url" --auto --squash
+            echo "Auto-Merge aktiviert." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::notice::Auto-Merge ist im Repository deaktiviert; Pull Request nach grünem app-plan manuell mergen."
+          fi
           echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "Pull Request: $url (Auto-Merge aktiviert)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Pull Request: $url" >> "$GITHUB_STEP_SUMMARY"
