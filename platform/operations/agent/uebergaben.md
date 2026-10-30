@@ -28,6 +28,8 @@ Strang D hat gegen Lieferungen entwickelt, die es noch nicht gibt. Jede Annahme 
 - Haupt-Deployment: Name aus `ingress.service` bzw. App-ID, sonst eindeutig über das Label `app.kubernetes.io/instance: <app-id>`.
 - Chart-Werte: B übergibt zusätzlich `platform.*` (u. a. `replicas`); D's Chart steuert API und Worker weiter über `api.replicas`/`worker.replicas`.
 
+**Feldabgleich Verifikationsergebnis (B's README, Abschnitt „Abgleich mit C und D“, Commit `3f49334`): von D bestätigt.** D's `VerificationEvidence` entspricht der Tabelle: `check_ref` ist der Digest des Smoke-Test-Images (`tools/verification.py`), `release` kommt aus den Annotationen `ops.mmk/release-*` und dem Pod-Digest, `finished_at` ist bei Zeitüberschreitung leer (`timed_out: true`), Erfolg nur bei Exit-Code 0 und `success: true`.
+
 | Punkt | Ursprüngliche Annahme von D (bestätigt, wo nicht oben abweichend) |
 | --- | --- |
 | Katalogfelder | `allowedActions`, `availability.path`, `smokeTest.image` (Digest), `smokeTest.secrets`, `runbook.{repository,path,commit}`, `ingress.service` oder `deployment` als Deployment-Name |
