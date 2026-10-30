@@ -2,68 +2,83 @@
 
 ## Context
 
-Das Repository enthält Produktplanung und OpenSpec-Gerüste, noch keine Plattformimplementierung. Motivation und Umfang stehen im [Proposal](proposal.md). Die vorgesehenen Ziel-Repositories sind getrennt; diese Planung verwendet ihre Pfade als Zuständigkeitsgrenzen.
+Motivation und Umfang stehen im [Proposal](proposal.md), Verhalten in [platform-bootstrap](specs/platform-bootstrap/spec.md) und [shared-platform-runtime](specs/shared-platform-runtime/spec.md). Die gemeinsamen Hackathon-Entscheidungen E1 bis E10 stehen in der [gemeinsamen Übersicht](../../PARALLEL-IMPLEMENTATION.md).
 
-Anforderungen stehen in [platform-bootstrap](specs/platform-bootstrap/spec.md) und [shared-platform-runtime](specs/shared-platform-runtime/spec.md). Die [gemeinsame Übersicht](../../PARALLEL-IMPLEMENTATION.md) definiert Verträge und Integrationsreihenfolge.
+Die prägende Einschränkung: Das Team hat Contributor auf der Subscription, aber niemand kann Rollen zuweisen oder Entra-App-Registrierungen anlegen. Contributor darf Ressourcen anlegen und Schlüssel abrufen (`listKeys`, `listCredentials`, `listClusterAdminCredential`), aber nicht `Microsoft.Authorization/roleAssignments/write`. Auf GitHub können Teammitglieder Repositories anlegen und Repo-Secrets setzen, aber keine GitHub App und keine Organisations-Secrets.
 
 ## Goals / Non-Goals
 
 Goals:
 
-- Foundation und Bootstrap bleiben unabhängig von App- und Agenten-Releases ausführbar.
-- Verbraucher können gegen versionierte Ausgabe-Beispiele entwickeln, bevor Azure bereitsteht.
-- Ressourcen besitzen eindeutige Stack-Eigner und überprüfte reale Zugriffswege.
+- Eine lauffähige Staging-Plattform, die vollständig mit Contributor-Rechten entsteht.
+- B, C und D erhalten alle Werte aus einem einzigen versionierten Ausgabevertrag.
+- Wiederherstellung hängt weder vom Agenten noch von seiner Datenbank ab.
 
 Non-Goals:
 
-- Keine App-Ressourcen im Foundation-Stack und keine Anwendungstabellen in Infrastrukturcode.
-- Kein zweiter Deploymentmechanismus und keine laufende Agenten-API als Bootstrap-Voraussetzung.
-- Out of scope bleiben B's App-Modul, C's Zustandsverwaltung und D's Agentenpaket; ihre Lieferungen stehen im Proposal.
+- Kein Least-Privilege, keine Secret-Rotation, keine privaten Netze.
+- Keine Azure-Diagnose durch den Agenten.
+- Keine Bereitstellung aus GitHub Actions für Azure-Ressourcen.
 
 ## Decisions
 
-### 1. Bootstrap vor Foundation, eigener Besitz für App-Stacks
+### 1. Foundation lokal, Apps aus CI
 
-A dokumentiert und automatisiert zuerst State-Backend, Verschlüsselungsreferenzen und initiale Identitäten. Der TypeScript-Foundation-Stack verwendet anschließend Azure-Native- und Kubernetes-Bausteine. B's App-Stacks referenzieren ihn und besitzen ihre eigenen Ressourcen. Ein gemeinsamer Stack für alles würde App-Releases an Foundation-Änderungen koppeln und wird nicht verwendet.
+Der Foundation-Stack braucht Azure Resource Manager und läuft deshalb lokal unter `az login` einer Contributor-Person. GitHub Actions bekommen keine Azure-Identität, weil eine Service-Principal- oder Managed-Identity-Anmeldung eine Rollenzuweisung bräuchte. App-Stacks enthalten deshalb nur Kubernetes-Objekte und Datenbankobjekte über das PostgreSQL-Protokoll; dafür genügen Storage-Key, Passphrase und die Foundation-Ausgaben.
 
-A integriert Repository-Grundgerüste und gemeinsame Root-Konfiguration aus P1-01. B und D erhalten ihre Paket-/Workflow-Bereiche, C und D ein gemeinsames Agenten-Codepaket. Bereits beim Gerüst wird die ältere README als historische Diskussion gekennzeichnet und auf den Produktplan verwiesen.
+Verworfen: OIDC mit Managed Identity (braucht Owner für die Rollenzuweisung), Service Principal mit Secret (braucht App-Registrierung und Rollenzuweisung), Benutzer-Token in CI (läuft ab, MFA).
 
-### 2. Foundation-Vertrag zuerst veröffentlichen
+### 2. Alle Azure-Ressourcen im Foundation-Stack
 
-Die Ausgaben aus der gemeinsamen Übersicht werden als versioniertes Schema mit nicht geheimem Beispiel veröffentlicht. Das Schema liegt im Foundation-Bereich und wird von A gepflegt. Verbraucher prüfen die Version, statt Ressourcennamen selbst herzuleiten. Konkrete Azure-Namen, Region und Größen sind Eingabekonfiguration; sensible Verbindungen bleiben geschützt.
+Aus Entscheidung 1 folgt die Besitzregel: Was Azure Resource Manager braucht, gehört zur Foundation. App-spezifische Verfügbarkeitstests und Alarmregeln erzeugt der Foundation-Stack aus `platform/catalog/*/app.yaml`. Eine neue App braucht deshalb einen Foundation-Lauf für ihr Monitoring, aber keinen für ihr Deployment.
 
-### 3. Externe Persistenz und dokumentierte Erreichbarkeit
+### 3. Schlüssel statt Rollen
 
-Agenten-PostgreSQL liegt außerhalb des Clusters. A besitzt Server, Datenbankressource, Identitäten und Netzwerk, C besitzt Tabellen, Migrationen und Operations-Client. Diagnoseartefakte liegen in Blob Storage.
+| Bedarf | Lösung | Statt |
+| --- | --- | --- |
+| Image-Pull in AKS | Image-Pull-Secret mit ACR-Admin-User | `AcrPull` für die Kubelet-Identität |
+| Image-Push aus CI | ACR-Admin-User | `AcrPush` per OIDC |
+| Cluster-Zugriff aus CI | Admin-Kubeconfig in den Ausgaben, lokale Accounts aktiv | Entra-Integration mit Azure RBAC |
+| Diagnose-Storage | Storage-Key | `Storage Blob Data Contributor` |
+| GitHub-Zugriff | Fine-grained PAT | GitHub App |
 
-Für Staging wird ein ausführbarer Runner-Netzpfad gewählt und tatsächlich gegen AKS und Operations-Speicher geprüft. Die konkrete Netzkonfiguration hängt vom Abonnement ab und wird als Bootstrap-Konfiguration festgehalten. Ein angenommener Zugriffsweg reicht nicht. Die standalone Nutzung von C's Client vermeidet eine Abhängigkeit vom laufenden Agenten beim ersten Agenten-Release.
+Der AKS-Cluster nutzt eine system-assigned Identity und das Standardnetz im Node-Resource-Group, damit beim Anlegen keine Rollenzuweisung nötig ist. Der Ingress-Controller bekommt seine öffentliche IP über den LoadBalancer-Service im Cluster statt über eine vorab angelegte IP in einer anderen Resource Group.
 
-### 4. Monitoring gemeinsam bereitstellen, App-Ziele referenzieren
+### 4. sslip.io statt eigener Domain
 
-A erstellt Workspace, gemeinsame Beobachtung, Action Group und unabhängige Agenten-Ausfallmeldung. B liefert App-/Prüfreferenzen und Alarmkriterien; C liefert Empfänger und Authentifizierungsanforderungen; D liefert strukturierte Werkzeug-/Verbrauchsdaten. Die konkreten Monitor-Ressourcen bleiben bei A, damit sie nicht zusätzlich in App-Stacks verwaltet werden. API und Worker stellen getrennte Lebenssignale bereit.
+Es gibt keine nutzbare Domain. Der Foundation-Stack liest nach dem Ausrollen des Ingress-Controllers dessen Service-IP und gibt `baseDomain = <ip-mit-bindestrichen>.sslip.io` aus. Damit funktionieren Host-basiertes Routing und Let's Encrypt ohne DNS-Zone. AFFiNE braucht einen eigenen Host am Root-Pfad; Pfad-Routing unter einer gemeinsamen Adresse wurde deshalb verworfen.
 
-Der echte Alarmtransport wird erst nach Vorliegen der Empfänger-URL integriert. Foundation-Code und Monitoring-Ressourcen können vorher entstehen. Ein endgültiger Alarmempfänger wird nicht durch eine ungesicherte temporäre API ersetzt.
+### 5. Ein gemeinsamer PostgreSQL-Server
 
-### 5. Pipeline-basierter unabhängiger Wiederanlauf
+Ein Flexible Server (Burstable) trägt die Datenbank `operations` und darf App-Datenbanken aufnehmen. Ein eigener Server pro App kostet Zeit und Geld; In-Cluster-Postgres für den Agenten widerspricht der Anforderung, Agentenzustand außerhalb des Clusters zu halten.
 
-Foundation-Workflows liegen getrennt von App-Workflows. Sie verwenden OIDC und das dokumentierte State-Backend. Konfiguration und Wiederanlauf-Anleitung liegen in Git. Für den Agentenausfall wird ein konfigurierbarer unabhängiger Benachrichtigungsempfänger vorgesehen und vor Abnahme getestet. Ein anderes autonomes Betriebssystem ist dafür nicht erforderlich.
+### 6. Agentenausfall über `/healthz`
+
+Statt eines Log-Search-Alarms auf Container-Logs prüft ein Application-Insights-Standardtest `/healthz`. C lässt den Endpunkt 503 liefern, wenn der Worker-Heartbeat in PostgreSQL älter als zehn Minuten ist. So hängt die Ausfallmeldung nicht an Container Insights, dessen Einrichtung ohne Rollenzuweisung unsicher ist.
+
+### 7. Keine Sperre in der Foundation
+
+Der Foundation-Stack erwirbt keine Operations-Sperre. Sonst könnte er eine ausgefallene Agentendatenbank nicht reparieren, weil die Sperre in genau dieser Datenbank liegt. Gleichzeitige Foundation-Läufe verhindert das Locking des Pulumi-Backends.
 
 ## Risks / Trade-offs
 
-- Vollständiger AKS-Ausfall betrifft auch den Agenten. Externe Datenbank, unabhängige Benachrichtigung und GitHub-Actions-Wiederherstellung begrenzen die Abhängigkeit, beseitigen sie aber nicht.
-- Region, Quotas oder Netzwerkzugang passen nicht zur Anfangsannahme. Bootstrap prüft Verfügbarkeit und echte Verbindungen, bevor die anderen Stränge Cloud-Integration melden.
-- Gemeinsame Pulumi-Dateien verursachen Überschneidungen. A besitzt Foundation-Manifest und gemeinsame Komponenten; B legt App-Komponenten unter `infra/app-runtime/` an.
-- Kosten entstehen vor dem vollständigen Produktnachweis. D's echter Prototyp wird früh als Integrationsvoraussetzung geprüft; Kapazität und Region bleiben konfigurierbar.
+- [Container Insights braucht doch eine Rollenzuweisung] → Logs sind nur für Menschen gedacht; Agent und Ausfallmeldung hängen nicht davon ab. Früh in Task 3 prüfen.
+- [Ein Alarm- oder Testtyp verlangt eine Managed Identity mit Rolle] → Standardtests und Metrik-Alarme ohne Identität verwenden; bei Problemen auf reine Verfügbarkeitstests beschränken.
+- [Let's Encrypt-Ratenlimits für sslip.io] → HTTP über dieselben Hosts als dokumentierter Fallback; Action Group und GitHub-Webhook akzeptieren HTTP für Staging.
+- [Ingress-IP ändert sich beim Ersetzen des Controllers] → `baseDomain` ändert sich mit; App-Stacks und Verfügbarkeitstests werden danach neu ausgerollt. Den Controller nicht ohne Not ersetzen.
+- [Breite Schlüssel liegen im State] → Akzeptiertes Staging-Risiko; State-Zugriff nur über Repo-Secrets.
+- [Wiederherstellung hängt an einer Person mit lokalem Zugang] → Verfahren dokumentieren und mindestens zwei Personen mit Contributor durchspielen lassen.
+- [PAT läuft ab oder Person verlässt das Team] → Ablaufdatum dokumentieren; Austausch über `pulumi config set --secret` und Repo-Secret.
 
 ## Migration Plan
 
-1. Repository-Gerüste, Konventionen und Ausgabebeispiele veröffentlichen. Foundation-Code parallel zu D's Prototyp vorbereiten.
-2. Nach Prototypnachweis Bootstrap und Foundation im verfügbaren Azure-Abonnement ausführen und separat Azure-, Cluster- und Datenzugriff testen.
-3. Ausgaben an B, C und D übergeben. C initialisiert das Schema; B deployt Apps mit C's standalone Client.
-4. Echten Alarm und Agenten-Ausfallbenachrichtigung verbinden und prüfen. Bei Ausfall der App-Integration bleibt die Foundation separat wiederholbar.
-5. Rollback über vorherige geprüfte Foundation-Konfiguration planen. State und Datenbank werden nicht durch pauschales Löschen und Neuerstellen repariert. Unterstützte AKS-Upgrades und Wiederherstellungswege werden gesondert dokumentiert; ein Versionsrückschritt wird nicht vorausgesetzt.
+1. Rechte-Vorabcheck, Bootstrap-Skript, Repo-Secrets.
+2. Konventionen und Ausgabe-Schema v0 mit Platzhalterwerten veröffentlichen, damit B, C und D früh dagegen bauen.
+3. Foundation-Stack lokal ausrollen, Zugangscheck in CI grün.
+4. Nach den ersten Katalogeinträgen von B erneut ausrollen, um Verfügbarkeitstests anzulegen.
+5. Rücknahme: Ein fehlerhafter Foundation-Lauf wird durch erneutes Ausrollen eines früheren Commits korrigiert; State-Fehler über Blob-Versionierung.
 
 ## Open Questions
 
-- Konkrete Azure-Region, Staging-Kapazität und unterstützte AKS-Version werden beim Bootstrap anhand des Abonnements gewählt.
-- Der unabhängige Benachrichtigungsempfänger und die Testdomain werden als Umgebungswerte vor Staging-Abnahme eingetragen.
+- Region und Knotengröße werden beim Bootstrap nach Verfügbarkeit und Budget gewählt und in der Foundation-Konfiguration festgehalten.
+- Der Ingress-Controller wird beim Implementieren nach aktuellem Pflegestatus gewählt und dokumentiert.
