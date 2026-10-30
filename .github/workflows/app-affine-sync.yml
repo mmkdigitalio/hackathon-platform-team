@@ -1,0 +1,167 @@
+# Übernimmt das neueste AFFiNE-Paket aus mmkdigitalio/hackathon-platform-affine: baut Chart und Smoke-Image
+# aus dem dort getesteten Commit, veröffentlicht beide in der Foundation-ACR (L2/L12), setzt Katalogeintrag
+# und Sollzustand staging, validiert, committet direkt auf main und startet app-deploy.yml.
+#
+# Ohne zusätzliches Token: Das Lieferrepository ist öffentlich; platform-package.yml legt dort je grünem
+# Paket (Lint, Validierung, kind-Test) ein Release mit platform-release.json an (sourceSha, chartVersion).
+# Gepusht wird mit GITHUB_TOKEN; weil solche Pushes keine Workflows auslösen, startet dieser Workflow
+# app-deploy.yml selbst (workflow_dispatch ist davon ausgenommen). GHCR-Pakete der Organisation dürfen
+# nicht öffentlich sein, deshalb zieht der Cluster alles aus der ACR (Pull-Secret acr-pull).
+name: app-affine-sync
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: app-affine-sync
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: mmkdigitalio/hackathon-platform-affine
+  CATALOG: platform/catalog/affine/app.yaml
+  DESIRED: platform/environments/staging/affine.yaml
+  FOUNDATION_CONTRACT_VERSION: "1"
+
+jobs:
+  sync:
+    name: AFFiNE-Paket übernehmen
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      # Vor dem Bootstrap der Foundation fehlen die Secrets des State-Backends; dann bleibt der Lauf grün.
+      - name: Foundation bereit?
+        id: ready
+        env:
+          BACKEND_KEY: ${{ secrets.PULUMI_BACKEND_KEY }}
+        run: |
+          if [[ -n "$BACKEND_KEY" ]]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else
+            echo "### AFFiNE nicht übernommen: Foundation noch nicht gebootstrappt (PULUMI_BACKEND_KEY fehlt)" >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/checkout@v5
+        if: steps.ready.outputs.ok == 'true'
+        with:
+          ref: main
+      - name: Neuestes Paket lesen
+        id: package
+        if: steps.ready.outputs.ok == 'true'
+        run: |
+          if ! gh release download --repo "$SOURCE_REPO" --pattern platform-release.json --dir "$RUNNER_TEMP" 2>/dev/null; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Noch kein Release mit platform-release.json in $SOURCE_REPO." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          release="$RUNNER_TEMP/platform-release.json"
+          sha=$(jq -r .sourceSha "$release")
+          chart=$(jq -r .chartVersion "$release")
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sourceSha ungültig"; exit 1; }
+          [[ "$chart" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::chartVersion ungültig"; exit 1; }
+          { echo "sha=$sha"; echo "chart=$chart"; } >> "$GITHUB_OUTPUT"
+          if [[ "$(yq -r '.runbook.commit' "$CATALOG" 2>/dev/null)" == "$sha" &&
+                "$(yq -r '.chart.version' "$DESIRED" 2>/dev/null)" == "$chart" &&
+                "$(yq -r '.chart.acr.repository // ""' "$CATALOG" 2>/dev/null)" == "helm/affine" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "AFFiNE-Paket ${sha:0:12} (Chart $chart) ist bereits übernommen." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v5
+        if: steps.package.outputs.changed == 'true'
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ref: ${{ steps.package.outputs.sha }}
+          path: .affine
+      - name: Foundation-Ausgaben
+        id: foundation
+        if: steps.package.outputs.changed == 'true'
+        uses: ./.github/actions/foundation-outputs
+        with:
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          environment: staging
+          expected-contract-version: ${{ env.FOUNDATION_CONTRACT_VERSION }}
+      - uses: docker/setup-buildx-action@v3
+        if: steps.package.outputs.changed == 'true'
+      - uses: docker/login-action@v3
+        if: steps.package.outputs.changed == 'true'
+        with:
+          registry: ${{ steps.foundation.outputs.acrLoginServer }}
+          username: ${{ steps.foundation.outputs.acrUsername }}
+          password: ${{ steps.foundation.outputs.acrPassword }}
+      - name: Smoke-Image in die ACR
+        id: smoke
+        if: steps.package.outputs.changed == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .affine/smoke
+          push: true
+          tags: ${{ steps.foundation.outputs.acrLoginServer }}/affine-smoke:${{ steps.package.outputs.sha }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ env.SOURCE_REPO }}
+            org.opencontainers.image.revision=${{ steps.package.outputs.sha }}
+      - uses: azure/setup-helm@v4
+        if: steps.package.outputs.changed == 'true'
+        with:
+          version: v3.18.4
+      - name: Chart in die ACR
+        if: steps.package.outputs.changed == 'true'
+        env:
+          ACR: ${{ steps.foundation.outputs.acrLoginServer }}
+          ACR_USER: ${{ steps.foundation.outputs.acrUsername }}
+          ACR_PASSWORD: ${{ steps.foundation.outputs.acrPassword }}
+          CHART: ${{ steps.package.outputs.chart }}
+        run: |
+          helm package .affine/charts/affine --version "$CHART" -d "$RUNNER_TEMP/dist"
+          echo "$ACR_PASSWORD" | helm registry login "$ACR" --username "$ACR_USER" --password-stdin
+          helm push "$RUNNER_TEMP/dist/affine-$CHART.tgz" "oci://$ACR/helm"
+      - uses: actions/setup-node@v5
+        if: steps.package.outputs.changed == 'true'
+        with:
+          node-version: 22
+      - run: platform/infra/app-runtime/scripts/ci-setup.sh --catalog-only
+        if: steps.package.outputs.changed == 'true'
+      - name: Katalog und Sollzustand setzen, validieren
+        if: steps.package.outputs.changed == 'true'
+        env:
+          SHA: ${{ steps.package.outputs.sha }}
+          CHART: ${{ steps.package.outputs.chart }}
+          SMOKE: acr:affine-smoke@${{ steps.smoke.outputs.digest }}
+        run: |
+          # Inhalt des Katalogeintrags liefert AFFiNE; Herkunft von Chart und Smoke-Image legt dieser Workflow fest
+          yq '.chart = {"acr": {"repository": "helm/affine"}} | .smokeTest.image = strenv(SMOKE) | .runbook.commit = strenv(SHA)' \
+            .affine/platform-delivery/catalog/affine/app.yaml > "$CATALOG"
+          image=$(yq -r '.image' .affine/platform-delivery/environments/staging/affine.yaml)
+          cd platform/schemas/app-catalog
+          npx tsx src/cli.ts set-desired --app affine --env staging --image "$image" --chart-version "$CHART"
+          npx tsx src/cli.ts validate
+      - name: Auf main committen und ausrollen
+        if: steps.package.outputs.changed == 'true'
+        env:
+          SHA: ${{ steps.package.outputs.sha }}
+          CHART: ${{ steps.package.outputs.chart }}
+        run: |
+          git add "$CATALOG" "$DESIRED"
+          if git diff --cached --quiet; then echo "Keine Änderung." >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "feat(apps): AFFiNE-Paket ${SHA:0:12} (Chart $CHART)" \
+            -m "Quelle: $GITHUB_SERVER_URL/$SOURCE_REPO/commit/$SHA"
+          # Andere pushen ebenfalls auf main: bei Bedarf neu aufsetzen und wiederholen
+          for attempt in 1 2 3; do
+            git push -q origin HEAD:main && break
+            [[ $attempt -lt 3 ]] || exit 1
+            git pull -q --rebase origin main
+          done
+          gh workflow run app-deploy.yml --ref main -f appId=affine -f environment=staging
+          {
+            echo "### AFFiNE-Paket übernommen"
+            echo "- Commit: \`$(git rev-parse --short HEAD)\` auf main"
+            echo "- Quelle: $SOURCE_REPO@${SHA:0:12}, Chart \`acr: helm/affine\` $CHART"
+            echo "- app-deploy.yml für affine/staging gestartet"
+          } >> "$GITHUB_STEP_SUMMARY"
