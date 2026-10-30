@@ -7,7 +7,12 @@ Eine schreibgeschützte Statusansicht zeigt den aktuellen Zustand der Apps, der 
 ## ADDED Requirements
 
 ### Requirement: Ausschließlich lesende Statusansicht
-Die Statusansicht SHALL nur lesende Endpunkte bereitstellen (`GET /`, `GET /applications`, `GET /applications/<app-id>` und `GET /activity` für die Seiten, `GET /status` für die JSON-Projektion, `GET /status-assets/*` für statische Dateien, `GET /healthz` im eigenständigen Dienst). Sie SHALL keine Ereignisse, Eingaben oder Aktionen annehmen, keine Betriebsmaßnahme auslösen und weder Datenbank, Kubernetes noch GitHub verändern. Die Seite SHALL keine bedienbare schreibende Funktion enthalten. Datenbankabfragen SHALL in einer lesenden Transaktion mit Statement-Timeout laufen.
+Die Statusansicht SHALL ausschließlich lesende Endpunkte und Navigation anbieten. Sie SHALL weder Betriebsmaßnahmen auslösen noch Datenbank, Kubernetes oder GitHub verändern. Datenbankabfragen SHALL in einer lesenden Transaktion mit Statement-Timeout laufen.
+
+#### Scenario: Endpunktumfang
+- **WHEN** der eigenständige Dienst läuft
+- **THEN** bietet er ausschließlich `GET /`, `/applications`, `/applications/<app-id>`, `/activity`, `/status`, `/status-assets/*` und `/healthz` an
+- **AND** enthält die Oberfläche keine schreibenden Funktionen
 
 #### Scenario: Schreibender Request
 - **WHEN** ein `POST`, `PUT`, `PATCH` oder `DELETE` an `/`, `/status` oder `/healthz` des eigenständigen Dienstes gesendet wird
@@ -20,7 +25,12 @@ Die Statusansicht SHALL nur lesende Endpunkte bereitstellen (`GET /`, `GET /appl
 - **AND** bricht sie nach spätestens 2,5 Sekunden ab
 
 ### Requirement: Keine Geheimnisse und minimale Projektion
-Die öffentliche Projektion SHALL ausschließlich Umgebung, Prüfzeitpunkt, Gesamt- und Komponentenzustände, App-IDs, Namen, Sollversionen, Hosts, HTTP-Status, Latenz, kurze feste Fehlerbeschreibungen, Heartbeat-Alter, Auftragszahlen, erlaubte Monitoring-Metadaten, strukturierte Quellen und Tätigkeiten, Ergebnis- und Verifikationsstatus, dokumentierte Release-Metadaten und erlaubte GitHub-Lauf-Links enthalten. Sie SHALL keine Auftrags- oder Vorfalltexte, Auftrags- oder Vorfall-IDs, Logs, Modellantworten, Zugangsdaten, Connection-Strings, Secret-Werte oder rohen Ausnahmetexte enthalten. Fehler SHALL nur als betroffene Komponente und fester Kurztext sichtbar werden.
+Die öffentliche Projektion SHALL nur erlaubte strukturierte Statusfelder und feste Beschreibungen ausgeben. Sie SHALL keine freien Vorfalltexte, internen IDs, Logs, Modellantworten, Zugangsdaten, Connection-Strings, Secret-Werte oder rohen Ausnahmetexte veröffentlichen.
+
+#### Scenario: Erlaubte öffentliche Felder
+- **WHEN** Statusdaten projiziert werden
+- **THEN** sind nur Umgebung, Prüfzeiten, Zustände, App-IDs, Namen, Sollversionen, Hosts, HTTP-Status, Latenz, feste Fehlerbeschreibungen, Heartbeat-Alter, Auftragszahlen und Monitoring-Metadaten enthalten
+- **AND** bleiben Quellen, Tätigkeiten, Ergebnisse, Verifikationen, Release-Metadaten und GitHub-Lauf-Links auf die definierten strukturierten Felder begrenzt
 
 #### Scenario: Datenbankfehler mit Zugangsdaten in der Ausnahme
 - **WHEN** die Datenbankverbindung mit einer Ausnahme scheitert, die Host oder Passwort enthält
@@ -44,7 +54,14 @@ Prüfziele SHALL ausschließlich aus Konfiguration (`OPS_BASE_DOMAIN`, `OPS_PUBL
 - **AND** gilt der Katalog als unvollständig
 
 ### Requirement: Unabhängige Bereitstellung mit demselben Image
-Die Statusansicht SHALL als eigenständige App `platform-status` mit eigenem Helm-Chart (`platform/infra/status-ui/`), eigenem Katalogeintrag (`platform/catalog/platform-status/app.yaml`) und eigenem Sollzustand je Umgebung bereitgestellt werden. Sie SHALL dasselbe Container-Image wie der Operations-Agent verwenden, per Digest im Sollzustand referenziert. Der eigenständige Dienst SHALL keinen Worker, keine Migration, keinen Ereigniseingang, kein Modell und keinen GitHub-Zugang starten und das Kubernetes-ServiceAccount-Token nicht mounten. Ihr Rollout SHALL über den regulären App-Pfad (`app-deploy.yml` mit Operations-Sperre, Plan und Smoke-Test) laufen und weder vom Agenten-Rollout noch von dessen Zugängen (etwa `githubAppPrivateKey`) abhängen. Der Katalogeintrag SHALL keine erlaubten Aktionen enthalten.
+Die Statusansicht SHALL als eigenständige App `platform-status` mit eigenem Helm-Chart, Katalogeintrag und Sollzustand je Umgebung laufen. Sie SHALL das gemeinsame Operations-Agent-Image per Digest referenzieren und über `app-deploy.yml` mit Operations-Sperre, Plan und Smoke-Test ausgerollt werden. Ihr Betrieb und Rollout SHALL vom Agenten-Rollout und dessen Zugängen unabhängig sein.
+
+#### Scenario: Eigenständiger Start
+- **WHEN** das Chart `platform/infra/status-ui/` die App startet
+- **THEN** startet sie keinen Worker, keine Migration, keinen Ereigniseingang, kein Modell und keinen GitHub-Zugang
+- **AND** mountet sie kein Kubernetes-ServiceAccount-Token
+- **AND** definiert `platform/catalog/platform-status/app.yaml` keine erlaubten Aktionen
+- **AND** liegt ihr expliziter Sollzustand unter `platform/environments/<environment>/platform-status.yaml`
 
 #### Scenario: Agent nicht ausgerollt
 - **WHEN** der Operations-Agent nicht erreichbar ist und kein Worker-Heartbeat existiert
@@ -69,7 +86,26 @@ Die Agenten-API SHALL dieselbe Statusansicht weiterhin einbinden, ohne ihre Erei
 - **THEN** antwortet er mit HTTP 404
 
 ### Requirement: Datenquellen und Zustandssemantik
-Die Statusansicht SHALL für jede App mit gültigem Katalogeintrag und Sollzustand der Umgebung eine HTTP-Prüfung ausführen: TLS prüfen, Redirects nicht verfolgen, Antwortkörper nicht laden, 4 Sekunden Timeout. Nur HTTP 200 SHALL `healthy` ergeben, jede andere Antwort und jeder Verbindungs-, TLS- oder Timeout-Fehler `unavailable`, fehlende Konfiguration `unknown`. Datenbankzustand, Worker-Heartbeat, Zahl aktiver Aufträge (`received`, `queued`, `investigating`, `acting`, `verifying`), Zahl der in den letzten 24 Stunden `resolved` sowie `failed` oder `needs_attention` gewordenen Aufträge und die jüngsten Aufträge SHALL aus der Operations-Datenbank gelesen und auf die konfigurierte Umgebung (`staging` oder `production`) beschränkt werden. Der Worker SHALL `unavailable` sein, wenn kein Heartbeat existiert oder er älter als die Grenze von `/healthz` ist (Standard 600 Sekunden). Der Gesamtzustand SHALL `degraded` sein, sobald eine App, die Datenbank oder der Worker `unavailable` ist, sonst `unknown`, wenn eine Komponente `unknown` ist oder der Katalog nicht vollständig lesbar ist, sonst `healthy`. Ein Datenbankfehler SHALL als `unavailable` mit unbekannten Zahlen (`null`) erscheinen und nie als null Aufträge.
+Die Statusansicht SHALL konfigurierte App-Prüfungen und umgebungsbezogene Operations-Daten zu `healthy`, `unavailable` oder `unknown` verdichten. Ein Fehler SHALL nicht als Erfolg oder null Aufträge erscheinen. Die folgenden Szenarien definieren die Prüf- und Aggregationsregeln.
+
+#### Scenario: HTTP-Prüfung
+- **WHEN** Katalog und Sollzustand eine App der Umgebung enthalten
+- **THEN** prüft der Dienst HTTP mit TLS, ohne Redirects und ohne Laden des Antwortkörpers, mit vier Sekunden Timeout
+- **AND** ergibt nur HTTP 200 `healthy`, jede andere Antwort oder ein Verbindungs-, TLS- oder Timeout-Fehler `unavailable`, fehlende Konfiguration `unknown`
+
+#### Scenario: Operations-Daten
+- **WHEN** die Operations-Datenbank lesbar ist
+- **THEN** liest der Dienst Datenbankzustand, jüngsten Worker-Heartbeat und Aufträge nur für die konfigurierte Umgebung `staging` oder `production`
+- **AND** zählen `received`, `queued`, `investigating`, `acting` und `verifying` als aktiv
+- **AND** zählen `resolved` sowie `failed` oder `needs_attention` nur innerhalb der letzten 24 Stunden zu den entsprechenden Abschluss- und Aufmerksamkeitszahlen
+- **AND** werden die jüngsten Aufträge gesondert projiziert
+- **AND** ist der Worker ohne Heartbeat oder oberhalb der `/healthz`-Altersgrenze von standardmäßig 600 Sekunden `unavailable`
+
+#### Scenario: Aggregierter Zustand
+- **WHEN** die Komponentenprüfungen abgeschlossen sind
+- **THEN** ist der Gesamtzustand `degraded`, sobald eine App, die Datenbank oder der Worker `unavailable` ist
+- **AND** ist er sonst `unknown`, wenn eine Komponente `unknown` oder der Katalog unvollständig lesbar ist
+- **AND** ist er sonst `healthy`
 
 #### Scenario: Redirect statt Gesundheitsantwort
 - **WHEN** der Prüfpfad einer App mit HTTP 301 oder 302 antwortet
@@ -108,7 +144,14 @@ Die angezeigte Version einer App SHALL die Sollversion aus dem Sollzustand im Im
 - **THEN** ist die Version unbekannt und wird nicht erfunden
 
 ### Requirement: Aktualisierung und Veralterung
-Der Server SHALL den Snapshot höchstens alle 10 Sekunden neu berechnen und mehrere gleichzeitige Abrufe auf eine Berechnung bündeln. `/status` SHALL `Cache-Control: no-store`, `checkedAt` und `refreshAfterSeconds` liefern. Die Seite SHALL die Daten automatisch im durch `refreshAfterSeconds` angegebenen Abstand (Standard 30 Sekunden) und beim erneuten Sichtbarwerden der Seite aktualisieren und eine manuelle Aktualisierung anbieten. Schlägt ein Abruf fehl oder ist der Stand älter als 90 Sekunden, SHALL die Seite den letzten Stand als veraltet kennzeichnen und den Gesamtzustand als unbekannt anzeigen, statt ihn als gesund stehen zu lassen. Ohne JavaScript SHALL ein Hinweis auf `/status` verweisen.
+Der Server SHALL gleichzeitige Snapshot-Abrufe bündeln. `/status` SHALL `Cache-Control: no-store`, `checkedAt` und `refreshAfterSeconds` liefern. Die UI SHALL automatisch und manuell aktualisierbar sein und fehlgeschlagene oder ältere Daten sichtbar als veraltet behandeln. Ohne JavaScript SHALL sie auf `/status` verweisen.
+
+#### Scenario: Aktualisierungsintervalle
+- **WHEN** die Seite sichtbar ist
+- **THEN** aktualisiert sie im durch `refreshAfterSeconds` angegebenen Abstand, standardmäßig 30 Sekunden
+- **AND** aktualisiert sie beim erneuten Sichtbarwerden und auf manuelle Anforderung
+- **AND** berechnet der Server den Snapshot höchstens alle zehn Sekunden neu
+- **AND** markiert sie den letzten Stand nach fehlgeschlagenem Abruf oder mehr als 90 Sekunden als veraltet und den Gesamtzustand als unbekannt
 
 #### Scenario: Status-API fällt aus
 - **WHEN** die Seite geladen ist und `/status` danach nicht mehr antwortet
@@ -122,6 +165,11 @@ Der Server SHALL den Snapshot höchstens alle 10 Sekunden neu berechnen und mehr
 #### Scenario: Antwort nicht zwischenspeicherbar
 - **WHEN** `/status` abgerufen wird
 - **THEN** erlaubt der Header keine Zwischenspeicherung
+
+#### Scenario: Bestehender Browser nach einem Deployment
+- **WHEN** der Browser eine neue HTML-Seite nach einem Deployment lädt
+- **THEN** enthalten geänderte JavaScript- und CSS-Assets neue, vom Inhalt abgeleitete URLs
+- **AND** verhindern alte Cache-Einträge nicht die Darstellung und Navigation der neuen Seite
 
 ### Requirement: Eigener Gesundheitsendpunkt des eigenständigen Dienstes
 Der eigenständige Dienst SHALL `GET /healthz` bereitstellen, der nur den Statusprozess prüft und 200 liefert, unabhängig von Datenbank, Worker und Apps. Komponentenzustände SHALL ausschließlich in `/status` stehen.
@@ -172,7 +220,7 @@ Der Verlauf SHALL Erkennungen, strukturierte Agentenbefunde, Agentenaktionen, Sy
 - **THEN** zeigt die UI fehlende Daten statt „keine Aktivitäten“ oder null Probleme
 
 ### Requirement: Behebungen mit Prüfnachweis
-„Verifiziert abgeschlossen“ SHALL einen Auftrag im Zustand `resolved` und eine erfolgreiche jüngste Verifikation desselben Auftrags erfordern. Ein erfolgreicher Aktions- oder Deployment-Status allein SHALL nicht ausreichen. Monitoring-Störungen, Support-Fälle und andere Aufträge SHALL anhand ihrer strukturierten Quelle getrennt benannt werden; ein erfolgreicher Wartungsauftrag SHALL nicht als behobene Monitoring-Störung erscheinen. Ein aktueller App-Ausfall SHALL unabhängig von früheren Behebungen angezeigt werden.
+„Verifiziert abgeschlossen“ SHALL einen `resolved`-Auftrag mit erfolgreicher jüngster Verifikation desselben Auftrags erfordern. Ein erfolgreicher Aktions- oder Deployment-Status allein SHALL nicht ausreichen. Monitoring-Störungen, Support-Fälle und andere Aufträge SHALL nach strukturierter Quelle getrennt benannt werden. Wartung SHALL nicht als behobene Monitoring-Störung erscheinen. Aktuelle App-Ausfälle SHALL unabhängig von früheren Behebungen sichtbar bleiben.
 
 #### Scenario: Abschluss ohne erfolgreiche jüngste Verifikation
 - **WHEN** ein Auftrag resolved ist, aber der jüngste Prüfnachweis fehlt oder fehlschlug

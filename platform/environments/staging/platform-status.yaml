@@ -1,6 +1,6 @@
-# Geprüftes Admin-UI-Image aus agent-build 41122983506; Status-Chart aus status-ui-package #2.
+# Geprüftes Admin-UI-Image aus agent-build 41124648862; Status-Chart aus status-ui-package #2.
 schemaVersion: "0.1"
-image: acr:operations-agent@sha256:6c28f70442e3f4471722dcc776f08bfda6ce465ffefb8344adb5bc9f9f6c208c
+image: acr:operations-agent@sha256:0f0fea7efe8e921c7eff347e85490d7eab27720a28b2ce57f1fa68e1bd924b1a
 chart:
   version: 0.1.2
 sizes:
