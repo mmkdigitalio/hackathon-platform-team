@@ -35,13 +35,13 @@ B startet lokal mit Schema, App-Programm und Workflows gegen lokalen Cluster und
 
 - [ ] 5.1 AFFiNE-Lieferung validieren und `platform/environments/staging/affine.yaml` mit festem Upstream-Release anlegen; Abschluss durch grünen Plan prüfen.
 - [ ] 5.2 AFFiNE über `app-deploy.yml` ausrollen; Abschluss durch Erreichbarkeit unter `affine.<baseDomain>` und erfolgreichen Smoke-Test prüfen.
-- [ ] 5.3 Persistenz nachweisen; Abschluss durch zweiten erfolgreichen Smoke-Test nach Neustart aller AFFiNE- und Redis-Pods prüfen.
+- [x] 5.3 Persistenz nachweisen; Abschluss durch zweiten erfolgreichen Smoke-Test nach Neustart aller AFFiNE- und Redis-Pods prüfen.
 
 ## 6. Fehlerszenarien, Anteil P1-10
 
 - [ ] 6.1 Reparierbaren Fall unter `platform/operations/apps/affine/` mit Skript, erwarteter Wirkung und Rücksetzen liefern; Abschluss durch Alarm `alert-affine-staging-availability` nach Skalieren auf 0 und Wiederherstellung per `app-deploy.yml` prüfen.
-- [ ] 6.2 Nicht reparierbaren Fall mit dokumentiertem Commit und Revert liefern; Abschluss durch weiterhin negativen Smoke-Test nach Neustart und erneutem Deployment sowie erfolgreichen Revert prüfen.
-- [ ] 6.3 Datensicherheit beider Fälle nachweisen; Abschluss durch Abbruch bei anderer Umgebung als `staging` und wiedergefundene Inhalte nach beiden Szenarien prüfen.
+- [x] 6.2 Nicht reparierbaren Fall mit dokumentiertem Commit und Revert liefern; Abschluss durch weiterhin negativen Smoke-Test nach Neustart und erneutem Deployment sowie erfolgreichen Revert prüfen.
+- [x] 6.3 Datensicherheit beider Fälle nachweisen; Abschluss durch Abbruch bei anderer Umgebung als `staging` und wiedergefundene Inhalte nach beiden Szenarien prüfen.
 
 ## 7. Gemeinsame Integration, Anteil P1-12
 
