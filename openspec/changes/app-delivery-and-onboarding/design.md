@@ -43,13 +43,13 @@ Skizze `app.yaml` (Feldnamen werden mit dem Schema festgelegt):
 schemaVersion: "0.1"
 appId: affine
 source: { repository: mmkdigitalio/hackathon-platform-affine, upstream: toeverything/AFFiNE }
-chart: { oci: <registry>/<chart> }          # oder git: { repository, path }
+chart: { oci: { url: oci://<registry>/<chart> } }   # oder acr: { repository }, repository: { url, name }
 ingress: { service: affine, port: 3010 }
 dataBlocks: [postgres-database, redis, persistent-volume]
 generatedSecrets: [affine-private-key]
-secrets: { DATABASE_PASSWORD: app:postgres-password, AFFINE_PRIVATE_KEY: app:affine-private-key }
+secrets: { DATABASE_URL: app:postgres-url, REDIS_SERVER_PASSWORD: app:redis-password }
 availability: { path: /info }
-smokeTest: { image: <image>@sha256:..., secrets: { ... } }
+smokeTest: { image: <image>@sha256:..., env: { ... }, secrets: { ... } }
 runbook: { repository: ..., path: ..., commit: <sha> }
 allowedActions: [restart, redeploy]
 dataProcedures: { migration: ..., backup: ..., restore: not-applicable }
@@ -65,22 +65,26 @@ Konfigurationswerte für das Chart sind im Sollzustand frei, weil sie dem Chart 
 | `redis` | Kubernetes-Deployment und Service mit per Digest fixiertem Redis-Image im App-Namespace, ohne Persistenz. Kein Chart, weil die frei verfügbaren Bitnami-Charts und -Images nicht mehr verlässlich bezogen werden können | `redis-host`, `redis-password` |
 | `persistent-volume` | PVC mit StorageClass `managed-csi`, ReadWriteOnce | keine |
 
-Der App-Stack schreibt alle aufgelösten Referenzen in das Secret `<app-id>-platform`, dessen Name dem Chart als Wert übergeben wird. Generierte Werte entstehen mit `random`-Ressourcen und liegen verschlüsselt im Stack-State, sodass sie stabil bleiben. Datenbank, Login und PVC erhalten `protect`.
+Der App-Stack schreibt alle aufgelösten Referenzen, einschließlich der Test-Secrets aus `smokeTest.secrets`, in das Secret `<app-id>-platform`. Smoke-Test-Jobs erhalten daraus nur ihre eigenen Schlüssel per `secretKeyRef`. Generierte Werte entstehen mit `random`-Ressourcen und liegen verschlüsselt im Stack-State, sodass sie stabil bleiben. Datenbank, Login und PVC erhalten `protect`.
 
 ### 4. Helm-Ausrollung mit Hooks und Drift-Korrektur
 
-Das Agenten-Chart braucht echte Helm-Hooks für Migrationen; das App-Programm nutzt deshalb `helm.v3.Release` statt einer in Pulumi-Ressourcen aufgelösten Chart-Variante. Ein `Release` aktualisiert aber nur bei geänderten Eingaben. Damit die bekannte Reparatur (0 Replicas) ohne Sollzustandsänderung greift, übergibt jeder Lauf eine Rollout-Markierung mit `operationId` als Release-Wert, die kein Pod-Template verändert. Helm führt dadurch ein Upgrade mit Drei-Wege-Merge aus und setzt manuell geänderte Felder auf den Sollzustand zurück. Die Markierung wird in Task 2.3 gegen genau dieses Verhalten geprüft.
+Das Agenten-Chart braucht echte Helm-Hooks für Migrationen; das App-Programm nutzt deshalb `helm.v3.Release` statt einer in Pulumi-Ressourcen aufgelösten Chart-Variante. Ein `Release` aktualisiert aber nur bei geänderten Eingaben. Damit die bekannte Reparatur (0 Replicas) ohne Sollzustandsänderung greift, übergibt jeder Lauf die `operationId` als Chart-Wert `rolloutMarker`, der kein Pod-Template verändert. Helm führt dadurch ein Upgrade mit Drei-Wege-Merge aus und setzt manuell geänderte Felder auf den Sollzustand zurück. In Task 2.3 lokal gegen kind nachgewiesen: Nach `kubectl scale --replicas=0` stellt ein Lauf ohne Sollzustandsänderung die Replica-Zahl wieder her, ohne Pods neu zu starten, wenn nichts abweicht.
+
+Werte-Vertrag mit den Charts (Konvention aus D's Agenten-Chart): Das App-Programm setzt `image.repository`, `image.digest`, `secretName`, `imagePullSecretName`, `rolloutMarker` und einen Block `platform` mit Host, URL, PVC-Name, Größen und Release-Referenz. Diese Schlüssel sind im Sollzustand reserviert. Die Release-Referenz des letzten erfolgreichen Rollouts steht in den Namespace-Annotationen `ops.mmk/release-git-sha`, `ops.mmk/release-image-digest` und `ops.mmk/release-chart-version`, die auch D's Kubernetes-Werkzeug liest.
 
 ### 5. Workflows und Versionsfluss
 
 - `app-plan.yml` (Pull Request): Validierung, Abgleich der Secret-Referenzen mit `platform/schemas/foundation-outputs/`, `pulumi preview` der betroffenen Stacks. Erforderlicher Status-Check für `main`.
 - `app-deploy.yml` (Push auf `main` unter `platform/environments/**`, `workflow_dispatch` mit `appId`, `environment`, `operationId`, `actionId`, `force`): `run-name` enthält App, Umgebung, `operationId` und `actionId`. Ablauf: Foundation-Ausgaben, Validierung, Host-Prüfung, Sperre, `pulumi up --refresh`, Rollout-Prüfung, Smoke-Job, Ergebnis, Freigabe. Eine Concurrency-Gruppe je App und Umgebung ergänzt die Sperre.
-- `app-update-desired-state.yml` (`workflow_call`): setzt Digest und Chart-Version, legt Branch, Commit und Pull Request mit `OPS_GITHUB_TOKEN` an und aktiviert Auto-Merge. Aufgerufen vom Agenten-Build (`agent-*.yml`). Mit `GITHUB_TOKEN` würden Pull Request und Merge keine weiteren Workflows auslösen.
+- `app-update-desired-state.yml` (`workflow_call`, Eingaben `appId`, `environment`, `imageDigest`, `chartVersion`, optional `imageRepository` mit Standard `acr:<appId>` und `sourceSha`): setzt Digest und Chart-Version, legt Branch, Commit und Pull Request mit `OPS_GITHUB_TOKEN` an und aktiviert Auto-Merge. Aufgerufen vom Agenten-Build (`agent-*.yml`). Mit `GITHUB_TOKEN` würden Pull Request und Merge keine weiteren Workflows auslösen.
 - Änderungen an `platform/catalog/` oder `platform/infra/app-runtime/` lösen kein automatisches Deployment aus; sie wirken mit dem nächsten Lauf oder einem manuellen `workflow_dispatch`.
 
 AFFiNE-Versionen kommen per manuellem Pull Request. Voraussetzung im Repository: Auto-Merge erlaubt, `app-plan.yml` als erforderlicher Check, keine Pflicht-Reviews auf Sollzustands-PRs. Diese Einstellungen dokumentiert B unter `platform/operations/apps/`, gesetzt werden sie von einer Person mit Admin-Rechten.
 
-Zugänge: Repo-Secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE`; alles Weitere über `.github/actions/foundation-outputs`. Der App-Stack legt je Namespace ein Image-Pull-Secret aus `acrUsername`/`acrPassword` an.
+Zugänge: Repo-Secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE`; alles Weitere über `.github/actions/foundation-outputs` mit den Eingaben `backend-account`, `backend-key`, `config-passphrase` (wie D's `agent-build.yml`) und einer Step-Ausgabe je Vertragswert einschließlich `contractVersion`.
+
+Stacks: Pulumi leitet das Projekt aus `Pulumi.yaml` ab. `platform/infra/app-runtime/scripts/pulumi-stack.sh` erzeugt deshalb je App ein Projekt `app-<app-id>`, das auf das gemeinsame Programm zeigt; die Stack-Konfiguration ist flüchtig, das Passphrase-Salz liest Pulumi aus dem State (lokal nachgewiesen). Der App-Stack legt je Namespace ein Image-Pull-Secret aus `acrUsername`/`acrPassword` an.
 
 ### 6. Sperre, Konfliktregel und Break-glass
 
@@ -90,7 +94,7 @@ Break-glass (E9): Nur mit `force` und nur wenn ein Verbindungstest zu PostgreSQL
 
 ### 7. Smoke-Test-Vertrag
 
-Der Deploy-Workflow startet den Smoke-Test als Job im App-Namespace mit `TARGET_URL=https://<app-id>.<baseDomain>` und den Test-Secrets aus dem Katalog, wartet auf das Ende, liest stdout und ergänzt `appId`, `environment`, `release` aus Namespace-Annotationen und Pod-Status sowie `checkRef` als Image-Digest. Exit-Code und `success` müssen übereinstimmen. Für den Agenten liefert B ein generisches Image `smoke-http`, das `TARGET_URL` plus Prüfpfad abfragt und das Ergebnis im Vertragsformat schreibt.
+Der Deploy-Workflow startet den Smoke-Test als Job im App-Namespace mit `TARGET_URL=https://<app-id>.<baseDomain>`, den nicht geheimen Werten aus `smokeTest.env` und den Test-Secrets per `secretKeyRef`, wartet auf das Ende, liest die Ausgabe und ergänzt `appId`, `environment`, `release` aus den Namespace-Annotationen und dem Image-Digest der laufenden Pods sowie `checkRef` als Image-Referenz mit Digest. Das Ergebnis ist die letzte JSON-Zeile der Ausgabe, weil `kubectl logs` stdout und stderr mischt. Exit-Code und `success` müssen übereinstimmen. D's Verifikationswerkzeug startet den Job gleich und löst `acr:`-Referenzen mit `OPS_ACR_LOGIN_SERVER` auf. Für den Agenten liefert B ein generisches Image `smoke-http`, das `TARGET_URL` plus Prüfpfad abfragt und das Ergebnis im Vertragsformat schreibt.
 
 ### 8. AFFiNE als externe Lieferung
 
@@ -107,7 +111,7 @@ Beide berühren weder Datenbank noch PVC noch Secrets. Damit der zweite Fall zu 
 
 ### 9. Agentenpaket
 
-`platform/catalog/operations-agent/app.yaml` referenziert D's Chart aus `operations-agent/deploy/` bzw. dessen veröffentlichte Version, `smoke-http` mit Prüfpfad `/healthz` und ausschließlich `foundation:`-Secrets; einen Datenbaustein braucht der Agent nicht, weil er die Foundation-Datenbank `operations` nutzt. Der Host `operations-agent.<baseDomain>` wird vor dem Rollout mit `operationsApiHost` verglichen. ServiceAccount, ClusterRoleBinding und Migrations-Hook stammen aus dem Chart.
+`platform/catalog/operations-agent/app.yaml` referenziert D's Chart in der veröffentlichten Version `oci://<acrLoginServer>/helm/operations-agent` (Katalog: `acr: { repository: helm/operations-agent }`, Ingress auf Service `operations-agent` Port 80), `smoke-http` mit Prüfpfad `/healthz` und ausschließlich `foundation:`-Secrets; einen Datenbaustein braucht der Agent nicht, weil er die Foundation-Datenbank `operations` nutzt. Der Host `operations-agent.<baseDomain>` wird vor dem Rollout mit `operationsApiHost` verglichen. ServiceAccount, ClusterRoleBinding und Migrations-Hook stammen aus dem Chart.
 
 ## Risks / Trade-offs
 
@@ -129,6 +133,7 @@ Beide berühren weder Datenbank noch PVC noch Secrets. Damit der zweite Fall zu 
 ## Open Questions
 
 - Das Sperrschema muss vor dem ersten Erwerb existieren. Gelöst durch C's einmaligen Workflow `ops-migrate.yml` vor dem ersten Deployment; ohne Schema bricht der Sperrclient mit Hinweis ab.
-- Laut `shared-platform-runtime` erzeugt der Foundation-Stack für jeden Katalogeintrag einen Test an `ops-intake`, also auch für `operations-agent`, zusätzlich zum `/healthz`-Test an `ops-humans`. Mit A zu klären, ob `operations-agent` ausgenommen wird.
+- Geklärt: Laut gemeinsamer Übersicht nimmt A `operations-agent` vom Test an `ops-intake` aus; der Agent wird nur über `/healthz` an `ops-humans` überwacht.
+- Form von A's Verträgen: Die Validierung erwartet `platform/schemas/conventions/conventions.json` mit `appId.pattern` und `environments` sowie `platform/schemas/foundation-outputs/foundation-outputs.schema.json` als JSON-Schema mit `properties`. Bis A sie liefert, scheitert `app-plan.yml` bei Änderungen am App-Pfad bewusst.
 - Ob der Smoke-Test des AFFiNE-Kollegen Inhalte eines früheren Laufs wiederfinden kann (für Szenario 9) und welcher Konfigurationswert den nicht reparierbaren Fall auslöst, wird mit der Lieferung festgelegt.
 - Ob das AFFiNE-Smoke-Test-Image aus der ACR oder öffentlich gezogen wird, hängt von der Lieferung ab.
