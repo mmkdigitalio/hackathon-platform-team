@@ -18,7 +18,7 @@ mkdir -p "$state_dir"
 summary="${GITHUB_STEP_SUMMARY:-/dev/stderr}"
 target=(--app "$APP_ID" --env "$ENVIRONMENT" --operation-id "$OPERATION_ID")
 # Sperrbesitz = Besitzer (Lauf-URL) + Sperrversion aus dem Erwerb (C: platform/operations/state/locks.md).
-owned() { echo --owner "$RUN_URL" --lock-version "$(cat "$state_dir/lock-version")"; }
+owned() { owned_args=(--owner "$RUN_URL" --lock-version "$(cat "$state_dir/lock-version")"); }
 
 break_glass() { [[ -f "$state_dir/break-glass" ]]; }
 
@@ -35,6 +35,7 @@ case "${1:?Befehl fehlt}" in
         exit 1
       fi
       touch "$state_dir/break-glass"
+      at="$(date -u +%FT%TZ)"
       {
         echo "### ⚠️ Break-glass"
         echo ""
@@ -42,9 +43,14 @@ case "${1:?Befehl fehlt}" in
         echo ""
         echo "| App | Umgebung | operationId | Git-SHA | Lauf | Zeitpunkt | Grund |"
         echo "| --- | --- | --- | --- | --- | --- | --- |"
-        echo "| $APP_ID | $ENVIRONMENT | \`$OPERATION_ID\` | \`${GITHUB_SHA:-}\` | $RUN_URL | $(date -u +%FT%TZ) | ${reason//|/ } |"
+        echo "| $APP_ID | $ENVIRONMENT | \`$OPERATION_ID\` | \`${GITHUB_SHA:-}\` | $RUN_URL | $at | ${reason//|/ } |"
         echo ""
-        echo "Nachtrag nach Wiederherstellung: \`ops lock backfill\` laut platform/operations/apps/README.md."
+        echo "Nachtrag nach Wiederherstellung (Pflicht, Ergebnis des Laufs eintragen):"
+        echo ""
+        echo '```bash'
+        echo "ops lock backfill --app $APP_ID --env $ENVIRONMENT --git-sha ${GITHUB_SHA:-<sha>} \\"
+        echo "  --workflow-run $RUN_URL --at $at --outcome <succeeded|failed> --note \"operationId $OPERATION_ID\""
+        echo '```'
       } >> "$summary"
       echo "::warning::Break-glass: Lauf ohne Sperre, Vermerk in der Zusammenfassung"
       exit 0
@@ -66,16 +72,18 @@ case "${1:?Befehl fehlt}" in
     ;;
   renew-loop)
     break_glass && exit 0
+    owned
     (
       while sleep 60; do
-        ops lock renew "${target[@]}" $(owned) || { touch "$state_dir/lost"; exit 1; }
+        ops lock renew "${target[@]}" "${owned_args[@]}" || { touch "$state_dir/lost"; exit 1; }
       done
     ) >/dev/null 2>&1 &
     echo $! > "$state_dir/renew-pid"
     ;;
   check)
     break_glass && exit 0
-    if [[ -f "$state_dir/lost" ]] || ! ops lock check "${target[@]}" $(owned); then
+    owned
+    if [[ -f "$state_dir/lost" ]] || ! ops lock check "${target[@]}" "${owned_args[@]}"; then
       echo "::error::Sperrbesitz für Operation $OPERATION_ID verloren; keine weitere Zieländerung"
       exit 1
     fi
@@ -84,20 +92,22 @@ case "${1:?Befehl fehlt}" in
     [[ -f "$state_dir/renew-pid" ]] && kill "$(cat "$state_dir/renew-pid")" 2>/dev/null || true
     break_glass && exit 0
     [[ -f "$state_dir/acquired" ]] || exit 0
-    ops lock release "${target[@]}" $(owned)
+    owned
+    ops lock release "${target[@]}" "${owned_args[@]}"
     ;;
   record)
     break_glass && exit 0
     status="${2:?Status fehlt}"
+    owned
     # Eigene Aktion des Laufs; die actionId des Agenten (Dispatch) ist nur Korrelation.
     if [[ ! -f "$state_dir/action-id" ]]; then
       action_id="act-deploy-${GITHUB_RUN_ID:-$(date +%s)}-${GITHUB_RUN_ATTEMPT:-1}-$APP_ID-$ENVIRONMENT"
-      args=("${target[@]}" $(owned) --kind deploy --target "$APP_ID/$ENVIRONMENT" --action-id "$action_id")
+      args=("${target[@]}" "${owned_args[@]}" --kind deploy --target "$APP_ID/$ENVIRONMENT" --action-id "$action_id")
       [[ -n "${ACTION_ID:-}" ]] && args+=(--agent-action-id "$ACTION_ID")
       GITHUB_OUTPUT=/dev/null ops actions record "${args[@]}" >/dev/null
       echo "$action_id" > "$state_dir/action-id"
     fi
-    args=("${target[@]}" $(owned) --action-id "$(cat "$state_dir/action-id")" --status "$status"
+    args=("${target[@]}" "${owned_args[@]}" --action-id "$(cat "$state_dir/action-id")" --status "$status"
           --external-ref "runUrl=$RUN_URL")
     [[ -n "${3:-}" ]] && args+=(--result-file "$3")
     ops actions update "${args[@]}"

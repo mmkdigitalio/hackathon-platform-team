@@ -96,12 +96,14 @@ gh workflow run app-deploy.yml -f appId=operations-agent -f environment=staging 
 - Ohne Sperre vermerkt die Zusammenfassung „Break-glass“ mit App, Umgebung, `operationId`, Git-SHA, Lauf, Zeitpunkt und Grund. Aktionsnachweise entfallen in diesem Lauf.
 - Ein AFFiNE-Lauf scheitert ohne PostgreSQL ohnehin am Baustein `postgres-database`; Break-glass betrifft praktisch den Agenten.
 
-**Nachtrag nach Wiederherstellung (Pflicht):** Mit den Angaben aus der Zusammenfassung den Vorgang ins Aktionsprotokoll übernehmen, Verfahren und Syntax laut C unter `platform/operations/state/`:
+**Nachtrag nach Wiederherstellung (Pflicht):** Die Zusammenfassung des Laufs enthält den fertigen Befehl; `--outcome` nach dem Ergebnis des Laufs setzen und lokal mit Datenbankzugang aus den Foundation-Ausgaben (`PG*`-Variablen) ausführen. Verfahren laut C in `platform/operations/state/locks.md`:
 
 ```bash
-ops lock backfill --app <app-id> --env <env> --operation-id <operationId> \
-  --external-ref <Lauf-URL> --note break-glass
+ops lock backfill --app <app-id> --env <env> --git-sha <sha> \
+  --workflow-run <Lauf-URL> --at <Zeitpunkt aus dem Vermerk> --outcome succeeded --note "operationId <operationId>"
 ```
+
+Der Nachtrag legt eine Operation `break-glass-…` mit einer Aktion `deploy` an und ist je Workflow-Lauf idempotent.
 
 ## Außerbetriebnahme
 
