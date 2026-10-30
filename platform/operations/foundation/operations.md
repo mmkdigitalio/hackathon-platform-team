@@ -55,7 +55,7 @@ Settings with irreversible or wide effects; read the preview before `up`:
 | `location` | Would replace protected resources, so the run fails; a move is a new environment |
 | `postgresVersion` | A major upgrade cannot be reverted; if the preview shows a replacement, `protect` stops it (verify live) |
 | `postgresStorageGb` | Flexible Server storage grows only (verify live) |
-| `nodeVmSize`, `nodeCount` | Changes the node pool; if the preview shows `aks` replaced, that is a new cluster (verify live) |
+| `nodeVmSize`, `nodeCount` | Changes the node pool; Azure does not update the inline pool, so a new size is a [pool swap](#node-size-change); if the preview shows `aks` replaced, that is a new cluster (verify live) |
 
 Rule: if a preview shows a replacement of `aks` or of the `traefik` release, stop. It
 means a new ingress IP, a new `baseDomain` and the follow-up work of a
@@ -136,6 +136,36 @@ Automatic Kubernetes upgrades are off (`upgradeChannel: none`). The setting
 With few nodes, apps can be briefly unavailable while AKS replaces nodes; duration and
 disruption: verify live. There is no downgrade: the way back from a failed upgrade is a
 fix forward or the [deleted cluster](#deleted-cluster) recovery.
+
+## Node size change
+
+The node pool is defined inline in the cluster (`agentPoolProfiles`), and Azure does not
+update that property after creation. A changed `nodeVmSize` is therefore applied in Azure
+by swapping the pool, then Pulumi takes over the actual state with `refresh`. The cluster,
+its ingress IP and `baseDomain` stay.
+
+1. Check size and quota with the preflight (`NODE_VM_SIZE` in the env file), then swap
+   the pool under the same name `system` through a temporary system pool. Deleting a pool
+   drains its node, so apps are briefly unavailable:
+
+   ```bash
+   A=(-g rg-mmk-platform-staging --cluster-name aks-mmk-platform-staging)
+   P=(--mode System --os-sku Ubuntu --node-vm-size <vm-size> --node-count 1 \
+      --node-osdisk-size 128 --node-osdisk-type Managed --max-pods 250 --kubernetes-version <x.y.z>)
+   az aks nodepool add "${A[@]}" -n tmp "${P[@]}"
+   az aks nodepool delete "${A[@]}" -n system
+   az aks nodepool add "${A[@]}" -n system "${P[@]}"
+   az aks nodepool delete "${A[@]}" -n tmp
+   ```
+
+2. Set `nodeVmSize` in `Pulumi.staging.yaml` and `NODE_VM_SIZE` in the env file to the
+   new size and merge them.
+3. With the backend environment: `pulumi -C platform/infra/foundation refresh`, then
+   `preview` must show no change of `aks`.
+
+Staging moved from `Standard_D2als_v6` (4 GiB) to `Standard_D2as_v6` (8 GiB) on
+2026-10-30, because AFFiNE stayed `Pending` with "Insufficient memory". The `refresh` of
+step 3 is still open; run it before the next foundation `up`.
 
 ## Chart upgrades
 
