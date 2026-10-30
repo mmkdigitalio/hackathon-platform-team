@@ -10,7 +10,7 @@ A startet sofort. B, C und D brauchen früh die Konventionen und das Ausgabe-Sch
 
 ## 2. Bootstrap und Zugänge, P1-03
 
-- [x] 2.1 Vorab-Check für Contributor-Rechte, Repo-Admin und Berechtigungen der GitHub App liefern (geändert 2026-10-30 (Erik); war: PAT-Berechtigungen); Abschluss durch Abbruch mit klarer Meldung bei fehlendem Recht prüfen.
+- [ ] 2.1 Vorab-Check für Contributor-Rechte, Repo-Admin und Berechtigungen der GitHub App liefern (geändert 2026-10-30 (Erik); war: PAT-Berechtigungen); Abschluss durch Abbruch mit klarer Meldung bei fehlendem Recht prüfen.
 - [ ] 2.2 Idempotentes Bootstrap-Skript für State-Resource-Group, Storage-Account mit Versionierung und Soft Delete sowie State-Container liefern; Abschluss durch zweimaligen Lauf ohne Änderung und Wiederholung nach Abbruch prüfen.
 - [ ] 2.3 Repo-Secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE` und optional `OPS_GITHUB_TOKEN` setzen und Foundation-Konfigurationssecrets (Modell-Keys, `githubWebhookSecret`, `githubAppPrivateKey`, optional PAT) hinterlegen (geändert 2026-10-30 (Erik); war: PAT verpflichtend); Abschluss durch Secret-Liste ohne Klartext im Repo prüfen.
 - [x] 2.4 Composite Action `.github/actions/foundation-outputs` mit Versionsprüfung und Maskierung liefern; Abschluss durch Lesen der Platzhalterausgaben und Abbruch bei falscher Vertragsversion prüfen.
@@ -19,9 +19,9 @@ A startet sofort. B, C und D brauchen früh die Konventionen und das Ausgabe-Sch
 
 - [ ] 3.1 Resource Group, Log Analytics, Application Insights, ACR mit Admin-User und AKS mit lokalen Accounts ausrollen; Abschluss durch lokalen Lauf ohne Fehler wegen fehlender Rollenzuweisung prüfen.
 - [ ] 3.2 Container Insights aktivieren, soweit ohne Rollenzuweisung möglich; Abschluss durch Log-Abfrage einer Testzeile oder dokumentierten Verzicht prüfen.
-- [ ] 3.3 Ingress-Controller und Zertifikatsverwaltung ausrollen, `baseDomain` aus der Service-IP ableiten; Abschluss durch HTTPS-Aufruf einer Test-Ingress-Regel unter `<test>.<baseDomain>` prüfen.
-- [ ] 3.4 PostgreSQL Flexible Server mit Datenbank `operations`, TLS-Pflicht, offener Firewall und 7 Tagen Backup ausrollen; Abschluss durch Verbindung von einem GitHub-hosted Runner prüfen.
-- [ ] 3.5 Diagnose-Storage mit Container `diagnostics` und 30-Tage-Lifecycle ausrollen; Abschluss durch Schreiben und Lesen mit dem Storage-Key prüfen.
+- [x] 3.3 Ingress-Controller und Zertifikatsverwaltung ausrollen, `baseDomain` aus der Service-IP ableiten; Abschluss durch HTTPS-Aufruf einer Test-Ingress-Regel unter `<test>.<baseDomain>` prüfen.
+- [x] 3.4 PostgreSQL Flexible Server mit Datenbank `operations`, TLS-Pflicht, offener Firewall und 7 Tagen Backup ausrollen; Abschluss durch Verbindung von einem GitHub-hosted Runner prüfen.
+- [x] 3.5 Diagnose-Storage mit Container `diagnostics` und 30-Tage-Lifecycle ausrollen; Abschluss durch Schreiben und Lesen mit dem Storage-Key prüfen.
 - [ ] 3.6 Generierte Keys (`alertWebhookKey`, `maintenanceApiKey`) und den vollständigen Ausgabevertrag mit `contractVersion` ausgeben; Abschluss durch Schema-Validierung der echten Ausgaben prüfen.
 
 ## 4. Monitoring und Alarmziele
@@ -29,7 +29,7 @@ A startet sofort. B, C und D brauchen früh die Konventionen und das Ausgabe-Sch
 - [ ] 4.1 Action Groups `ops-intake` und `ops-humans` anlegen; Abschluss durch Testbenachrichtigung an den Team-Verteiler prüfen.
 - [ ] 4.2 Verfügbarkeitstests und Alarmregeln aus `platform/catalog/*/app.yaml` erzeugen, mit Custom Properties und automatischer Auflösung; Abschluss durch einen Test-Katalogeintrag mit Fired- und Resolved-Ereignis prüfen.
 - [ ] 4.3 Verfügbarkeitstest auf `https://<operationsApiHost>/healthz` mit Alarm an `ops-humans` anlegen; Abschluss durch E-Mail bei gestopptem Worker prüfen, sobald C und B den Agenten ausgerollt haben.
-- [ ] 4.4 Budget-Alarm für die Plattform-Resource-Group anlegen; Abschluss durch sichtbares Budget mit Empfänger prüfen.
+- [x] 4.4 Budget-Alarm für die Plattform-Resource-Group anlegen; Abschluss durch sichtbares Budget mit Empfänger prüfen.
 
 ## 5. Nachweis und Betrieb, Anteil P1-12
 
