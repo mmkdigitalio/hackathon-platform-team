@@ -27,9 +27,9 @@ jobs:
       - id: foundation
         uses: ./.github/actions/foundation-outputs
         with:
-          pulumi-backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
-          pulumi-backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
-          pulumi-config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
 
       - uses: actions/setup-python@v5
         with:
@@ -40,7 +40,7 @@ jobs:
 
       - name: Gesundheitsprüfung
         env:
-          OPS_MAINTENANCE_API_KEY: ${{ steps.foundation.outputs.maintenanceApiKey }}
+          MAINTENANCE_API_KEY: ${{ steps.foundation.outputs.maintenanceApiKey }}
         run: >
           ops health-check
           --env staging

@@ -31,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         with connect(settings.database_url) as conn:
-            version = check_schema(conn)
+            version = check_schema(conn, include_sdk=True)
     except OperationsError as exc:
         log.error("Start abgebrochen: %s", exc)
         return 3

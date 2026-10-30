@@ -6,7 +6,8 @@ from urllib.parse import urlparse
 
 import pytest
 
-from contracts import ActionStatus, LockNotHeld, TargetLocked, UnresolvedActions
+from contracts.actions import ActionStatus
+from contracts.errors import LockNotHeld, TargetLocked, UnresolvedActions
 from persistence import actions, cli, locks
 from persistence.db import connect
 
@@ -117,15 +118,16 @@ def test_cli_lock_cycle(db_url, capsys, tmp_path, monkeypatch):
     assert cli.main(["lock", "check", *base]) == 0
     assert cli.main(["lock", "renew", *base]) == 0
     assert cli.main(["actions", "record", *base, "--operation-id", op, "--kind", "pulumi-up",
-                     "--action-id", "act-wf-1", "--correlation", "act-agent-1"]) == 0
+                     "--action-id", "act-wf-1", "--agent-action-id", "act-agent-1"]) == 0
     assert cli.main(["actions", "update", *base, "--operation-id", op, "--action-id", "act-wf-1",
-                     "--status", "succeeded", "--external-ref", "https://github.com/x/y/actions/runs/7"]) == 0
+                     "--status", "succeeded", "--external-ref", "runUrl=https://github.com/x/y/actions/runs/7"]) == 0
     assert cli.main(["lock", "release", *base, "--owner", "someone-else"]) == 7
     assert cli.main(["lock", "release", *base]) == 0
     with connect(db_url) as conn:
         assert conn.execute("SELECT status FROM operations WHERE id = %s", (op,)).fetchone()["status"] == "completed"
         action = actions.get_action(conn, "act-wf-1")
-    assert action.status == "succeeded" and action.external_refs[0].ref.endswith("/runs/7")
+    assert action.status == "succeeded" and action.external_refs["runUrl"].endswith("/runs/7")
+    assert action.correlation == {"agentActionId": "act-agent-1"}
 
 
 def test_cli_busy_lock_exits_4(db_url, capsys):
@@ -212,7 +214,7 @@ def test_expired_lock_with_unclear_action_is_not_reassigned(db_url, capsys):
 
     handle = acquire(db_url, op="op-old", owner="gh-old", ttl=1)
     with connect(db_url) as conn:
-        action_id = actions.record_action(conn, handle, operation_id="op-old", kind="pulumi-up", target="affine")
+        action_id = actions.record_action(conn, handle, operation_id="op-old", kind="pulumi-up", target="affine").action_id
         actions.update_status(conn, handle, action_id, ActionStatus.STARTED)
     time.sleep(1.2)
     with pytest.raises(UnresolvedActions) as exc:

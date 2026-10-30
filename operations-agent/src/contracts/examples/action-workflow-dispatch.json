@@ -1,0 +1,18 @@
+{
+  "action_id": "act-5c1e1d0a-1b2c-4d3e-8f90-1a2b3c4d5e6f",
+  "operation_id": "op-2d6f0c5e-8b1a-4f3e-9c7d-6a5b4c3d2e1f",
+  "kind": "workflow_dispatch",
+  "target": "app-deploy.yml:affine/staging",
+  "status": "started",
+  "correlation": {
+    "workflow": "app-deploy.yml",
+    "operationId": "op-2d6f0c5e-8b1a-4f3e-9c7d-6a5b4c3d2e1f"
+  },
+  "external_refs": {
+    "workflow": "app-deploy.yml",
+    "runId": "1234567890",
+    "runUrl": "https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/1234567890"
+  },
+  "created_at": "2026-10-30T09:13:10Z",
+  "updated_at": "2026-10-30T09:13:10Z"
+}

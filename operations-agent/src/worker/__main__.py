@@ -1,8 +1,7 @@
 """Prozess-Einstiegspunkt des Workers: ``ops-worker`` bzw. ``python -m worker``.
 
-D's Ausführung und Abgleich werden über ``modul:fabrik`` geladen:
-``OPS_AGENT_EXECUTOR`` (Standard ``agent.execution:build_executor``) und
-``OPS_ACTION_RECONCILER`` (Standard ``agent.reconcile:build_reconciler``).
+D's Ausführung wird über ``OPS_AGENT_EXECUTOR`` (``modul:funktion``, Standard
+``agent:execute``) geladen.
 """
 
 import importlib
@@ -12,20 +11,19 @@ import signal
 import sys
 import threading
 
+from api.security import install_log_masking
 from contracts.errors import OperationsError
 from persistence.db import check_schema, connect
 from persistence.runs import known_secrets
-from api.security import install_log_masking
 
 from .runner import Worker, WorkerConfig
 
-DEFAULT_EXECUTOR = "agent.execution:build_executor"
-DEFAULT_RECONCILER = "agent.reconcile:build_reconciler"
+DEFAULT_EXECUTOR = "agent:execute"
 
 
 def load(spec: str):
     module_name, _, attr = spec.partition(":")
-    return getattr(importlib.import_module(module_name), attr)()
+    return getattr(importlib.import_module(module_name), attr)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -35,18 +33,16 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         with connect() as conn:
-            version = check_schema(conn)
+            version = check_schema(conn, include_sdk=True)
     except OperationsError as exc:
         log.error("Start abgebrochen: %s", exc)
         return 3
 
-    executor_spec = os.environ.get("OPS_AGENT_EXECUTOR", DEFAULT_EXECUTOR)
-    reconciler_spec = os.environ.get("OPS_ACTION_RECONCILER", DEFAULT_RECONCILER)
+    spec = os.environ.get("OPS_AGENT_EXECUTOR", DEFAULT_EXECUTOR)
     try:
-        executor = load(executor_spec)
-        reconciler = load(reconciler_spec)
+        execute = load(spec)
     except (ImportError, AttributeError) as exc:
-        log.error("Agentenausführung nicht ladbar (%s / %s): %s", executor_spec, reconciler_spec, exc)
+        log.error("Agentenausführung %s nicht ladbar: %s", spec, exc)
         return 4
 
     config = WorkerConfig(
@@ -54,7 +50,7 @@ def main(argv: list[str] | None = None) -> int:
         heartbeat_interval_seconds=float(os.environ.get("OPS_HEARTBEAT_SECONDS", "30")),
         lock_ttl_seconds=int(os.environ.get("OPS_AGENT_LOCK_TTL_SECONDS", "300")),
     )
-    log.info("Schema-Version %s, Ausführung %s, Worker-ID %s", version, executor_spec, config.worker_id)
+    log.info("Schema-Version %s, Ausführung %s, Worker-ID %s", version, spec, config.worker_id)
 
     stop = threading.Event()
 
@@ -66,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
 
     signal.signal(signal.SIGTERM, on_signal)
     signal.signal(signal.SIGINT, on_signal)
-    Worker(connect, executor, reconciler, config).run_forever(stop)
+    Worker(connect, execute, config).run_forever(stop)
     return 0
 
 

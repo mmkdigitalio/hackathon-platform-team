@@ -206,14 +206,19 @@ def reference_time(conn: psycopg.Connection, job: dict) -> tuple[datetime, str]:
 
 
 def release_matches(expected: dict, actual: dict | None) -> bool:
-    if not actual:
+    """Image-Digest muss passen; Chart-Version und Git-SHA nur, wenn beide Seiten sie kennen.
+
+    Ein Kubernetes-Zustand kann mehrere laufende Digests haben (``image_digests``);
+    dann muss der erwartete darunter sein.
+    """
+    if not actual or not expected.get("image_digest"):
         return False
-    if expected.get("image_digest") != actual.get("image_digest"):
+    digests = actual.get("image_digests") or [actual.get("image_digest")]
+    if expected["image_digest"] not in digests:
         return False
-    if expected.get("chart_version") != actual.get("chart_version"):
-        return False
-    if expected.get("git_sha") and actual.get("git_sha") and expected["git_sha"] != actual["git_sha"]:
-        return False
+    for key in ("chart_version", "git_sha"):
+        if expected.get(key) and actual.get(key) and expected[key] != actual[key]:
+            return False
     return True
 
 

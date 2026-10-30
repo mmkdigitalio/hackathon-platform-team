@@ -1,0 +1,92 @@
+{
+  "contract_version": "0.1",
+  "job_id": "7b0c8f8e-3a7e-4c55-9d1e-0d3f0b8b2a11",
+  "incident_id": "1f3d6e2a-55b1-4c0e-8a90-6c3e2d7a9b40",
+  "execution_id": "e4d3c2b1-a098-4765-8432-10fedcba9876",
+  "app_id": "affine",
+  "environment": "staging",
+  "operation_id": "op-2d6f0c5e-8b1a-4f3e-9c7d-6a5b4c3d2e1f",
+  "ownership": {
+    "worker_id": "operations-agent-worker-7d9f-1-d4e5f6",
+    "lease_version": 2
+  },
+  "limits": {
+    "max_runtime_seconds": 600,
+    "max_tool_calls": 30,
+    "max_repair_attempts": 2,
+    "max_cost_usd": 1.0
+  },
+  "context": {
+    "git_ref": "main",
+    "alert_payload": {
+      "schemaId": "azureMonitorCommonAlertSchema",
+      "data": {
+        "essentials": {
+          "alertId": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.AlertsManagement/alerts/11111111-1111-1111-1111-111111111111",
+          "alertRule": "alert-affine-staging-availability",
+          "severity": "Sev1",
+          "signalType": "Metric",
+          "monitorCondition": "Fired",
+          "monitoringService": "Platform",
+          "alertTargetIDs": [
+            "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg-mmk-platform-staging/providers/microsoft.insights/components/appi-mmk-platform-staging"
+          ],
+          "configurationItems": [
+            "appi-mmk-platform-staging"
+          ],
+          "originAlertId": "00000000-0000-0000-0000-000000000000_example",
+          "firedDateTime": "2026-10-30T09:12:00.000Z",
+          "description": "Verfügbarkeitstest affine-staging schlägt fehl",
+          "essentialsVersion": "1.0",
+          "alertContextVersion": "1.0"
+        },
+        "alertContext": {
+          "properties": null,
+          "conditionType": "SingleResourceMultipleMetricCriteria",
+          "condition": {
+            "windowSize": "PT5M",
+            "allOf": [
+              {
+                "metricName": "availabilityResults/availabilityPercentage",
+                "operator": "LessThan",
+                "threshold": "100",
+                "timeAggregation": "Average",
+                "metricValue": 0
+              }
+            ]
+          }
+        },
+        "customProperties": {
+          "app-id": "affine",
+          "environment": "staging"
+        }
+      }
+    },
+    "issue": null,
+    "issue_text": null,
+    "event_type": "alert"
+  },
+  "resume": {
+    "thread_id": "7b0c8f8e-3a7e-4c55-9d1e-0d3f0b8b2a11",
+    "open_actions": [
+      {
+        "action_id": "act-5c1e1d0a-1b2c-4d3e-8f90-1a2b3c4d5e6f",
+        "operation_id": "op-2d6f0c5e-8b1a-4f3e-9c7d-6a5b4c3d2e1f",
+        "kind": "workflow_dispatch",
+        "target": "app-deploy.yml:affine/staging",
+        "status": "started",
+        "correlation": {
+          "workflow": "app-deploy.yml",
+          "operationId": "op-2d6f0c5e-8b1a-4f3e-9c7d-6a5b4c3d2e1f"
+        },
+        "external_refs": {
+          "workflow": "app-deploy.yml",
+          "runId": "1234567890",
+          "runUrl": "https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/1234567890"
+        },
+        "created_at": "2026-10-30T09:13:10Z",
+        "updated_at": "2026-10-30T09:13:10Z"
+      }
+    ]
+  }
+}

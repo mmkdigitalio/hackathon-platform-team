@@ -7,7 +7,7 @@ import pytest
 
 from api import normalize
 from api.catalog import Catalog
-from contracts import ActionSnapshot, AgentInvocation, AgentResult
+from contracts import ActionRecord, AgentInvocation, AgentResult
 from persistence.event_schema import errors_for, validate_files, validator
 
 from .conftest import REPO_ROOT
@@ -64,20 +64,20 @@ def test_normalized_payloads_conform_to_schema(platform_root):
     assert errors_for(normalize.maintenance(json.loads(raw), raw, catalog), v) == []
 
 
-# --- Verträge mit D und B ------------------------------------------------------------
+# --- Vertrag mit D (contracts.v0_1) -----------------------------------------------------
 
 
 def test_contract_examples_parse():
     normal = AgentInvocation.model_validate_json((CONTRACT_EXAMPLES / "invocation-normal.json").read_text())
-    assert normal.resume is None
+    assert normal.resume.open_actions == []
     resumed = AgentInvocation.model_validate_json((CONTRACT_EXAMPLES / "invocation-resume.json").read_text())
-    assert resumed.resume.open_actions[0].kind == "workflow-dispatch"
-    action_id = resumed.resume.open_actions[0].action_id
-    assert resumed.resume.reconciled[action_id].status == "running"
+    assert resumed.resume.thread_id == normal.resume.thread_id  # Checkpoint wird fortgesetzt
+    dispatch = resumed.resume.open_actions[0]
+    assert dispatch.kind == "workflow_dispatch" and dispatch.external_refs["runId"]
     result = AgentResult.model_validate_json((CONTRACT_EXAMPLES / "result-resolved.json").read_text())
-    assert result.expected_release is not None
-    assert {f.confirmed for f in result.findings} == {True, False}
-    ActionSnapshot.model_validate_json((CONTRACT_EXAMPLES / "action-workflow-dispatch.json").read_text())
+    assert result.references["desiredState"]["imageDigest"]
+    assert {f.certainty for f in result.findings} == {"confirmed", "hypothesis"}
+    ActionRecord.model_validate_json((CONTRACT_EXAMPLES / "action-workflow-dispatch.json").read_text())
 
 
 def test_contract_rejects_unknown_fields():
@@ -85,3 +85,13 @@ def test_contract_rejects_unknown_fields():
     doc["state"] = "resolved"
     with pytest.raises(ValueError):
         AgentResult.model_validate(doc)
+
+
+def test_action_status_matches_contract():
+    """C's Persistenz und D's Vertrag kennen dieselben Status."""
+    from typing import get_args
+
+    from contracts import ActionStatus as ContractStatus
+    from contracts.actions import ActionStatus
+
+    assert {s.value for s in ActionStatus} == set(get_args(ContractStatus))

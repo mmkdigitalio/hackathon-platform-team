@@ -333,7 +333,7 @@ def backfill_break_glass(
             """,
             (f"{operation_id}-deploy", operation_id, app_id, environment,
              f"{app_id}/{environment}", outcome, text,
-             Jsonb([{"system": "github-actions", "ref": workflow_run}]),
+             Jsonb({"workflowRun": workflow_run}),
              Jsonb({"gitSha": git_sha, "breakGlass": True}), at, at, at),
         )
     return operation_id

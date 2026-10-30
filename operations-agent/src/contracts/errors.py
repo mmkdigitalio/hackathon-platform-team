@@ -75,6 +75,13 @@ class SchemaVersionMismatch(OperationsError):
         self.expected = expected
         self.actual = actual
 
+    @classmethod
+    def sdk(cls, message: str) -> "SchemaVersionMismatch":
+        exc = cls.__new__(cls)
+        OperationsError.__init__(exc, f"Checkpoint-Schema: {message}")
+        exc.expected, exc.actual = None, None
+        return exc
+
 
 class DatabaseUnavailable(OperationsError):
     """PostgreSQL ist nicht erreichbar."""

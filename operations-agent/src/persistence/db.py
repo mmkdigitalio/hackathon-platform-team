@@ -3,6 +3,7 @@
 import os
 
 import psycopg
+from psycopg.conninfo import make_conninfo
 from psycopg.rows import dict_row
 
 from contracts.errors import DatabaseUnavailable, SchemaMissing, SchemaVersionMismatch
@@ -11,12 +12,26 @@ from .migrate import expected_version
 
 
 def conninfo(database_url: str | None = None) -> str:
-    """Verbindungsangabe aus Argument, OPS_DATABASE_URL oder den libpq-Variablen PG*.
+    """Verbindungsangabe, in dieser Reihenfolge:
 
-    Leerer String heißt: libpq liest PGHOST, PGUSER, PGPASSWORD, PGDATABASE, PGSSLMODE.
-    Runner setzen diese aus den Foundation-Ausgaben (postgresAdminPassword usw.).
+    1. Argument bzw. ``OPS_DATABASE_URL`` (lokal),
+    2. ``POSTGRES_HOST``/``_USER``/``_PASSWORD``/``_DATABASE`` aus dem Secret des Agenten (Pod), mit TLS,
+    3. sonst leer: libpq liest ``PGHOST``, ``PGUSER``, ``PGPASSWORD``, ``PGDATABASE``, ``PGSSLMODE``
+       (GitHub-Runner mit den Foundation-Ausgaben).
     """
-    return database_url or os.environ.get("OPS_DATABASE_URL", "")
+    explicit = database_url or os.environ.get("OPS_DATABASE_URL")
+    if explicit:
+        return explicit
+    env = os.environ
+    if env.get("POSTGRES_HOST"):
+        return make_conninfo(
+            host=env["POSTGRES_HOST"],
+            user=env.get("POSTGRES_USER"),
+            password=env.get("POSTGRES_PASSWORD"),
+            dbname=env.get("POSTGRES_DATABASE", "operations"),
+            sslmode=env.get("POSTGRES_SSLMODE", "require"),
+        )
+    return ""
 
 
 def connect(database_url: str | None = None, *, autocommit: bool = True) -> psycopg.Connection:
@@ -41,14 +56,24 @@ def current_version(conn: psycopg.Connection) -> int | None:
     return _value(row, "v")
 
 
-def check_schema(conn: psycopg.Connection) -> int:
-    """Prüft nur die Version; verändert das Schema nie."""
+def check_schema(conn: psycopg.Connection, *, include_sdk: bool = False) -> int:
+    """Prüft nur die Version; verändert das Schema nie.
+
+    ``include_sdk`` prüft zusätzlich die Checkpoint-Tabellen von D (API und Worker).
+    """
     version = current_version(conn)
     expected = expected_version()
     if version is None:
         raise SchemaMissing()
     if version != expected:
         raise SchemaVersionMismatch(expected, version)
+    if include_sdk:
+        from agent.persistence import CheckpointSchemaMissing, check_schema as check_sdk
+
+        try:
+            check_sdk(conn)
+        except CheckpointSchemaMissing as exc:
+            raise SchemaVersionMismatch.sdk(str(exc)) from exc
     return version
 
 

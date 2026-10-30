@@ -75,9 +75,9 @@ API=https://$OPERATIONS_API_HOST            # lokal: http://127.0.0.1:8080
 EX=platform/schemas/events/examples/payloads
 
 # Azure Monitor (Fired, dann Resolved derselben Alarm-ID)
-curl -s -X POST "$API/events/azure-monitor?key=$OPS_ALERT_WEBHOOK_KEY" \
+curl -s -X POST "$API/events/azure-monitor?key=$ALERT_WEBHOOK_KEY" \
   -H 'Content-Type: application/json' --data-binary @$EX/azure-monitor-fired.json
-curl -s -X POST "$API/events/azure-monitor?key=$OPS_ALERT_WEBHOOK_KEY" \
+curl -s -X POST "$API/events/azure-monitor?key=$ALERT_WEBHOOK_KEY" \
   -H 'Content-Type: application/json' --data-binary @$EX/azure-monitor-resolved.json
 
 # Ohne Key: 401, kein Auftrag
@@ -85,19 +85,19 @@ curl -s -o /dev/null -w '%{http_code}\n' -X POST "$API/events/azure-monitor" \
   -H 'Content-Type: application/json' --data-binary @$EX/azure-monitor-fired.json
 
 # GitHub-Issue mit Signatur
-sig=$(openssl dgst -sha256 -hmac "$OPS_GITHUB_WEBHOOK_SECRET" < $EX/github-issue-opened.json | sed 's/^.* //')
+sig=$(openssl dgst -sha256 -hmac "$GITHUB_WEBHOOK_SECRET" < $EX/github-issue-opened.json | sed 's/^.* //')
 curl -s -X POST "$API/events/github" -H 'Content-Type: application/json' \
   -H 'X-GitHub-Event: issues' -H "X-GitHub-Delivery: $(uuidgen)" \
   -H "X-Hub-Signature-256: sha256=$sig" --data-binary @$EX/github-issue-opened.json
 
 # Agentenkommentar mit Markierung: ignored
-sig=$(openssl dgst -sha256 -hmac "$OPS_GITHUB_WEBHOOK_SECRET" < $EX/github-comment-agent-marked.json | sed 's/^.* //')
+sig=$(openssl dgst -sha256 -hmac "$GITHUB_WEBHOOK_SECRET" < $EX/github-comment-agent-marked.json | sed 's/^.* //')
 curl -s -X POST "$API/events/github" -H 'Content-Type: application/json' \
   -H 'X-GitHub-Event: issue_comment' -H "X-GitHub-Delivery: $(uuidgen)" \
   -H "X-Hub-Signature-256: sha256=$sig" --data-binary @$EX/github-comment-agent-marked.json
 
 # Wartungsauftrag
-curl -s -X POST "$API/events/maintenance" -H "X-Api-Key: $OPS_MAINTENANCE_API_KEY" \
+curl -s -X POST "$API/events/maintenance" -H "X-Api-Key: $MAINTENANCE_API_KEY" \
   -H 'Content-Type: application/json' --data-binary @$EX/maintenance-health-check-failed.json
 ```
 
@@ -111,8 +111,8 @@ curl -s -X POST "$API/events/maintenance" -H "X-Api-Key: $OPS_MAINTENANCE_API_KE
 
 | Symptom | Ursache und Prüfung |
 | --- | --- |
-| Azure Monitor: 401 | Key in der Action Group ≠ `OPS_ALERT_WEBHOOK_KEY` im Pod. URL der Action Group mit Foundation-Ausgabe vergleichen. |
-| GitHub: 401 | Webhook-Secret ≠ `OPS_GITHUB_WEBHOOK_SECRET`; oder ein Proxy verändert den Body. |
+| Azure Monitor: 401 | Key in der Action Group ≠ `ALERT_WEBHOOK_KEY` im Pod. URL der Action Group mit Foundation-Ausgabe vergleichen. |
+| GitHub: 401 | Webhook-Secret ≠ `GITHUB_WEBHOOK_SECRET`; oder ein Proxy verändert den Body. |
 | GitHub: 403 | Repository nicht in `OPS_GITHUB_REPO_ALLOWLIST`. |
 | GitHub: 202 `ignored` | Ereignistyp nicht `issues.opened`/`issue_comment.created`, Agentenmarkierung oder PR-Kommentar; `reason` lesen. |
 | 400 | Kein Common Alert Schema (Action Group: „Enable the common alert schema“) bzw. Pflichtfeld fehlt. |

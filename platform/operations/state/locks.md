@@ -5,7 +5,7 @@ Eine exklusive Sperre je App und Umgebung in PostgreSQL (Tabelle `operation_lock
 Begriffe:
 
 - **Operation** (`operationId`): ein ändernder Ablauf für eine App/Umgebung, Korrelationsmerkmal, kein Besitznachweis.
-- **Aktion** (`actionId`): eine einzelne externe Maßnahme mit Ziel, Art, Status (`pending` → `started` → `succeeded`/`failed`, oder `unclear`) und externen Referenzen. Sie wird **vor** dem externen Aufruf gespeichert.
+- **Aktion** (`actionId`): eine einzelne externe Maßnahme mit Ziel, Art, Status (`planned` → `started` → `succeeded`/`failed`, oder `unclear`) und externen Referenzen. Sie wird **vor** dem externen Aufruf gespeichert.
 - **Sperrbesitz**: Besitzerreferenz + Sperrversion + Ablaufzeit. Getrennt vom Auftrags-Lease des Workers.
 
 ## Installation auf dem Runner
@@ -38,8 +38,8 @@ Keine Azure-Anmeldung. Fehlt das Schema, bricht jeder Befehl mit Exit-Code 3 und
 | `ops lock release --app A --env E --lock-version V [--status failed]` | Freigabe, nur durch den Besitzer | 0, 7 |
 | `ops lock status --app A --env E` | Wer hält die Sperre? | 0 |
 | `ops lock backfill …` | Nachtrag nach Break-glass | 0 |
-| `ops actions record --operation-id O --kind K [--action-id X] [--correlation C] --lock-version V …` | Aktion vor dem Aufruf speichern | 0, 7 |
-| `ops actions update --operation-id O --action-id X --status started\|succeeded\|failed\|unclear [--external-ref URL] --lock-version V …` | Ergebnis ergänzen | 0, 7 |
+| `ops actions record --operation-id O --kind K [--action-id X] [--agent-action-id A] [--correlation K=V …] --lock-version V …` | Aktion vor dem Aufruf speichern | 0, 7 |
+| `ops actions update --operation-id O --action-id X --status started\|succeeded\|failed\|unclear [--external-ref K=V …] --lock-version V …` | Ergebnis ergänzen, z. B. `--external-ref runUrl=https://…` | 0, 7 |
 | `ops actions resolve --action-id X --status succeeded\|failed --reason …` | Ungeklärte Aktion nach manueller Prüfung abschließen | 0 |
 | `ops runs show <auftragsId>` | Laufnachweis als JSON | 0, 1 |
 
@@ -52,7 +52,7 @@ Keine Azure-Anmeldung. Fehlt das Schema, bricht jeder Befehl mit Exit-Code 3 und
 | Deploy-Workflow | Agent oder anderen Workflow | `ops lock acquire` versucht alle 15 s, höchstens 15 Minuten; danach Exit-Code 4 ohne Zieländerung. |
 | Agent | Workflow oder anderen Auftrag | Kein Warten. Der Auftrag endet sofort in `needs_attention` mit Grund „gesperrt durch Operation <operationId>“. |
 
-Eine **abgelaufene** Sperre wird nur neu vergeben, wenn ihre Operation keine offene ändernde Aktion (`pending`, `started`, `unclear`) für dieses Ziel hat. Sonst Exit-Code 6 bzw. `UnresolvedActions` mit den Aktions-IDs. Klärung: externen Vorgang prüfen (Workflow-Lauf, Kubernetes-Zustand), dann
+Eine **abgelaufene** Sperre wird nur neu vergeben, wenn ihre Operation keine offene ändernde Aktion (`planned`, `started`, `unclear`) für dieses Ziel hat. Sonst Exit-Code 6 bzw. `UnresolvedActions` mit den Aktions-IDs. Klärung: externen Vorgang prüfen (Workflow-Lauf, Kubernetes-Zustand), dann
 
 ```bash
 ops actions resolve --action-id <id> --status failed --reason "Lauf abgebrochen, Ziel unverändert" --by <name>
@@ -91,21 +91,21 @@ Der Agent ändert Apps entweder direkt (z. B. Skalieren) oder über `app-deploy.
 
 **Workflow-Dispatch:**
 
-1. Agent gibt eine eventuell gehaltene Ziel-Sperre frei. Eine Aktion `workflow-dispatch` bei gehaltener Ziel-Sperre wird abgewiesen (`NestedTargetLock`), weil der Workflow sonst 15 Minuten warten und dann abbrechen würde.
-2. Agent speichert die Aktion `workflow-dispatch` (`pending`) und startet `app-deploy.yml` mit `appId`, `environment`, `operationId`, `actionId`.
-3. Der Workflow erwirbt die Ziel-Sperre unter derselben `operationId` (`ops lock acquire --operation-id <operationId>`), protokolliert eigene Aktionen mit `--correlation <actionId>`, gibt die Sperre am Ende frei.
+1. Agent gibt eine eventuell gehaltene Ziel-Sperre frei. Eine Aktion `workflow_dispatch` bei gehaltener Ziel-Sperre wird abgewiesen (`NestedTargetLock`), weil der Workflow sonst 15 Minuten warten und dann abbrechen würde.
+2. Agent speichert die Aktion `workflow_dispatch` (`planned`) und startet `app-deploy.yml` mit `appId`, `environment`, `operationId`, `actionId`.
+3. Der Workflow erwirbt die Ziel-Sperre unter derselben `operationId` (`ops lock acquire --operation-id <operationId>`), protokolliert eigene Aktionen mit `--agent-action-id <actionId>`, gibt die Sperre am Ende frei.
 4. Agent setzt seine Dispatch-Aktion mit der Lauf-URL auf `started` und verfolgt den Lauf nur lesend, ohne Ziel-Sperre. Nach dem Lauf: `succeeded`/`failed`.
 5. Neustart dazwischen: D's Abgleich findet den Lauf über die `actionId` im `run-name` und verfolgt ihn weiter (siehe [worker.md](worker.md#wiederanlauf)).
 
-Beispiel ohne verschachtelte Ziel-Sperre (aus `test_dispatch_requires_released_target_lock`):
+Beispiel ohne verschachtelte Ziel-Sperre (aus `test_dispatch_requires_released_target_lock`; mit D's echtem Agenten in `test_agent_integration.py`):
 
 ```text
 agent    acquire affine/staging (job:<id>)        -> ok
-agent    record workflow-dispatch                 -> abgewiesen: Ziel-Sperre vor Dispatch freigeben
+agent    record workflow_dispatch                 -> abgewiesen: Ziel-Sperre vor Dispatch freigeben
 agent    release affine/staging                   -> ok
-agent    record workflow-dispatch act-1 (pending) -> ok, Agent hält keine Sperre
+agent    record workflow_dispatch act-1 (planned) -> ok, Agent hält keine Sperre
 workflow ops lock acquire --operation-id <op>     -> ok, Besitzer github-run:…
-workflow ops actions record --kind pulumi-up --correlation act-1
+workflow ops actions record --kind pulumi-up --agent-action-id act-1
 workflow ops actions update … --status succeeded
 workflow ops lock release                         -> ok
 ```

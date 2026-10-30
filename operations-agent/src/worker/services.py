@@ -1,191 +1,215 @@
-"""C's Dienste für die Agentenausführung (Vertrag ``OperationServices``).
+"""C's Dienste für die Agentenausführung nach ``contracts.v0_1.OperationsServices``.
 
-Jeder Aufruf läuft in einer eigenen Transaktion und prüft den Auftragsbesitz.
+Jeder Aufruf läuft in einer eigenen Transaktion und prüft den Auftragsbesitz. Besitz- und
+Sperrverlust erscheinen für D als ``OwnershipLost``.
 """
 
 from collections.abc import Callable
-from datetime import datetime
+from functools import wraps
 
 import psycopg
-from psycopg.types.json import Jsonb
 
-from contracts.actions import ActionStatus, ExternalRef, LockHandle
-from contracts.agent import Finding, Release
+from contracts import (
+    ActionRecord,
+    LockAcquisition,
+    OperationsServices,
+    OwnershipLost,
+)
+from contracts.actions import MUTATING_AGENT_KINDS, ActionSnapshot, LockHandle
+from contracts.errors import LeaseLost, LockNotHeld, TargetLocked, TransitionRejected, UnresolvedActions
 from contracts.states import JobState
 from persistence import actions, jobs, locks
+from persistence.db import conninfo
 from persistence.jobs import JobLease
 
+Connect = Callable[[], psycopg.Connection]
 
-class WorkerServices:
-    def __init__(
-        self,
-        connect: Callable[[], psycopg.Connection],
-        lease: JobLease,
-        job: dict,
-        execution_id: str,
-        *,
-        lock_ttl_seconds: int = locks.DEFAULT_LOCK_TTL_SECONDS,
-    ):
-        self._connect = connect
-        self.lease = lease
-        self.job = job
-        self.execution_id = execution_id
-        self.lock_ttl_seconds = lock_ttl_seconds
-        self._operation_id: str | None = None
-        self._lock: LockHandle | None = None
 
-    # --- Operation und Sperre ------------------------------------------------------
+def _ownership(fn):
+    """Übersetzt C's Besitzfehler in den Vertragsfehler ``OwnershipLost``."""
 
-    @property
-    def operation_id(self) -> str:
-        """Stabile operationId des Auftrags; bei Wiederaufnahme dieselbe."""
-        if self._operation_id is None:
-            with self._connect() as conn:
-                row = conn.execute(
-                    """
-                    SELECT id FROM operations WHERE job_id = %s AND kind = 'agent'
-                     ORDER BY started_at LIMIT 1
-                    """,
-                    (self.lease.job_id,),
-                ).fetchone()
-                if row:
-                    self._operation_id = row["id"]
-                else:
-                    with conn.transaction():
-                        self.lease.verify(conn)
-                        op = locks.ensure_operation(
-                            conn,
-                            locks.new_operation_id(),
-                            app_id=self.job["app_id"],
-                            environment=self.job["environment"],
-                            kind="agent",
-                            owner_ref=self.lease.lock_owner_ref,
-                            job_id=self.lease.job_id,
-                        )
-                    self._operation_id = op["id"]
-        return self._operation_id
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except (LeaseLost, LockNotHeld) as exc:
+            raise OwnershipLost(str(exc)) from exc
 
-    def acquire_target_lock(self) -> None:
-        # Agent wartet nie und nutzt nie --force (Konfliktregel, E9).
+    return wrapper
+
+
+def to_record(snap: ActionSnapshot) -> ActionRecord:
+    return ActionRecord(
+        action_id=snap.action_id,
+        operation_id=snap.operation_id,
+        kind=snap.kind,
+        target=snap.target,
+        status=snap.status.value,
+        correlation=snap.correlation,
+        external_refs=snap.external_refs,
+        created_at=snap.created_at,
+        updated_at=snap.updated_at,
+    )
+
+
+class LeaseGuard:
+    def __init__(self, connect: Connect, lease: JobLease):
+        self._connect, self.lease = connect, lease
+
+    @_ownership
+    def assert_valid(self) -> None:
+        with self._connect() as conn, conn.transaction():
+            self.lease.verify(conn)
+
+
+class ActionLogService:
+    def __init__(self, connect: Connect, lease: JobLease):
+        self._connect, self.lease = connect, lease
+
+    @_ownership
+    def record_planned(self, operation_id, kind, target, correlation) -> ActionRecord:
+        with self._connect() as conn:
+            snap = actions.record_action(
+                conn,
+                self.lease,
+                operation_id=operation_id,
+                kind=kind,
+                target=target,
+                mutating=kind in MUTATING_AGENT_KINDS,
+                correlation=correlation,
+            )
+        return to_record(snap)
+
+    @_ownership
+    def update(self, action_id, status, external_refs=None) -> ActionRecord:
+        with self._connect() as conn:
+            snap = actions.update_status(conn, self.lease, action_id, status, external_refs=external_refs)
+        return to_record(snap)
+
+    def get(self, action_id) -> ActionRecord | None:
+        with self._connect() as conn:
+            snap = actions.get_action(conn, action_id)
+        return to_record(snap) if snap else None
+
+    def list_for_operation(self, operation_id) -> list[ActionRecord]:
+        with self._connect() as conn:
+            return [to_record(s) for s in actions.actions_for_operation(conn, operation_id)]
+
+
+class LockService:
+    """Sperre ohne Warten und ohne ``--force``; Besitzer ist der Auftrag (``job:<id>``)."""
+
+    def __init__(self, connect: Connect, lease: JobLease, job: dict, ttl_seconds: int):
+        self._connect, self.lease, self.job, self.ttl = connect, lease, job, ttl_seconds
+        self._handles: dict[tuple[str, str], LockHandle] = {}
+
+    @_ownership
+    def try_acquire(self, app_id, environment, operation_id) -> LockAcquisition:
         with self._connect() as conn:
             with conn.transaction():
                 self.lease.verify(conn)
-            self._lock = locks.try_acquire(
-                conn,
-                app_id=self.job["app_id"],
-                environment=self.job["environment"],
-                operation_id=self.operation_id,
-                owner_ref=self.lease.lock_owner_ref,
-                kind="agent",
-                ttl_seconds=self.lock_ttl_seconds,
-                job_id=self.lease.job_id,
-            )
+            try:
+                handle = locks.try_acquire(
+                    conn,
+                    app_id=app_id,
+                    environment=environment,
+                    operation_id=operation_id,
+                    owner_ref=self.lease.lock_owner_ref,
+                    kind="agent",
+                    ttl_seconds=self.ttl,
+                    job_id=self.lease.job_id,
+                )
+            except TargetLocked as busy:
+                return LockAcquisition(acquired=False, holder_operation_id=busy.operation_id)
+            except UnresolvedActions as blocked:
+                return LockAcquisition(acquired=False, holder_operation_id=blocked.operation_id)
+        self._handles[(app_id, environment)] = handle
+        return LockAcquisition(acquired=True)
 
-    def release_target_lock(self) -> None:
-        if self._lock is None:
-            return
+    def holder(self, app_id, environment) -> str | None:
+        """Operation, die das Ziel blockiert: gültige Sperre oder abgelaufene mit ungeklärter Aktion."""
         with self._connect() as conn:
-            locks.release(conn, self._lock)
-        self._lock = None
+            row = locks.status(conn, app_id, environment)
+            if row is None:
+                return None
+            if row["valid"] or locks.unresolved_actions(conn, row["operation_id"], app_id, environment):
+                return row["operation_id"]
+        return None
 
-    # --- Auftrag -------------------------------------------------------------------
-
-    def check_lease(self) -> None:
-        with self._connect() as conn, conn.transaction():
-            self.lease.verify(conn)
-
-    def transition(self, to_state: JobState, reason: str, *, expected_release: Release | None = None) -> None:
+    def holds(self, app_id, environment, operation_id) -> bool:
+        handle = self._handles.get((app_id, environment))
+        if handle is None or handle.operation_id != operation_id:
+            return False
         with self._connect() as conn:
-            jobs.request_transition(
-                conn,
-                self.lease,
-                to_state,
-                reason,
-                requested_by="agent",
-                expected_release=expected_release.model_dump() if expected_release else None,
-            )
+            try:
+                locks.check(conn, handle)
+            except LockNotHeld:
+                return False
+        return True
 
-    # --- Aktionen ------------------------------------------------------------------
-
-    def record_action(self, kind, target, *, mutating=True, correlation=None, detail=None) -> str:
+    @_ownership
+    def release(self, app_id, environment, operation_id) -> None:
+        handle = self._handles.pop((app_id, environment), None)
+        if handle is None or handle.operation_id != operation_id:
+            raise LockNotHeld(f"Operation {operation_id} hält die Sperre {app_id}/{environment} nicht")
         with self._connect() as conn:
-            return actions.record_action(
-                conn,
-                self.lease,
-                operation_id=self.operation_id,
-                kind=kind,
-                target=target,
-                mutating=mutating,
-                correlation=correlation,
-                detail=detail,
-            )
+            locks.release(conn, handle)
 
-    def action_started(self, action_id: str, external_ref: ExternalRef | None = None) -> None:
+
+class TransitionService:
+    """Zustandswünsche von D; C prüft jeden Übergang gegen die Übergangstabelle."""
+
+    def __init__(self, connect: Connect, lease: JobLease):
+        self._connect, self.lease = connect, lease
+
+    @_ownership
+    def request(self, job_id, state, reason) -> bool:
+        if job_id != self.lease.job_id:
+            return False
+        target = JobState(state)
         with self._connect() as conn:
-            actions.update_status(conn, self.lease, action_id, ActionStatus.STARTED, external_ref=external_ref)
+            current = JobState(jobs.get_job(conn, job_id)["state"])
+            if current == target:
+                return True  # erneuter Antrag, z. B. zweiter Smoke-Test
+            try:
+                if current == JobState.VERIFYING and target == JobState.ACTING:
+                    # Erneuter begrenzter Versuch: zurück in die Untersuchung, dann handeln.
+                    jobs.request_transition(conn, self.lease, JobState.INVESTIGATING,
+                                            "erneuter Versuch nach Verifikation", requested_by="agent")
+                jobs.request_transition(conn, self.lease, target, reason, requested_by="agent")
+            except TransitionRejected:
+                return False
+        return True
 
-    def action_finished(self, action_id: str, success: bool, reason: str) -> None:
-        status = ActionStatus.SUCCEEDED if success else ActionStatus.FAILED
-        with self._connect() as conn:
-            actions.update_status(conn, self.lease, action_id, status, reason=reason)
 
-    def action_unclear(self, action_id: str, reason: str) -> None:
-        with self._connect() as conn:
-            actions.update_status(conn, self.lease, action_id, ActionStatus.UNCLEAR, reason=reason)
+class CheckpointService:
+    """LangGraph-Checkpointer auf eigener Verbindung; Tabellen legt ``ops migrate`` an."""
 
-    # --- Nachweise -----------------------------------------------------------------
+    def __init__(self):
+        self._conn: psycopg.Connection | None = None
 
-    def record_verification(
-        self,
-        kind,
-        *,
-        success: bool,
-        release: Release,
-        started_at: datetime,
-        finished_at: datetime | None = None,
-        check_ref: str | None = None,
-        evidence: dict | None = None,
-        app_id: str | None = None,
-        environment: str | None = None,
-    ) -> str:
-        with self._connect() as conn, conn.transaction():
-            self.lease.verify(conn)
-            row = conn.execute(
-                """
-                INSERT INTO verifications (job_id, kind, app_id, environment, success, release,
-                                           check_ref, started_at, finished_at, evidence)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                RETURNING id
-                """,
-                (
-                    self.lease.job_id, kind, app_id or self.job["app_id"],
-                    environment or self.job["environment"], success, Jsonb(release.model_dump()),
-                    check_ref, started_at, finished_at, Jsonb(evidence or {}),
-                ),
-            ).fetchone()
-        return str(row["id"])
+    def checkpointer(self):
+        from agent.persistence import checkpointer, connect
 
-    def record_tool_call(self, tool, arguments, *, ok, result_summary, started_at, finished_at) -> None:
-        with self._connect() as conn, conn.transaction():
-            self.lease.verify(conn)
-            conn.execute(
-                """
-                INSERT INTO tool_calls (job_id, execution_id, tool, arguments, ok, result_summary,
-                                        started_at, finished_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                """,
-                (self.lease.job_id, self.execution_id, tool, Jsonb(arguments), ok, result_summary,
-                 started_at, finished_at),
-            )
+        if self._conn is None:
+            self._conn = connect(conninfo())
+        return checkpointer(self._conn)
 
-    def record_finding(self, finding: Finding) -> None:
-        with self._connect() as conn, conn.transaction():
-            self.lease.verify(conn)
-            conn.execute(
-                """
-                INSERT INTO findings (job_id, execution_id, confirmed, statement, evidence_refs)
-                VALUES (%s, %s, %s, %s, %s)
-                """,
-                (self.lease.job_id, self.execution_id, finding.confirmed, finding.statement,
-                 Jsonb(finding.evidence_refs)),
-            )
+    def close(self) -> None:
+        if self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
+
+def build_services(connect: Connect, lease: JobLease, job: dict, *, lock_ttl_seconds: int) -> tuple[
+    OperationsServices, CheckpointService
+]:
+    checkpoints = CheckpointService()
+    services = OperationsServices(
+        actions=ActionLogService(connect, lease),
+        lock=LockService(connect, lease, job, lock_ttl_seconds),
+        state=TransitionService(connect, lease),
+        ownership=LeaseGuard(connect, lease),
+        checkpoints=checkpoints,
+    )
+    return services, checkpoints

@@ -15,7 +15,6 @@ from contracts.actions import (
     WORKFLOW_DISPATCH,
     ActionSnapshot,
     ActionStatus,
-    ExternalRef,
     LockHandle,
 )
 from contracts.errors import LockNotHeld, NestedTargetLock
@@ -26,7 +25,7 @@ from .jobs import JobLease
 Guard = JobLease | LockHandle
 
 _NEXT = {
-    ActionStatus.PENDING: {ActionStatus.STARTED, ActionStatus.SUCCEEDED, ActionStatus.FAILED, ActionStatus.UNCLEAR},
+    ActionStatus.PLANNED: {ActionStatus.STARTED, ActionStatus.SUCCEEDED, ActionStatus.FAILED, ActionStatus.UNCLEAR},
     ActionStatus.STARTED: {ActionStatus.SUCCEEDED, ActionStatus.FAILED, ActionStatus.UNCLEAR},
     ActionStatus.UNCLEAR: {ActionStatus.STARTED, ActionStatus.SUCCEEDED, ActionStatus.FAILED},
     ActionStatus.SUCCEEDED: set(),
@@ -50,11 +49,11 @@ def record_action(
     kind: str,
     target: str,
     mutating: bool = True,
-    correlation: str | None = None,
+    correlation: dict[str, str] | None = None,
     detail: dict | None = None,
     action_id: str | None = None,
-) -> str:
-    """Speichert eine Aktion mit Status pending und liefert ihre actionId."""
+) -> ActionSnapshot:
+    """Speichert eine Aktion mit Status planned."""
     action_id = action_id or f"act-{uuid.uuid4()}"
     with conn.transaction():
         _verify_guard(conn, guard)
@@ -79,29 +78,25 @@ def record_action(
                         "der Workflow erwirbt sie selbst"
                     )
                 if kind != WORKFLOW_DISPATCH and not holds_target:
-                    raise LockNotHeld(
-                        f"ändernde Aktion {kind} ohne Ziel-Sperre {app_id}/{environment}"
-                    )
-        else:
-            if (guard.app_id, guard.environment) != (app_id, environment):
-                raise LockNotHeld(
-                    f"Sperre {guard.app_id}/{guard.environment} passt nicht zu Operation {operation_id}"
-                )
+                    raise LockNotHeld(f"ändernde Aktion {kind} ohne Ziel-Sperre {app_id}/{environment}")
+        elif (guard.app_id, guard.environment) != (app_id, environment):
+            raise LockNotHeld(f"Sperre {guard.app_id}/{guard.environment} passt nicht zu Operation {operation_id}")
         existing = conn.execute("SELECT * FROM actions WHERE id = %s", (action_id,)).fetchone()
         if existing:
             if existing["operation_id"] != operation_id or existing["kind"] != kind:
                 raise ValueError(f"actionId {action_id} ist bereits anders vergeben")
-            return action_id
-        conn.execute(
+            return snapshot(existing)
+        row = conn.execute(
             """
             INSERT INTO actions (id, operation_id, job_id, app_id, environment, kind, target,
                                  mutating, status, correlation, detail)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'pending', %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 'planned', %s, %s)
+            RETURNING *
             """,
             (action_id, operation_id, job_id, app_id, environment, kind, target, mutating,
-             correlation, Jsonb(detail or {})),
-        )
-    return action_id
+             Jsonb(correlation or {}), Jsonb(detail or {})),
+        ).fetchone()
+    return snapshot(row)
 
 
 def update_status(
@@ -111,12 +106,11 @@ def update_status(
     status: ActionStatus | str,
     *,
     reason: str | None = None,
-    external_ref: ExternalRef | None = None,
+    external_refs: dict[str, str] | None = None,
 ) -> ActionSnapshot:
-    """Ergänzt Status und externe Referenz unter derselben actionId.
+    """Ergänzt Status und externe Referenzen unter derselben actionId.
 
-    ``guard=None`` ist nur für die Klärung durch Menschen oder den Abgleich gedacht
-    (``ops actions resolve``, Wiederaufnahme im Worker).
+    ``guard=None`` ist nur für die Klärung durch Menschen gedacht (``ops actions resolve``).
     """
     status = ActionStatus(status)
     with conn.transaction():
@@ -132,19 +126,17 @@ def update_status(
         current = ActionStatus(row["status"])
         if status != current and status not in _NEXT[current]:
             raise ValueError(f"Aktion {action_id}: {current} -> {status} nicht zulässig")
-        refs = list(row["external_refs"])
-        if external_ref and external_ref.model_dump() not in refs:
-            refs.append(external_ref.model_dump())
         row = conn.execute(
             """
             UPDATE actions
                SET status = %s, status_reason = coalesce(%s, status_reason),
-                   external_refs = %s, updated_at = now(),
+                   external_refs = external_refs || %s, updated_at = now(),
                    finished_at = CASE WHEN %s THEN now() ELSE finished_at END
              WHERE id = %s
             RETURNING *
             """,
-            (status.value, reason, Jsonb(refs), status in _FINAL, action_id),
+            (status.value, reason, Jsonb({k: str(v) for k, v in (external_refs or {}).items()}),
+             status in _FINAL, action_id),
         ).fetchone()
     return snapshot(row)
 
@@ -161,8 +153,7 @@ def snapshot(row: dict) -> ActionSnapshot:
         mutating=row["mutating"],
         status=row["status"],
         correlation=row["correlation"],
-        external_refs=[ExternalRef(**r) for r in row["external_refs"]],
-        detail=row["detail"],
+        external_refs=row["external_refs"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -171,6 +162,13 @@ def snapshot(row: dict) -> ActionSnapshot:
 def get_action(conn: psycopg.Connection, action_id: str) -> ActionSnapshot | None:
     row = conn.execute("SELECT * FROM actions WHERE id = %s", (action_id,)).fetchone()
     return snapshot(row) if row else None
+
+
+def actions_for_operation(conn: psycopg.Connection, operation_id: str) -> list[ActionSnapshot]:
+    rows = conn.execute(
+        "SELECT * FROM actions WHERE operation_id = %s ORDER BY created_at", (operation_id,)
+    ).fetchall()
+    return [snapshot(r) for r in rows]
 
 
 def open_actions_for_job(conn: psycopg.Connection, job_id: str) -> list[ActionSnapshot]:

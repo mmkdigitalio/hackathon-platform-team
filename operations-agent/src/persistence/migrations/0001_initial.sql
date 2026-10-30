@@ -86,13 +86,14 @@ CREATE TABLE executions (
     started_at     timestamptz NOT NULL DEFAULT now(),
     finished_at    timestamptz,
     proposed_state text,
-    outcome        text,
     reason         text,
-    summary        text,
+    limit_reached  text,
+    required_change text,
     code_version   text,
     config_ref     text,
     model_settings jsonb NOT NULL DEFAULT '{}',
     usage          jsonb NOT NULL DEFAULT '{}',
+    "references"   jsonb NOT NULL DEFAULT '{}',
     error          text
 );
 
@@ -102,9 +103,12 @@ CREATE TABLE findings (
     id             bigserial PRIMARY KEY,
     job_id         uuid NOT NULL REFERENCES jobs (id),
     execution_id   uuid REFERENCES executions (id),
+    -- confirmed: durch Werkzeugausgabe belegt; sonst Vermutung (hypothesis)
     confirmed      boolean NOT NULL,
     statement      text NOT NULL,
+    provenance     text,
     evidence_refs  jsonb NOT NULL DEFAULT '[]',
+    observed_at    timestamptz,
     created_at     timestamptz NOT NULL DEFAULT now()
 );
 
@@ -113,11 +117,12 @@ CREATE TABLE tool_calls (
     job_id          uuid NOT NULL REFERENCES jobs (id),
     execution_id    uuid REFERENCES executions (id),
     tool            text NOT NULL,
-    arguments       jsonb NOT NULL DEFAULT '{}',
+    target          text,
+    action_id       text,
     ok              boolean NOT NULL,
-    result_summary  text,
+    error_kind      text,
     started_at      timestamptz NOT NULL,
-    finished_at     timestamptz NOT NULL
+    duration_ms     integer NOT NULL
 );
 
 CREATE TABLE operations (
@@ -146,10 +151,10 @@ CREATE TABLE actions (
     kind           text NOT NULL,
     target         text NOT NULL,
     mutating       boolean NOT NULL,
-    status         text NOT NULL CHECK (status IN ('pending', 'started', 'succeeded', 'failed', 'unclear')),
+    status         text NOT NULL CHECK (status IN ('planned', 'started', 'succeeded', 'failed', 'unclear')),
     status_reason  text,
-    correlation    text,
-    external_refs  jsonb NOT NULL DEFAULT '[]',
+    correlation    jsonb NOT NULL DEFAULT '{}',
+    external_refs  jsonb NOT NULL DEFAULT '{}',
     detail         jsonb NOT NULL DEFAULT '{}',
     created_at     timestamptz NOT NULL DEFAULT now(),
     updated_at     timestamptz NOT NULL DEFAULT now(),
@@ -159,7 +164,7 @@ CREATE TABLE actions (
 CREATE INDEX actions_operation ON actions (operation_id);
 CREATE INDEX actions_job ON actions (job_id);
 CREATE INDEX actions_open ON actions (app_id, environment)
-    WHERE status IN ('pending', 'started', 'unclear');
+    WHERE status IN ('planned', 'started', 'unclear');
 
 CREATE SEQUENCE operation_lock_version;
 

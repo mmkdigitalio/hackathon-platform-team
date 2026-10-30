@@ -1,14 +1,18 @@
-"""Aktions- und Sperrvertrag v0.1 (C liefert an B und D)."""
+"""Aktions- und Sperrvertrag für Deploy-Workflows (B) und die Persistenz (C).
+
+Die Schnittstelle zur Agentenausführung (D) steht in ``contracts.v0_1``; Status und
+Aktionsarten hier sind damit deckungsgleich.
+"""
 
 from datetime import datetime
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 
 class ActionStatus(StrEnum):
     # Vor dem externen Aufruf gespeichert, Ergebnis noch unbekannt.
-    PENDING = "pending"
+    PLANNED = "planned"
     # Vom externen System angenommen (z. B. Workflow-Lauf gestartet), Ausgang offen.
     STARTED = "started"
     SUCCEEDED = "succeeded"
@@ -17,22 +21,18 @@ class ActionStatus(StrEnum):
     UNCLEAR = "unclear"
 
 
-OPEN_ACTION_STATUSES = frozenset({ActionStatus.PENDING, ActionStatus.STARTED, ActionStatus.UNCLEAR})
+OPEN_ACTION_STATUSES = frozenset({ActionStatus.PLANNED, ActionStatus.STARTED, ActionStatus.UNCLEAR})
 
-# Art einer Aktion, mit der der Agent einen Deploy-Workflow startet. Für sie darf die
-# eigene Operation keine Ziel-Sperre halten; die Sperre übernimmt der Workflow.
-WORKFLOW_DISPATCH = "workflow-dispatch"
+# Aktion, mit der der Agent einen Deploy-Workflow startet. Für sie darf die eigene
+# Operation keine Ziel-Sperre halten; die Sperre übernimmt der Workflow.
+WORKFLOW_DISPATCH = "workflow_dispatch"
 
-
-class ExternalRef(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    system: str = Field(description="z. B. github-actions, kubernetes")
-    ref: str = Field(description="z. B. Workflow-Lauf-URL oder Objektpfad")
+# Agentenaktionen, die das Ziel verändern (vgl. agent.runner.MUTATING).
+MUTATING_AGENT_KINDS = frozenset({"restart", WORKFLOW_DISPATCH})
 
 
 class ActionSnapshot(BaseModel):
-    """Gespeicherter Stand einer Aktion, z. B. für Wiederaufnahme und Abgleich."""
+    """Gespeicherter Stand einer Aktion."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -45,30 +45,10 @@ class ActionSnapshot(BaseModel):
     target: str
     mutating: bool
     status: ActionStatus
-    correlation: str | None = None
-    external_refs: list[ExternalRef] = []
-    detail: dict = {}
+    correlation: dict[str, str] = {}
+    external_refs: dict[str, str] = {}
     created_at: datetime
     updated_at: datetime
-
-
-class ReconcileStatus(StrEnum):
-    # Der externe Vorgang läuft noch; der Agent verfolgt ihn über die bestehende Referenz weiter.
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
-    FAILED = "failed"
-    # Nachweislich nie beim externen System angekommen; erneuter Start ist zulässig.
-    NOT_STARTED = "not_started"
-    # Nicht aufklärbar: Auftrag endet in needs_attention.
-    AMBIGUOUS = "ambiguous"
-
-
-class ReconcileResult(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    status: ReconcileStatus
-    external_refs: list[ExternalRef] = []
-    reason: str
 
 
 class LockHandle(BaseModel):

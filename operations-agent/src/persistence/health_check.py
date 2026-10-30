@@ -44,7 +44,7 @@ def run_health_check(args, client: httpx.Client | None = None) -> int:
             f"{os.environ.get('GITHUB_SERVER_URL', 'https://github.com')}/"
             f"{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{run_id}"
         )
-    key = os.environ.get("OPS_MAINTENANCE_API_KEY", "")
+    key = os.environ.get("MAINTENANCE_API_KEY", "")
     client = client or httpx.Client(timeout=args.timeout, follow_redirects=False)
 
     rows, failed = [], []

@@ -21,38 +21,43 @@ Deploy-Workflows (B) ─── ops lock / ops actions ────────�
 
 ## Lokale Entwicklung
 
-Voraussetzung: Python 3.12+, PostgreSQL 15+ (Homebrew `postgresql@17` oder Docker).
+Voraussetzung: [uv](https://docs.astral.sh/uv/) (Python 3.12 laut `.python-version`), PostgreSQL 15+ (Homebrew `postgresql@17` oder Docker). Paketmanifest und Lockdatei gehören D.
 
 ```bash
 cd operations-agent
-python -m venv .venv && . .venv/bin/activate
-pip install -e '.[test]'
+uv sync --frozen
 
 # Tests: starten selbst einen temporären PostgreSQL-Cluster (initdb/pg_ctl)
-pytest tests/state
+uv run --frozen pytest tests/state      # C; tests/ insgesamt inkl. D
 # alternativ gegen einen vorhandenen Server, z. B. Docker:
 #   docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=dev postgres:17
-#   OPS_TEST_DATABASE_URL=postgresql://postgres:dev@localhost:5432/postgres pytest tests/state
+#   OPS_TEST_DATABASE_URL=postgresql://postgres:dev@localhost:5432/postgres uv run --frozen pytest tests/state
 ```
 
 ## Konfiguration
 
 | Variable | Bedeutung | Quelle im Cluster |
 | --- | --- | --- |
-| `OPS_DATABASE_URL` oder `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `PGSSLMODE` | Datenbank `operations` | Foundation-Ausgaben `postgres*` |
-| `OPS_ALERT_WEBHOOK_KEY` | Query-Key für Azure Monitor | `alertWebhookKey` |
-| `OPS_MAINTENANCE_API_KEY` | `X-Api-Key` für Wartung und `/runs` | `maintenanceApiKey` |
-| `OPS_GITHUB_WEBHOOK_SECRET` | Signatur des Repo-Webhooks | `githubWebhookSecret` |
+| `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE` (TLS erzwungen) | Datenbank `operations` im Pod | Foundation-Ausgaben `postgres*` über das Secret des Agenten |
+| `PGHOST`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`, `PGSSLMODE` | Datenbank auf GitHub-Runnern (`ops`) | Foundation-Ausgaben über `foundation-outputs` |
+| `OPS_DATABASE_URL` | Datenbank lokal; hat Vorrang | – |
+| `ALERT_WEBHOOK_KEY` | Query-Key für Azure Monitor | `alertWebhookKey` |
+| `MAINTENANCE_API_KEY` | `X-Api-Key` für Wartung und `/runs` | `maintenanceApiKey` |
+| `GITHUB_WEBHOOK_SECRET` | Signatur des Repo-Webhooks | `githubWebhookSecret` |
 | `OPS_GITHUB_REPO_ALLOWLIST` | Kommagetrennt, Standard `mmkdigitalio/hackathon-platform-team` | – |
 | `OPS_PLATFORM_ROOT` | Pfad zu `platform/` für die Katalogprüfung; ohne Angabe wird er ab dem Arbeitsverzeichnis gesucht | Image (D) |
-| `OPS_AGENT_EXECUTOR`, `OPS_ACTION_RECONCILER` | `modul:fabrik` der Agentenausführung und des Abgleichs | Standard `agent.execution:build_executor`, `agent.reconcile:build_reconciler` |
+| `OPS_AGENT_EXECUTOR` | `modul:funktion` der Agentenausführung | Standard `agent:execute` (D) |
+| `OPS_CONTEXT_GIT_REF` | Git-Stand, zu dem D Katalog und Sollzustand liest | Standard `main` |
+| `OPS_LIMIT_*` | Laufgrenzen (`RunLimits`), gelesen über `agent.config.limits_from_env` | ConfigMap (D) |
 | `OPS_LEASE_SECONDS`, `OPS_HEARTBEAT_SECONDS`, `OPS_AGENT_LOCK_TTL_SECONDS` | Lease 120 s, Heartbeat 30 s, Agenten-Sperre 300 s | – |
 | `OPS_GIT_SHA` | Codestand für Laufnachweise | Image (D) |
+
+Die Schnittstelle zur Agentenausführung ist D's Vertrag `contracts.v0_1` (`agent.execute(invocation, services)`). C stellt die Dienste in `worker/services.py` bereit; `contracts/actions.py`, `contracts/states.py` und `contracts/errors.py` sind C's Verträge für Persistenz und Deploy-Workflows.
 
 ## Laufnachweise
 
 ```bash
-curl -s -H "X-Api-Key: $OPS_MAINTENANCE_API_KEY" https://$OPERATIONS_API_HOST/runs/<auftragsId>
+curl -s -H "X-Api-Key: $MAINTENANCE_API_KEY" https://$OPERATIONS_API_HOST/runs/<auftragsId>
 ops runs show <auftragsId>          # direkt gegen PostgreSQL, auch ohne API
 ```
 

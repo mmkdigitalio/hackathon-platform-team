@@ -10,14 +10,15 @@ Ein Image (D), drei Einstiegspunkte aus demselben Paket:
 | Worker | `ops-worker` (`python -m worker`) | Auftragsübernahme, Lease, Heartbeat, Aufruf von D's Ausführung |
 | Migration | `ops migrate` | Helm-Hook-Job `pre-install,pre-upgrade` und `ops-migrate.yml` |
 
-API und Worker prüfen beim Start nur die Schema-Version. Bei Abweichung beenden sie sich mit Exit-Code 3 und der Meldung `Schema-Version passt nicht: erwartet N, vorhanden M` bzw. bei fehlendem Schema mit Verweis auf `ops-migrate.yml`. Sie migrieren nie. Der Worker beendet sich mit Exit-Code 4, wenn `OPS_AGENT_EXECUTOR` oder `OPS_ACTION_RECONCILER` nicht ladbar sind. Bis D liefert, kann `worker.placeholder:build_executor` / `worker.placeholder:build_reconciler` gesetzt werden: Aufträge enden dann sichtbar in `needs_attention`, ohne Modell und ohne Änderung.
+API und Worker prüfen beim Start nur die Schema-Version. Bei Abweichung beenden sie sich mit Exit-Code 3 und der Meldung `Schema-Version passt nicht: erwartet N, vorhanden M` bzw. bei fehlendem Schema mit Verweis auf `ops-migrate.yml`. Sie migrieren nie. Geprüft werden auch die Checkpoint-Tabellen von D. Der Worker beendet sich mit Exit-Code 4, wenn `OPS_AGENT_EXECUTOR` (Standard `agent:execute`) nicht ladbar ist. Mit `OPS_AGENT_EXECUTOR=worker.placeholder:execute` übernimmt er Aufträge und beendet sie sichtbar in `needs_attention`, ohne Modell und ohne Änderung.
 
 In Staging läuft genau **ein** Worker-Replica (Chart von D). Mehrere Worker sind durch das Lease-Verfahren abgesichert und lokal getestet (`tests/state/test_worker_and_states.py`), werden in Staging aber nicht betrieben.
 
 ## Migrationen
 
 - Migrationen liegen als `operations-agent/src/persistence/migrations/NNNN_name.sql`, je eine Transaktion, Prüfsumme in `schema_migrations`.
-- `ops migrate` hält `pg_advisory_lock`, spielt fehlende Versionen ein und endet auf aktuellem Schema mit „keine Änderung“. Eine nachträglich veränderte Migration oder eine neuere Datenbankversion bricht ab.
+- `ops migrate` holt eine Advisory-Lock per `pg_try_advisory_lock` (Abfrage alle 0,5 s, höchstens 10 min), spielt fehlende Versionen ein und endet auf aktuellem Schema mit „keine Änderung“. Eine nachträglich veränderte Migration oder eine neuere Datenbankversion bricht ab. Blockierendes `pg_advisory_lock` wäre ein Deadlock: Der wartende Prozess hielte eine Transaktion offen, auf die `CREATE INDEX CONCURRENTLY` in D's Checkpoint-Migrationen wartet.
+- Im selben Lauf legt `ops migrate` die Checkpoint-Tabellen der gepinnten LangGraph-Version an (`agent.persistence.sdk_migrations`, Strang D); D ruft `PostgresSaver.setup()` nie auf.
 - Änderungen nur kompatibel und nur als neue Migration: Der Hook-Job läuft vor den neuen Pods, die alten laufen kurz gegen das neue Schema. Ein Code-Rollback setzt Schema-Kompatibilität voraus; Aufträge und Aktionen werden nie gelöscht.
 - `ops schema-version` zeigt erwartete und vorhandene Version (Exit-Code 3 bei Abweichung).
 
@@ -73,10 +74,9 @@ SIGTERM/SIGINT am Worker: Er übernimmt keinen neuen Auftrag mehr, stoppt den He
 
 Ein Worker übernimmt den Auftrag mit abgelaufenem Lease in dessen gespeichertem Zustand, nicht in `queued`:
 
-1. Offene Aktionen des Auftrags (`pending`, `started`, `unclear`) gehen einzeln an D's Abgleich (`ActionReconciler`).
-2. Ergebnis `running`: Aktion bleibt `started` und wird D in `resume.open_actions` mit ihrer bestehenden externen Referenz übergeben. D verfolgt denselben Workflow-Lauf weiter und startet keinen zweiten.
-3. `succeeded` / `failed` / `not_started`: Status wird gesetzt.
-4. `ambiguous`: Aktion wird `unclear`, Auftrag endet in `needs_attention` („Klärung erforderlich: …“), ohne dass D weiterarbeitet.
+1. C übergibt dieselbe `operationId`, dieselbe `thread_id` (= Auftrags-ID, damit D's Checkpoint fortgesetzt wird) und die offenen Aktionen (`planned`, `started`, `unclear`) in `resume.open_actions`, dazu den neuen Besitz (`ownership.lease_version`).
+2. D gleicht sie gegen das externe System ab (`platform/operations/agent/massnahmen-und-abgleich.md`): Ein bekannter Workflow-Lauf wird über `runId` bzw. die `actionId` im `run-name` weiterverfolgt, kein zweiter gestartet; ein Neustart wird an der Annotation erkannt.
+3. Nicht aufklärbar: D setzt die Aktion auf `unclear` und schlägt `needs_attention` vor. C vergibt die Ziel-Sperre einer solchen Operation nach Ablauf nicht neu (siehe [locks.md](locks.md#konfliktregel)).
 
 Nachvollziehen eines gespeicherten Auftrags nach Neustart:
 

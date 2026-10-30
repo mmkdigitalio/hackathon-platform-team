@@ -95,7 +95,7 @@ def test_healthy_check_sends_nothing(platform_root, tmp_path, monkeypatch):
 
 def test_failed_check_sends_maintenance_job_with_key(platform_root, tmp_path, monkeypatch):
     monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(tmp_path / "summary.md"))
-    monkeypatch.setenv("OPS_MAINTENANCE_API_KEY", "maint-key-0123456789abcdef")
+    monkeypatch.setenv("MAINTENANCE_API_KEY", "maint-key-0123456789abcdef")
     monkeypatch.setenv("GITHUB_RUN_ID", "42")
     requests = []
     assert health_check.run_health_check(_args(), _client(503, requests)) == 0
@@ -113,14 +113,14 @@ def test_failed_check_sends_maintenance_job_with_key(platform_root, tmp_path, mo
 
 def test_complete_run_evidence_without_secrets(db_url, platform_root, monkeypatch, capsys):
     secret = "super-geheimer-maintenance-key-123"
-    monkeypatch.setenv("OPS_MAINTENANCE_API_KEY", secret)
+    monkeypatch.setenv("MAINTENANCE_API_KEY", secret)
     job_id = enqueue(db_url, platform_root)
 
     def script(inv, services):
-        services.record_tool_call("http.get", {"url": "https://affine/info", "headers": {"X-Api-Key": secret}},
-                                  ok=False, result_summary=f"503 (key {secret})",
-                                  started_at=fakes.now(), finished_at=fakes.now())
-        return fakes.restart_and_resolve(inv, services)
+        result = fakes.restart_and_resolve(inv, services)
+        result.references["httpProbe"] = {"url": "https://affine/info", "headers": {"X-Api-Key": secret},
+                                          "note": f"503 (key {secret})"}
+        return result
 
     make_worker(db_url, script)[0].run_once()
     with connect(db_url) as conn:
@@ -132,15 +132,16 @@ def test_complete_run_evidence_without_secrets(db_url, platform_root, monkeypatc
     assert [t["to_state"] for t in run["transitions"]][-1] == "resolved"
     execution = run["executions"][0]
     assert execution["modelSettings"] == {"provider": "test", "model": "scripted"}
-    assert execution["codeVersion"] == "test-sha"
+    assert execution["usage"]["input_tokens"] == 1000
     assert execution["configRef"] == "platform/environments/staging/affine.yaml@3f9c2e1"
-    assert run["actions"][0]["external_refs"][0]["system"] == "kubernetes"
-    assert all(v["release"]["image_digest"] for v in run["verifications"])
-    assert {t["tool"] for t in run["toolCalls"]} == {"http.get", "k8s.get_deployment"}
-    assert run["actions"][0]["kind"] == "k8s-scale"
+    assert execution["references"]["desiredState"]["imageDigest"] == fakes.DIGEST
+    assert run["toolCalls"][0]["tool"] == "get_workload_state"
+    assert run["actions"][0]["kind"] == "restart" and run["actions"][0]["external_refs"]["rollout"] == "complete"
     assert run["operations"][0]["kind"] == "agent"
     assert {v["kind"] for v in run["verifications"]} == {"smoke-test", "k8s-state"}
-    assert run["findings"]["confirmed"] and run["findings"]["suspected"]
+    assert all(v["release"]["image_digest"] for v in run["verifications"])
+    assert run["findings"]["confirmed"][0]["provenance"] == "tool:get_workload_state"
+    assert run["findings"]["suspected"]
 
     text = json.dumps(run)
     assert secret not in text

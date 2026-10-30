@@ -13,7 +13,7 @@ import os
 import sys
 from datetime import UTC, datetime
 
-from contracts.actions import WORKFLOW_LOCK_WAIT_SECONDS, ActionStatus, ExternalRef, LockHandle
+from contracts.actions import WORKFLOW_LOCK_WAIT_SECONDS, ActionStatus, LockHandle
 from contracts.errors import (
     DatabaseUnavailable,
     LockNotHeld,
@@ -103,6 +103,7 @@ def cmd_migrate(args) -> int:
         print(f"Migrationen eingespielt: {report.applied}; Schema-Version {report.version}")
     else:
         print(f"Schema aktuell (Version {report.version}), keine Änderung")
+    print(f"Checkpoint-Schema (LangGraph) Version {report.sdk_version}")
     return 0
 
 
@@ -238,7 +239,20 @@ def cmd_lock_backfill(args) -> int:
     return 0
 
 
+def _pairs(values: list[str] | None) -> dict[str, str]:
+    out = {}
+    for item in values or []:
+        key, sep, value = item.partition("=")
+        if not sep or not key:
+            raise ValueError(f"erwartet Schlüssel=Wert, nicht {item!r}")
+        out[key] = value
+    return out
+
+
 def cmd_actions_record(args) -> int:
+    correlation = _pairs(args.correlation)
+    if args.agent_action_id:
+        correlation["agentActionId"] = args.agent_action_id
     with _connect_checked(args) as conn:
         action_id = actions.record_action(
             conn,
@@ -246,20 +260,20 @@ def cmd_actions_record(args) -> int:
             operation_id=args.operation_id,
             kind=args.kind,
             target=args.target or f"{args.app}/{args.env}",
-            correlation=args.correlation,
+            correlation=correlation,
             action_id=args.action_id,
             mutating=not args.read_only,
-        )
+        ).action_id
     print(action_id)
     _github_output(**{"action-id": action_id})
     return 0
 
 
 def cmd_actions_update(args) -> int:
-    ref = ExternalRef(system=args.external_system, ref=args.external_ref) if args.external_ref else None
     with _connect_checked(args) as conn:
         snap = actions.update_status(
-            conn, _handle_from(args), args.action_id, args.status, reason=args.reason, external_ref=ref
+            conn, _handle_from(args), args.action_id, args.status, reason=args.reason,
+            external_refs=_pairs(args.external_ref),
         )
     print(f"Aktion {snap.action_id}: {snap.status}")
     return 0
@@ -369,7 +383,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--kind", required=True)
     p.add_argument("--target")
     p.add_argument("--action-id")
-    p.add_argument("--correlation", help="z. B. actionId des Agenten aus dem Dispatch")
+    p.add_argument("--agent-action-id", help="actionId des Agenten aus dem Dispatch (Korrelation)")
+    p.add_argument("--correlation", action="append", metavar="SCHLÜSSEL=WERT")
     p.add_argument("--read-only", action="store_true")
     p.set_defaults(fn=cmd_actions_record)
 
@@ -377,10 +392,9 @@ def build_parser() -> argparse.ArgumentParser:
     _lock_args(p, version=True)
     p.add_argument("--operation-id", required=True)
     p.add_argument("--action-id", required=True)
-    p.add_argument("--status", required=True, choices=[s.value for s in ActionStatus if s != ActionStatus.PENDING])
+    p.add_argument("--status", required=True, choices=[s.value for s in ActionStatus if s != ActionStatus.PLANNED])
     p.add_argument("--reason")
-    p.add_argument("--external-ref")
-    p.add_argument("--external-system", default="github-actions")
+    p.add_argument("--external-ref", action="append", metavar="SCHLÜSSEL=WERT", help="z. B. runUrl=https://…")
     p.set_defaults(fn=cmd_actions_update)
 
     p = act.add_parser("resolve", help="ungeklärte Aktion nach Prüfung abschließen")

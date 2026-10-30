@@ -1,0 +1,83 @@
+{
+  "contract_version": "0.1",
+  "job_id": "7b0c8f8e-3a7e-4c55-9d1e-0d3f0b8b2a11",
+  "proposal": "resolved",
+  "reason": "Positiver Smoke-Test smoke-act-… nach der letzten Maßnahme, Kubernetes-Zustand bereit",
+  "limit_reached": null,
+  "findings": [
+    {
+      "statement": "Deployment affine-staging/affine hat 0/0 Replicas",
+      "certainty": "confirmed",
+      "provenance": "tool:get_workload_state",
+      "evidence_refs": [
+        "k8s://affine-staging/deployment/affine"
+      ],
+      "observed_at": "2026-10-30T09:13:10Z"
+    },
+    {
+      "statement": "Skalierung erfolgte vermutlich manuell",
+      "certainty": "hypothesis",
+      "provenance": "model",
+      "evidence_refs": [],
+      "observed_at": "2026-10-30T09:13:10Z"
+    }
+  ],
+  "actions": [
+    "act-5c1e1d0a-1b2c-4d3e-8f90-1a2b3c4d5e6f"
+  ],
+  "tool_calls": [],
+  "usage": {
+    "provider": "azure-openai",
+    "model": "gpt-6.1-terra",
+    "model_calls": 7,
+    "input_tokens": 48211,
+    "output_tokens": 3120,
+    "cost_usd": 0.41
+  },
+  "verification": [
+    {
+      "app_id": "affine",
+      "environment": "staging",
+      "release": {
+        "git_sha": "3f9c2e1",
+        "image_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "chart_version": "0.24.1"
+      },
+      "check_ref": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "started_at": "2026-10-30T09:20:00Z",
+      "finished_at": "2026-10-30T09:20:05Z",
+      "success": true,
+      "timed_out": false,
+      "exit_code": 0,
+      "job_name": "smoke-test-1",
+      "action_id": "act-smoke",
+      "result": {
+        "success": true
+      },
+      "kubernetes": {
+        "namespace": "affine-staging",
+        "deployment": "affine",
+        "desired_replicas": 1,
+        "ready_replicas": 1,
+        "image_digests": [
+          "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        ],
+        "restart_counts": {},
+        "rollout_complete": true,
+        "captured_at": "2026-10-30T09:20:06Z"
+      },
+      "evidence_refs": [
+        "k8s://affine-staging/job/smoke-test-1"
+      ]
+    }
+  ],
+  "required_change": null,
+  "references": {
+    "desiredState": {
+      "path": "platform/environments/staging/affine.yaml",
+      "gitRef": "3f9c2e1",
+      "source": "github",
+      "imageDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  }
+}

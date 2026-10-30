@@ -4,14 +4,21 @@ Migrationen liegen als ``NNNN_name.sql`` neben diesem Modul und laufen je in ein
 eigenen Transaktion. Eine Advisory-Lock serialisiert gleichzeitige Läufe
 (``ops-migrate.yml`` und Helm-Hook-Job). Ein erneuter Lauf auf aktuellem Schema
 ändert nichts. API und Worker rufen dieses Modul nie auf, sie prüfen nur die Version.
+
+Im selben Lauf und unter derselben Advisory-Lock legt es die Checkpoint-Tabellen der
+gepinnten LangGraph-Version an (``agent.persistence.sdk_migrations``, Strang D).
 """
 
 import hashlib
 import re
+import time
 from dataclasses import dataclass
 from importlib import resources
 
 import psycopg
+from psycopg.rows import dict_row
+
+from agent.persistence import apply_sdk_migrations
 
 # Fester Schlüssel für pg_advisory_lock; beliebig, aber stabil.
 MIGRATION_LOCK_KEY = 0x6F70735F6D6967  # "ops_mig"
@@ -51,14 +58,33 @@ def expected_version() -> int:
 class MigrationReport:
     applied: list[int]
     version: int
+    sdk_version: int
 
 
-def migrate(conn: psycopg.Connection) -> MigrationReport:
+def _wait_for_lock(conn: psycopg.Connection, timeout_seconds: float) -> None:
+    """Advisory-Lock per Abfrage statt blockierend.
+
+    Ein in ``pg_advisory_lock`` wartender Prozess hielte eine offene Transaktion, auf die
+    ``CREATE INDEX CONCURRENTLY`` in den SDK-Migrationen des anderen Prozesses wartet:
+    Deadlock. Zwischen den Abfragen ist hier keine Transaktion offen.
+    """
+    deadline = time.monotonic() + timeout_seconds
+    while not _value(conn.execute("SELECT pg_try_advisory_lock(%s)", (MIGRATION_LOCK_KEY,)).fetchone()):
+        if time.monotonic() > deadline:
+            raise RuntimeError(f"Migrations-Lock nach {timeout_seconds:.0f} s nicht erhalten")
+        time.sleep(0.5)
+
+
+def _value(row):
+    return row[0] if not isinstance(row, dict) else next(iter(row.values()))
+
+
+def migrate(conn: psycopg.Connection, *, lock_timeout_seconds: float = 600) -> MigrationReport:
     """Bringt das Schema auf den neuesten Stand. ``conn`` muss autocommit sein."""
     if not conn.autocommit:
         raise ValueError("migrate() braucht eine autocommit-Verbindung")
     migrations = load_migrations()
-    conn.execute("SELECT pg_advisory_lock(%s)", (MIGRATION_LOCK_KEY,))
+    _wait_for_lock(conn, lock_timeout_seconds)
     try:
         conn.execute(
             """
@@ -94,7 +120,15 @@ def migrate(conn: psycopg.Connection) -> MigrationReport:
                     (m.version, m.name, m.checksum),
                 )
             newly.append(m.version)
-        return MigrationReport(applied=newly, version=migrations[-1].version if migrations else 0)
+        # D's Schritte lesen Zeilen als dict, unabhängig von der Verbindung des Aufrufers.
+        row_factory, conn.row_factory = conn.row_factory, dict_row
+        try:
+            sdk_version = apply_sdk_migrations(conn)
+        finally:
+            conn.row_factory = row_factory
+        return MigrationReport(
+            applied=newly, version=migrations[-1].version if migrations else 0, sdk_version=sdk_version
+        )
     finally:
         conn.execute("SELECT pg_advisory_unlock(%s)", (MIGRATION_LOCK_KEY,))
 

@@ -28,9 +28,9 @@ class Settings:
         allowlist = os.environ.get("OPS_GITHUB_REPO_ALLOWLIST", DEFAULT_ALLOWLIST)
         return cls(
             database_url=os.environ.get("OPS_DATABASE_URL", ""),
-            alert_webhook_key=os.environ.get("OPS_ALERT_WEBHOOK_KEY", ""),
-            maintenance_api_key=os.environ.get("OPS_MAINTENANCE_API_KEY", ""),
-            github_webhook_secret=os.environ.get("OPS_GITHUB_WEBHOOK_SECRET", ""),
+            alert_webhook_key=os.environ.get("ALERT_WEBHOOK_KEY", ""),
+            maintenance_api_key=os.environ.get("MAINTENANCE_API_KEY", ""),
+            github_webhook_secret=os.environ.get("GITHUB_WEBHOOK_SECRET", ""),
             repo_allowlist=frozenset(r.strip().lower() for r in allowlist.split(",") if r.strip()),
             platform_root=find_platform_root(),
         )

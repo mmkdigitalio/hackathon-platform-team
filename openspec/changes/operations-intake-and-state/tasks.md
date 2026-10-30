@@ -24,7 +24,7 @@ C kann lokal mit PostgreSQL und einer vertragskonformen Testausführung beginnen
 
 - [x] 3.1 Atomare Auftragsübernahme mit Erneuerung und Besitzversion implementieren; Abschluss durch lokalen Test mit zwei konkurrierenden Workern, Ablauf und abgewiesene Änderungen eines veralteten Besitzers prüfen.
 - [x] 3.2 Übergangstabelle und Abschlussprüfung implementieren; Abschluss durch erlaubte Abläufe sowie abgewiesenes `resolved` bei Test vor der Maßnahme, fehlendem Kubernetes-Zustand und falschem Release prüfen.
-- [ ] 3.3 D's aufrufbare Ausführung an den Worker anbinden; Abschluss durch eine vertragskonforme Testausführung ohne zusätzliche Queue und danach durch D's echte SDK-Ausführung prüfen.
+- [x] 3.3 D's aufrufbare Ausführung an den Worker anbinden; Abschluss durch eine vertragskonforme Testausführung ohne zusätzliche Queue und danach durch D's echte SDK-Ausführung prüfen.
 - [x] 3.4 Worker-Heartbeat (mindestens jede Minute) und `GET /healthz` implementieren; Abschluss durch 200 im Normalbetrieb, 503 bei gestopptem Worker nach 10 Minuten und 503 bei unerreichbarer Datenbank prüfen.
 - [x] 3.5 API-/Worker-Einstiegspunkte mit Schema-Versionsprüfung beim Start an D liefern; Abschluss durch getrennten Prozessstart und Abbruch mit erwarteter und vorhandener Version bei fehlender Migration prüfen.
 - [x] 3.6 Start-, Stopp-, Lease- und Wiederanlaufverhalten in `platform/operations/state/` dokumentieren; Abschluss durch kontrolliertes Beenden und Wiederübernehmen eines gespeicherten Auftrags prüfen.
@@ -37,12 +37,12 @@ C kann lokal mit PostgreSQL und einer vertragskonformen Testausführung beginnen
 - [x] 4.4 Break-glass `--force` und `ops lock backfill` implementieren; Abschluss durch Abbruch ohne `--force` bei unerreichbarer Datenbank, Deployment mit Vermerk in der Workflow-Zusammenfassung, wirkungsloses `--force` bei erreichbarer Datenbank und Nachtrag ins Aktionsprotokoll prüfen.
 - [ ] 4.5 Bibliothek und CLI `ops` an B und D liefern; Abschluss durch Sperrerwerb von einem GitHub-hosted Runner mit `postgresAdminPassword` aus den Foundation-Ausgaben bei gestoppter API prüfen.
 - [x] 4.6 Sperrverlust und ungeklärte externe Änderungen behandeln; Abschluss durch abgelaufenen Besitz ohne blinde Neuvergabe und ohne neue unberechtigte Zieländerung prüfen.
-- [ ] 4.7 Wiederaufnahme mit D's externem Abgleich verbinden; Abschluss durch Verfolgung desselben bekannten Workflows und sichtbaren Klärungsfall bei mehrdeutigem Ausgang prüfen.
+- [x] 4.7 Wiederaufnahme mit D's externem Abgleich verbinden; Abschluss durch Verfolgung desselben bekannten Workflows und sichtbaren Klärungsfall bei mehrdeutigem Ausgang prüfen.
 - [x] 4.8 Sperr-CLI, Konfliktregel, Break-glass mit Nachtrag und Dispatch-/Workflow-Zuständigkeit in `platform/operations/state/` dokumentieren; Abschluss durch ausgeführtes Beispiel ohne verschachtelte konkurrierende Ziel-Sperre prüfen.
 
 ## 5. Checkpoints, Migrationen und Laufnachweise, Anteil P1-08
 
-- [ ] 5.1 D's geprüfte SDK-Persistenz in die Migrationsfolge von `ops migrate` aufnehmen; Abschluss durch persistierten und nach Prozessneustart lesbaren Checkpoint mit gepinnten Versionen prüfen.
+- [x] 5.1 D's geprüfte SDK-Persistenz in die Migrationsfolge von `ops migrate` aufnehmen; Abschluss durch persistierten und nach Prozessneustart lesbaren Checkpoint mit gepinnten Versionen prüfen.
 - [ ] 5.2 Migrationen gegen A's Datenbank `operations` ausführen; Abschluss durch Lauf von einem GitHub-hosted Runner und ersten Sperrclient-Aufruf ohne laufende Agenten-API prüfen.
 - [ ] 5.2a Workflow `.github/workflows/ops-migrate.yml` für die Erstinitialisierung mit Advisory-Lock liefern und den Abbruch des Sperrclients bei fehlendem Schema einbauen; Abschluss durch Erstlauf gegen die Foundation-Datenbank und gleichzeitigen zweiten Lauf ohne Fehler prüfen.
 - [ ] 5.3 Migrations-CLI als Helm-Hook-Job (`pre-install,pre-upgrade`) mit D in das Chart einbinden und ein Worker-Replica für Staging festlegen; Abschluss durch neues Agenten-Release ohne verlorene Aufträge, Aktionen oder Checkpoints prüfen.

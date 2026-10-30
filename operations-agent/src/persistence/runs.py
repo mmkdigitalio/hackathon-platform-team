@@ -11,11 +11,13 @@ import psycopg
 
 # Umgebungsvariablen, deren Werte nie in Nachweisen erscheinen dürfen.
 SECRET_ENV_VARS = (
-    "OPS_ALERT_WEBHOOK_KEY",
-    "OPS_MAINTENANCE_API_KEY",
-    "OPS_GITHUB_WEBHOOK_SECRET",
+    "ALERT_WEBHOOK_KEY",
+    "MAINTENANCE_API_KEY",
+    "GITHUB_WEBHOOK_SECRET",
     "OPS_GITHUB_TOKEN",
+    "OPS_MODEL_API_KEYS",
     "PGPASSWORD",
+    "POSTGRES_PASSWORD",
     "ANTHROPIC_API_KEY",
     "AZURE_OPENAI_API_KEY",
 )
@@ -126,13 +128,14 @@ def get_run(conn: psycopg.Connection, job_id: str, *, secrets: list[str] | None 
                 "startedAt": e["started_at"],
                 "finishedAt": e["finished_at"],
                 "proposedState": e["proposed_state"],
-                "outcome": e["outcome"],
                 "reason": e["reason"],
-                "summary": e["summary"],
+                "limitReached": e["limit_reached"],
+                "requiredChange": e["required_change"],
                 "codeVersion": e["code_version"],
                 "configRef": e["config_ref"],
                 "modelSettings": e["model_settings"],
                 "usage": e["usage"],
+                "references": e["references"],
                 "error": e["error"],
             }
             for e in executions
