@@ -87,6 +87,7 @@ export function loadConfig(): FoundationConfig {
         catalogDir: config.get("catalogDir") ?? defaultCatalogDir,
         modelApiKeys,
         githubWebhookSecret: config.requireSecret("githubWebhookSecret"),
-        opsGithubToken: config.requireSecret("opsGithubToken"),
+        // Empty until the agent PAT is added (DEFER_PAT, operations/foundation/bootstrap.md).
+        opsGithubToken: config.getSecret("opsGithubToken") ?? pulumi.secret(""),
     };
 }

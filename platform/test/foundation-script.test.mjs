@@ -78,6 +78,23 @@ test("secrets with only the Azure OpenAI key sets only that provider", { skip },
     assert.equal(box.read("config-modelApiKeys__azure-openai__"), "aoai-model-key");
 });
 
+test("secrets with DEFER_PAT=1 stores everything but the PAT; without it a missing PAT stops", { skip }, () => {
+    const { OPS_GITHUB_TOKEN, ...withoutPat } = secretEnv;
+    const deferred = sandbox(stubs);
+    const result = deferred.run("foundation.sh", [deferred.config, "secrets"], {
+        ...withoutPat,
+        DEFER_PAT: "1",
+        MODEL_KEY_AZURE_OPENAI: "aoai-model-key",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(deferred.read("config-githubWebhookSecret"), "webhook-secret-value");
+    assert.ok(!result.calls.some((call) => call.includes("opsGithubToken")));
+    const strict = sandbox(stubs);
+    const stopped = strict.run("foundation.sh", [strict.config, "secrets"], { ...withoutPat, MODEL_KEY_AZURE_OPENAI: "aoai-model-key" });
+    assert.equal(stopped.status, 1);
+    assert.match(stopped.stderr, /OPS_GITHUB_TOKEN is not set/);
+});
+
 test("secrets without any model key stops before writing stack config", { skip }, () => {
     const box = sandbox(stubs);
     const result = box.run("foundation.sh", [box.config, "secrets"], secretEnv);

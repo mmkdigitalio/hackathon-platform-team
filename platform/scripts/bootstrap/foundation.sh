@@ -10,7 +10,7 @@
 #   foundation.sh <env-file> ingress-check   HTTPS call of a temporary test ingress (task 3.3)
 #
 # Environment: PULUMI_CONFIG_PASSPHRASE (always); for "secrets" GITHUB_WEBHOOK_SECRET,
-# OPS_GITHUB_TOKEN and at least one of MODEL_KEY_ANTHROPIC, MODEL_KEY_AZURE_OPENAI.
+# OPS_GITHUB_TOKEN (or DEFER_PAT=1) and at least one of MODEL_KEY_ANTHROPIC, MODEL_KEY_AZURE_OPENAI.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR source=lib.sh
@@ -102,11 +102,15 @@ MANIFEST
 case "$command" in
     secrets)
         [[ -n "${GITHUB_WEBHOOK_SECRET:-}" ]] || die "GITHUB_WEBHOOK_SECRET is not set."
-        [[ -n "${OPS_GITHUB_TOKEN:-}" ]] || die "OPS_GITHUB_TOKEN is not set."
+        [[ -n "${OPS_GITHUB_TOKEN:-}" || "${DEFER_PAT:-}" == 1 ]] || die "OPS_GITHUB_TOKEN is not set (or set DEFER_PAT=1)."
         [[ -n "${MODEL_KEY_ANTHROPIC:-}${MODEL_KEY_AZURE_OPENAI:-}" ]] ||
             die "Set MODEL_KEY_ANTHROPIC and/or MODEL_KEY_AZURE_OPENAI; the agent needs at least one model key."
         set_secret_config githubWebhookSecret "$GITHUB_WEBHOOK_SECRET"
-        set_secret_config opsGithubToken "$OPS_GITHUB_TOKEN"
+        if [[ -n "${OPS_GITHUB_TOKEN:-}" ]]; then
+            set_secret_config opsGithubToken "$OPS_GITHUB_TOKEN"
+        else
+            log "opsGithubToken deferred: the output stays empty until 'secrets' and 'up' run with the PAT."
+        fi
         if [[ -n "${MODEL_KEY_ANTHROPIC:-}" ]]; then
             set_secret_config 'modelApiKeys["anthropic"]' "$MODEL_KEY_ANTHROPIC"
         fi

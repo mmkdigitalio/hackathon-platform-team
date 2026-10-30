@@ -11,7 +11,10 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$here/lib.sh"
 load_bootstrap_env "${1:-}"
 require_tools az gh jq curl
-[[ -n "${OPS_GITHUB_TOKEN:-}" ]] || die "OPS_GITHUB_TOKEN is not set: export the fine-grained PAT of the agent (bootstrap.md, step 1)."
+# DEFER_PAT=1 deploys the foundation before the agent PAT exists; the PAT checks are then
+# skipped and the PAT is added later (bootstrap.md, "Deferred PAT").
+[[ -n "${OPS_GITHUB_TOKEN:-}" || "${DEFER_PAT:-}" == 1 ]] ||
+    die "OPS_GITHUB_TOKEN is not set: export the fine-grained PAT of the agent (bootstrap.md, step 1), or set DEFER_PAT=1 to add it later."
 
 missing=()
 pass() { log "OK      $*"; }
@@ -56,7 +59,9 @@ probe() {
         fail "PAT permission $permission on $repo (HTTP $code)"
     fi
 }
-for repo in $PAT_REPOS; do
+[[ -n "${OPS_GITHUB_TOKEN:-}" ]] ||
+    info "PAT checks skipped (DEFER_PAT=1): the agent and the PR workflows stay blocked until the PAT is added."
+for repo in ${OPS_GITHUB_TOKEN:+$PAT_REPOS}; do
     code="$(github_status "$OPS_GITHUB_TOKEN" GET "repos/$repo")"
     if [[ "$code" != "200" ]]; then
         fail "PAT access to repository $repo (HTTP $code)"

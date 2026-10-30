@@ -225,6 +225,16 @@ Defaults from [`config.ts`](../../infra/foundation/config.ts):
 | `certManagerChartVersion` | `v1.21.3` | [Chart upgrades](operations.md#chart-upgrades) |
 | `catalogDir` | `platform/catalog` | Source of the app availability tests |
 
+### Deferred PAT
+
+The foundation itself needs no GitHub access; only the operations agent and the
+desired-state PR workflow use the PAT. To deploy before the PAT exists, export
+`DEFER_PAT=1` for `bootstrap.sh` and `foundation.sh secrets`: the preflight skips the PAT
+checks, the repository secret `OPS_GITHUB_TOKEN` is not set and the output
+`opsGithubToken` stays empty. The access check reports its `github` category as failed
+until then. To add the PAT later, re-run `bootstrap.sh` and `foundation.sh secrets` with
+`OPS_GITHUB_TOKEN` exported (without `DEFER_PAT`), then `foundation.sh up`.
+
 ### Stack secrets
 
 Generate the GitHub webhook secret (for example `openssl rand -hex 32`) and store it in

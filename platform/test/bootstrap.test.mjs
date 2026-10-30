@@ -156,6 +156,14 @@ test("a regional restriction and a missing vCPU quota are both reported", { skip
     assert.match(result.stderr, /- vCPU quota cores in germanywestcentral: 2 x Standard_D4s_v5 need 8, 4 free/);
 });
 
+test("DEFER_PAT=1 skips the PAT checks with a notice instead of stopping", { skip }, () => {
+    const box = newSandbox();
+    const result = box.run("preflight.sh", [box.config], { DEFER_PAT: "1" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /INFO +PAT checks skipped \(DEFER_PAT=1\)/);
+    assert.ok(!result.calls.some((call) => call.startsWith("curl")), "no PAT probe");
+});
+
 test("an invalid env file is rejected", { skip }, () => {
     const box = sandbox({}, { envFile: "SUBSCRIPTION_ID=sub-1\n" });
     const result = box.run("preflight.sh", [box.config], { OPS_GITHUB_TOKEN: pat });
@@ -209,6 +217,16 @@ test("spec scenario: an interrupted first bootstrap is completed without clean-u
     assert.ok(!result.calls.some((c) => /group create|storage account create/.test(c)));
     assert.equal(box.read("secret-PULUMI_BACKEND_KEY"), stateKey);
     assert.equal(box.read("secret-PULUMI_CONFIG_PASSPHRASE"), "first-passphrase");
+});
+
+test("a bootstrap with DEFER_PAT=1 creates the backend and every secret except the PAT", { skip }, () => {
+    const box = newSandbox();
+    const result = box.run("bootstrap.sh", [box.config], { DEFER_PAT: "1", PULUMI_CONFIG_PASSPHRASE: "first-passphrase" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(box.read("secret-PULUMI_BACKEND_KEY"), stateKey);
+    assert.equal(box.read("secret-PULUMI_CONFIG_PASSPHRASE"), "first-passphrase");
+    assert.ok(!result.calls.some((call) => call.startsWith("gh secret set OPS_GITHUB_TOKEN")));
+    assert.match(result.stderr, /OPS_GITHUB_TOKEN deferred/);
 });
 
 test("a first run without passphrase stops before anything is created", { skip }, () => {

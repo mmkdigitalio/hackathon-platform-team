@@ -5,7 +5,7 @@
 # fails the run when the lookup itself fails, instead of treating the object as missing.
 # Needs Contributor only: no role assignments, no locks, no Entra objects.
 #
-#   OPS_GITHUB_TOKEN=... [PULUMI_CONFIG_PASSPHRASE=...] \
+#   OPS_GITHUB_TOKEN=... (or DEFER_PAT=1) [PULUMI_CONFIG_PASSPHRASE=...] \
 #       platform/scripts/bootstrap/bootstrap.sh platform/scripts/bootstrap/staging.env
 #
 # PULUMI_CONFIG_PASSPHRASE is only needed on the very first run (when the repository
@@ -82,7 +82,11 @@ set_secret() { printf '%s' "$2" | gh secret set "$1" --repo "$GITHUB_REPO" >/dev
 set_secret PULUMI_BACKEND_ACCOUNT "$STATE_STORAGE_ACCOUNT"
 set_secret PULUMI_BACKEND_KEY "$state_key"
 unset state_key
-set_secret OPS_GITHUB_TOKEN "$OPS_GITHUB_TOKEN"
+if [[ -n "${OPS_GITHUB_TOKEN:-}" ]]; then
+    set_secret OPS_GITHUB_TOKEN "$OPS_GITHUB_TOKEN"
+else
+    log "  OPS_GITHUB_TOKEN deferred (DEFER_PAT=1); re-run the bootstrap with the PAT later"
+fi
 if [[ "$passphrase_action" == create ]]; then
     set_secret PULUMI_CONFIG_PASSPHRASE "$PULUMI_CONFIG_PASSPHRASE"
     log "  PULUMI_CONFIG_PASSPHRASE created from the environment"
