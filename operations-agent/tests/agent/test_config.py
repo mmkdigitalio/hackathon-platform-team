@@ -67,3 +67,11 @@ def test_sdk_migrations_for_c() -> None:
     steps = sdk_migrations()
     assert steps[-1].version == SDK_SCHEMA_VERSION
     assert [s.version for s in steps if s.requires_autocommit]
+
+
+def test_public_scheme_from_foundation_wins() -> None:
+    base = {"OPS_GITHUB_TOKEN": "t", "OPS_BASE_DOMAIN": "1-2-3-4.sslip.io", "OPS_HTTP_SCHEME": "https"}
+    assert agent_settings(base).http_scheme == "https"
+    assert agent_settings({**base, "OPS_PUBLIC_SCHEME": "http"}).http_scheme == "http"
+    with pytest.raises(ConfigError):
+        agent_settings({**base, "OPS_PUBLIC_SCHEME": "ftp"})

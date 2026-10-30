@@ -41,7 +41,15 @@ Strang D hat gegen Lieferungen entwickelt, die es noch nicht gibt. Jede Annahme 
 
 ## Strang A
 
-| Punkt | Annahme von D |
+**Stand 30.10.2026: Code geliefert, noch nicht ausgerollt** (Commits `d0cfb3b` bis `049529a`). Bestätigt: Composite Action mit den Eingaben `backend-account`, `backend-key`, `config-passphrase` und den Ausgaben `acrLoginServer`, `acrUsername`, `acrPassword`; `modelApiKeys` als Objekt mit den Schlüsseln `anthropic` und/oder `azure-openai` (Bootstrap: `MODEL_KEY_AZURE_OPENAI`). A's Vertragstest prüft `agent-build.yml` mit. D setzt `expected-contract-version: "1"` ausdrücklich und überspringt die Veröffentlichung, solange `PULUMI_BACKEND_KEY` fehlt.
+
+Neu von A: `publicScheme` (`https` oder `http` im Let's-Encrypt-Fallback). D liest es als `OPS_PUBLIC_SCHEME` mit Vorrang vor dem Chart-Wert `agent.httpScheme`.
+
+**Offen für B:** im Katalog des Agenten (`platform/catalog/operations-agent/app.yaml`) unter `secrets` die Zeile `OPS_PUBLIC_SCHEME: foundation:publicScheme` ergänzen. Ohne sie gilt der Chart-Wert `https`.
+
+**Offen für den Bootstrap (A):** `MODEL_KEY_AZURE_OPENAI` mit dem Key von `mmk-hackathon-openai` setzen, sonst fehlt dem Agenten der Standardanbieter.
+
+| Punkt | Ursprüngliche Annahme von D (bestätigt) |
 | --- | --- |
 | `.github/actions/foundation-outputs` | Eingaben `backend-account`, `backend-key`, `config-passphrase`; Ausgaben `acrLoginServer`, `acrUsername`, `acrPassword` (maskiert) |
 | `modelApiKeys` | JSON-Objekt mit Schlüsseln `anthropic` und/oder `azure-openai` |
