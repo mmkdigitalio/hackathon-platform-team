@@ -1,0 +1,46 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 42,
+    "title": "[Support] AFFiNE speichert nicht",
+    "state": "open",
+    "html_url": "https://github.com/mmkdigitalio/hackathon-platform-team/issues/42",
+    "body": "### App\n\naffine\n\n### Umgebung\n\nstaging\n\n### Beschreibung\n\nBeim Speichern einer Seite erscheint seit 9 Uhr \"Network error\".\n\n### Seit wann?\n\n30.10.2026, ca. 09:00",
+    "user": {
+      "login": "kollegin-beispiel",
+      "id": 100001,
+      "type": "User"
+    },
+    "labels": [
+      {
+        "name": "support"
+      }
+    ],
+    "created_at": "2026-10-30T09:20:00Z",
+    "updated_at": "2026-10-30T09:20:00Z"
+  },
+  "repository": {
+    "id": 900000001,
+    "name": "hackathon-platform-team",
+    "full_name": "mmkdigitalio/hackathon-platform-team",
+    "html_url": "https://github.com/mmkdigitalio/hackathon-platform-team",
+    "private": true
+  },
+  "sender": {
+    "login": "teammitglied-mit-pat",
+    "id": 100002,
+    "type": "User"
+  },
+  "comment": {
+    "id": 7000002,
+    "html_url": "https://github.com/mmkdigitalio/hackathon-platform-team/issues/42#issuecomment-7000002",
+    "body": "Tritt auch beim Hochladen von Anhängen auf.",
+    "user": {
+      "login": "teammitglied-mit-pat",
+      "id": 100002,
+      "type": "User"
+    },
+    "created_at": "2026-10-30T09:27:00Z",
+    "updated_at": "2026-10-30T09:25:00Z"
+  }
+}

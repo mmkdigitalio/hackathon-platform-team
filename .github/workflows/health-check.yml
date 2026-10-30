@@ -1,0 +1,48 @@
+# Geplanter Gesundheitscheck (Strang C).
+# Prüft deterministisch den Verfügbarkeits-Prüfpfad jeder Katalog-App. Nur bei
+# Fehlschlag sendet er einen Wartungsauftrag an den Ereigniseingang; ein gesunder
+# Lauf erzeugt keinen Auftrag und keinen Modellaufruf.
+name: health-check
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Liefert maintenanceApiKey maskiert; Ein-/Ausgabenamen gemäß Foundation-Ausgabevertrag (Strang A).
+      - id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Operations-Client installieren
+        run: pip install ./operations-agent
+
+      - name: Gesundheitsprüfung
+        env:
+          MAINTENANCE_API_KEY: ${{ steps.foundation.outputs.maintenanceApiKey }}
+        run: >
+          ops health-check
+          --env staging
+          --base-domain "${{ steps.foundation.outputs.baseDomain }}"
+          --api-host "${{ steps.foundation.outputs.operationsApiHost }}"

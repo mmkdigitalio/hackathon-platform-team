@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mmkdigitalio/hackathon-platform-team/platform/schemas/events/event.schema.json",
+  "title": "Normalisiertes Betriebsereignis",
+  "description": "Ereignisvertrag v0.1 für Azure Monitor, GitHub-Issues und Wartungsaufträge. Eigentümer: Strang C.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "source",
+    "deliveryId",
+    "externalRef",
+    "appId",
+    "environment",
+    "eventType",
+    "severity",
+    "state",
+    "occurredAt",
+    "receivedAt",
+    "sourceRef"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "0.1"
+    },
+    "source": {
+      "enum": ["azure-monitor", "github", "maintenance"]
+    },
+    "deliveryId": {
+      "description": "Zustellungsidentität je Quelle. Azure Monitor: <alertId>:<monitorCondition>; GitHub: X-GitHub-Delivery; Wartung: vom Aufrufer gesetzt.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "externalRef": {
+      "description": "Referenz im Quellsystem. Azure Monitor: essentials.alertId; GitHub: <owner>/<repo>#<issue>; Wartung: vom Aufrufer gesetzt.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "appId": {
+      "description": "App-ID nach platform/schemas/conventions/. null nur bei Zuordnungsfehler.",
+      "oneOf": [
+        { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,30}$" },
+        { "type": "null" }
+      ]
+    },
+    "environment": {
+      "description": "Umgebung. null nur bei Zuordnungsfehler.",
+      "oneOf": [
+        { "enum": ["staging", "production"] },
+        { "type": "null" }
+      ]
+    },
+    "eventType": {
+      "description": "Art des Ereignisses, z. B. alert, issue-opened, issue-commented, health-check-failed.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$"
+    },
+    "severity": {
+      "enum": ["critical", "error", "warning", "informational", "verbose", "unknown"]
+    },
+    "state": {
+      "description": "fired/resolved für Alarme, opened/commented für Issues, requested für Wartung.",
+      "enum": ["fired", "resolved", "opened", "commented", "requested"]
+    },
+    "occurredAt": {
+      "description": "Zeitpunkt im Quellsystem; null, wenn die Quelle keinen liefert.",
+      "oneOf": [
+        { "type": "string", "format": "date-time" },
+        { "type": "null" }
+      ]
+    },
+    "receivedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "sourceRef": {
+      "description": "Referenz auf die unveränderten Quelldaten. Der Rohinhalt liegt in der Datenbank am Ereignis; payloadSha256 bindet ihn.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "payloadSha256"],
+      "properties": {
+        "type": {
+          "enum": ["azure-alert", "github-issue", "github-comment", "maintenance-request"]
+        },
+        "url": {
+          "type": "string"
+        },
+        "payloadSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "mappingError": {
+      "description": "Gesetzt, wenn App oder Umgebung fehlen oder nicht im Katalog stehen. Solche Ereignisse erzeugen keinen ändernden Auftrag.",
+      "oneOf": [
+        { "type": "string", "minLength": 1 },
+        { "type": "null" }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "anyOf": [
+          { "properties": { "appId": { "type": "null" } } },
+          { "properties": { "environment": { "type": "null" } } }
+        ]
+      },
+      "then": {
+        "required": ["mappingError"],
+        "properties": { "mappingError": { "type": "string" } }
+      }
+    },
+    {
+      "if": { "properties": { "source": { "const": "azure-monitor" } } },
+      "then": {
+        "properties": {
+          "state": { "enum": ["fired", "resolved"] },
+          "sourceRef": { "properties": { "type": { "const": "azure-alert" } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "source": { "const": "github" } } },
+      "then": {
+        "properties": {
+          "state": { "enum": ["opened", "commented"] },
+          "externalRef": { "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+$" },
+          "sourceRef": { "properties": { "type": { "enum": ["github-issue", "github-comment"] } } }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "source": { "const": "maintenance" } } },
+      "then": {
+        "properties": {
+          "state": { "const": "requested" },
+          "sourceRef": { "properties": { "type": { "const": "maintenance-request" } } }
+        }
+      }
+    }
+  ]
+}

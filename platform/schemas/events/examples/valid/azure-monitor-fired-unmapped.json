@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "0.1",
+  "source": "azure-monitor",
+  "deliveryId": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.AlertsManagement/alerts/33333333-3333-3333-3333-333333333333:Fired",
+  "externalRef": "/subscriptions/00000000-0000-0000-0000-000000000000/providers/Microsoft.AlertsManagement/alerts/33333333-3333-3333-3333-333333333333",
+  "eventType": "alert",
+  "severity": "error",
+  "state": "fired",
+  "occurredAt": "2026-10-30T09:12:00.000Z",
+  "sourceRef": {
+    "type": "azure-alert",
+    "payloadSha256": "2d7ca93529733cab46f2db62220469fe26ec604a608c9b5bade2115c68d70187"
+  },
+  "appId": null,
+  "environment": null,
+  "receivedAt": "2026-10-30T09:12:05+00:00",
+  "mappingError": "weder Custom Properties app-id/environment noch Regelname alert-<app-id>-<env>-<check> (Regel 'cpu-high-somewhere')"
+}

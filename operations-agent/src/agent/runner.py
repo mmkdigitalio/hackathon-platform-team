@@ -13,7 +13,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.errors import GraphRecursionError
 
 from agent.config import AgentSettings, ModelSettings, agent_settings, model_settings
-from agent.context import ContextLoader, OperationalContext, assess_drift
+from agent.context import ContextLoader, OperationalContext, assess_drift, desired_digest
 from agent.limits import BudgetMiddleware, LimitReached, RunBudget, UsageCallback
 from agent.model import build_chat_model
 from agent.outcome import Stop, valid_verification, verification_failed
@@ -162,7 +162,13 @@ def _context_findings(s: RunScope) -> None:
         )
     if ctx.actual_release:
         s.recorder.references["actualRelease"] = ctx.actual_release.model_dump()
-    s.recorder.references["desiredState"] = {"path": ctx.desired_path, "gitRef": ctx.git_ref, "source": ctx.desired.source}
+    s.recorder.references["desiredState"] = {
+        "path": ctx.desired_path,
+        "gitRef": ctx.git_ref,
+        "source": ctx.desired.source,
+        # Erwarteter Zielstand für C's Abschlussprüfung (Strang C).
+        "imageDigest": desired_digest(ctx.desired.value),
+    }
     if ctx.runbook:
         s.recorder.references["runbook"] = ctx.runbook.source
 
