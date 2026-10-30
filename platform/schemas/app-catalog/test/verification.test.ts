@@ -11,7 +11,7 @@ const input = (over: Partial<VerificationInput>): VerificationInput => ({
   exitCode: 0,
   appId: "affine",
   environment: "staging",
-  checkRef: `ghcr.io/mmkdigitalio/affine-smoke@sha256:${"c".repeat(64)}`,
+  checkRef: `sha256:${"c".repeat(64)}`,
   running: release,
   desired: release,
   ...over,

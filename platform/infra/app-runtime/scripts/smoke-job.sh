@@ -111,7 +111,7 @@ EOF
 set +e
 (cd "$catalog" && npx tsx src/cli.ts verification-result \
   --smoke-output "$work/smoke.out" --exit-code "$exit_code" \
-  --app "$app_id" --env "$environment" --check-ref "$smoke_image" \
+  --app "$app_id" --env "$environment" --check-ref "${smoke_image##*@}" \
   --running-git-sha "${running_sha:-unbekannt}" --running-image-digest "$running_digest" \
   --running-chart-version "${running_chart:-unbekannt}" \
   --desired-git-sha "$DESIRED_GIT_SHA" --desired-image-digest "$desired_digest" \
