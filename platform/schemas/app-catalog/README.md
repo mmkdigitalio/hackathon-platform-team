@@ -116,7 +116,7 @@ Zwei Ausführende erzeugen Verifikationsergebnisse: `app-deploy.yml` (B) für Zu
 | `desiredRelease`, `deviations`, `releaseMatchesDesired` | – | bei D prüft C's Abschlussprüfung Soll gegen Ist |
 | `failureReason` | – | D: `timed_out` |
 
-Prüfgrundlage für die gemeinsame Durchsicht ist [`examples/results/verification-result-failed.json`](examples/results/verification-result-failed.json): Exit-Code 1, `success: false`, Teilprüfungen `document` und `attachment` fehlgeschlagen. Offen bis zur Bestätigung durch C und D.
+Prüfgrundlage für die gemeinsame Durchsicht ist [`examples/results/verification-result-failed.json`](examples/results/verification-result-failed.json): Exit-Code 1, `success: false`, Teilprüfungen `document` und `attachment` fehlgeschlagen. Von D bestätigt (`platform/operations/agent/uebergaben.md`, Commit `4db663e`); Bestätigung durch C offen.
 
 ## Validierung
 

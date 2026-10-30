@@ -37,3 +37,4 @@ Host `https://affine.<baseDomain>` mit Let's-Encrypt-Zertifikat über die Ingres
 | Übergabe bestätigt | erledigt, Lieferung in `mmkdigitalio/hackathon-platform-affine` (`platform-delivery/README.md`) |
 | Entwurf `platform/catalog/affine/app.yaml` validiert | erledigt |
 | L11 Fehlerwert festgelegt | erledigt: `affine.nodeOptions = --max-old-space-size=16` |
+| L2/L7 Chart und Smoke-Test-Image öffentlich lesbar | offen: `ghcr.io/mmkdigitalio/charts/affine` und `ghcr.io/mmkdigitalio/affine-smoke` antworten anonym mit 403 (geprüft 30.10.2026); ohne öffentlichen Zugriff kann der Cluster beide nicht ziehen |

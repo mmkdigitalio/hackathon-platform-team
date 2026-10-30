@@ -7,7 +7,7 @@ B startet lokal mit Schema, App-Programm und Workflows gegen lokalen Cluster und
 - [x] 1.1 Schema für `app.yaml` und Sollzustand unter `platform/schemas/app-catalog/` mit gültigen Beispielen (AFFiNE-artig, `operations-agent`) und ungültigen Beispielen liefern; Abschluss durch Ablehnung unbekannter Versionen, Felder, Bausteine, Namespace-/Host-Felder, Tags ohne Digest und App-IDs entgegen den Konventionen prüfen.
 - [x] 1.2 Secret-Referenzen `foundation:` und `app:` validieren; Abschluss durch Ablehnung unbekannter Foundation-Ausgaben laut `platform/schemas/foundation-outputs/` und nicht deklarierter App-Secrets prüfen.
 - [ ] 1.3 Smoke-Test-Vertrag und JSON-Schema des Verifikationsergebnisses veröffentlichen; Abschluss durch gemeinsame Vertragsprüfung mit C und D anhand eines fehlgeschlagenen Ergebnisses prüfen.
-- [ ] 1.4 Lieferanforderungen an den AFFiNE-Kollegen übergeben (Katalogeintrag nach Schema, Chart mit fester Version und Strategie `Recreate`, Smoke-Test-Image, Runbook mit Commit-SHA, Datenverfahren); Abschluss durch bestätigte Übergabe und validierten Entwurf von `platform/catalog/affine/app.yaml` prüfen.
+- [x] 1.4 Lieferanforderungen an den AFFiNE-Kollegen übergeben (Katalogeintrag nach Schema, Chart mit fester Version und Strategie `Recreate`, Smoke-Test-Image, Runbook mit Commit-SHA, Datenverfahren); Abschluss durch bestätigte Übergabe und validierten Entwurf von `platform/catalog/affine/app.yaml` prüfen.
 
 ## 2. App-Programm, Anteil P1-05
 
