@@ -3,8 +3,10 @@
 #
 #   playbook-self-heal.sh check --environment staging   nur Vorprüfung, keine Änderung
 #   playbook-self-heal.sh run   --environment staging   Vorprüfung, Stopp, alle Stufen verfolgen
+#   playbook-self-heal.sh simulate --environment staging   Probelauf mit simulierten Systemen (ca. 2 min), ohne Eingriff
 #     [--scheme https|http] [--poll-seconds 30] [--report <datei.json>] [--html <verzeichnis>]
 #
+# simulate ersetzt kubectl, gh, az, curl und psql durch simulation/fake-cli.sh und kennzeichnet jede Ausgabe als Simulation.
 # --html schreibt eine Live-Ansicht (index.html, status.js) für den Browser, etwa für eine Demo.
 # Stufen und Ablauf: platform/operations/apps/affine/playbook-self-heal.md. Gestoppt wird über fault-scale-to-zero.sh.
 # Voraussetzungen: KUBECONFIG auf den Staging-Cluster, gh und az angemeldet, jq, curl.
@@ -12,10 +14,10 @@
 # Exit-Codes: 0 alle Stufen erfüllt, 1 Vorprüfung oder Stufe gescheitert bzw. Zeit überschritten, 2 Aufruffehler.
 set -euo pipefail
 
-usage() { sed -n '2,12p' "$0" >&2; exit 2; }
+usage() { sed -n '2,14p' "$0" >&2; exit 2; }
 
 command="${1:-}"; shift || true
-environment=""; scheme=""; poll=30; report=""; html_dir=""
+environment=""; scheme=""; poll=""; report=""; html_dir=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --environment) environment="${2:-}"; shift 2 ;;
@@ -26,9 +28,9 @@ while [[ $# -gt 0 ]]; do
     *) usage ;;
   esac
 done
-[[ "$command" == "check" || "$command" == "run" ]] || usage
+[[ "$command" == "check" || "$command" == "run" || "$command" == "simulate" ]] || usage
 [[ -z "$scheme" || "$scheme" == "https" || "$scheme" == "http" ]] || usage
-[[ "$poll" =~ ^[1-9][0-9]*$ ]] || usage
+[[ -z "$poll" || "$poll" =~ ^[1-9][0-9]*$ ]] || usage
 
 if [[ "$environment" != "staging" ]]; then
   echo "Abbruch ohne Änderung: das Playbook ist nur für staging erlaubt (angegeben: '${environment:-leer}')." >&2
@@ -37,6 +39,18 @@ fi
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(git -C "$here" rev-parse --show-toplevel)"
+
+# Simulation: alle Gegenstellen aus simulation/bin, kein Kubeconfig, keine Datenbank, keine Azure-Subscription
+simulation=""
+if [[ "$command" == "simulate" ]]; then
+  simulation=1 command=run
+  SIM_STATE="$(mktemp -d)"
+  export SIM_STATE PATH="$here/simulation/bin:$PATH" KUBECONFIG=/dev/null PGHOST=simulation AZURE_SUBSCRIPTION_ID=simulation
+  unset OPS_DATABASE_URL
+  poll="${poll:-2}"
+  html_dir="${html_dir:-${TMPDIR:-/tmp}/selbstheilung-simulation}"
+fi
+poll="${poll:-30}"
 [[ -z "$html_dir" ]] || { mkdir -p "$html_dir"; html_dir="$(cd "$html_dir" && pwd)"; }
 [[ -z "$report" || "$report" == /* ]] || report="$PWD/$report"
 cd "$root"
@@ -81,9 +95,10 @@ status_json() {
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "${keys[i]}" "${labels[i]}" "${actors[i]}" "${st_state[i]}" \
       "${st_detail[i]}" "${st_link[i]}" "${st_start[i]}" "${st_at[i]}"
   done | jq -R -s -c --arg env "$environment" --arg result "$result" --arg started "$t0" --arg finished "$finished" \
-    --arg obs "$observation" --arg app "$app_url" --arg agent "$agent_url" --arg rule "$rule" --argjson current "$current" '
+    --arg obs "$observation" --arg app "$app_url" --arg agent "$agent_url" --arg rule "$rule" --argjson current "$current" \
+    --argjson simulation "$([[ -n "$simulation" ]] && echo true || echo false)" '
     def ts: if . == "" then null else (tonumber | todate) end;
-    {app: "affine", environment: $env, result: $result, started: ($started | ts), finished: ($finished | ts),
+    {app: "affine", environment: $env, simulation: $simulation, result: $result, started: ($started | ts), finished: ($finished | ts),
      updated: (now | floor | todate), current: $current, observation: $obs, rule: $rule,
      appUrl: (if $app == "" then null else $app end), agentUrl: (if $agent == "" then null else $agent end),
      stages: [split("\n")[] | select(length > 0) | split("\t")
@@ -196,7 +211,7 @@ alerts() {
     | {id: .id, condition: $e.monitorCondition, fired: $e.startDateTime, resolved: ($e.monitorConditionResolvedDateTime // null)}' <<<"$json"
 }
 
-portal_link() { echo "https://portal.azure.com/#view/Microsoft_Azure_Monitoring_Alerts/AlertDetails.ReactView/alertId/$(jq -rn --arg id "$1" '$id | @uri')"; }
+portal_link() { [[ -z "$simulation" ]] || return 0; echo "https://portal.azure.com/#view/Microsoft_Azure_Monitoring_Alerts/AlertDetails.ReactView/alertId/$(jq -rn --arg id "$1" '$id | @uri')"; }
 
 # --- Vorprüfung ----------------------------------------------------------------------------
 
@@ -314,7 +329,11 @@ if [[ -n "$html_dir" ]]; then
   if [[ -n "$live" ]] && command -v open >/dev/null; then open "$html_dir/index.html"; fi
 fi
 
-printf '\n%sPlaybook Selbstheilung · affine/%s%s\n\n' "$c_bold" "$environment" "$c_off"
+printf '\n%sPlaybook Selbstheilung · affine/%s%s\n' "$c_bold" "$environment" "$c_off"
+if [[ -n "$simulation" ]]; then
+  printf '%s%sSIMULATION%s %s– simulierte Systeme, kein Eingriff in staging%s\n' "$c_bold" "$c_run" "$c_off" "$c_dim" "$c_off"
+fi
+echo
 preflight
 printf '  %sApp%s    %s\n  %sAgent%s  %s\n  %sAlarm%s  %s\n\n' "$c_dim" "$c_off" "$app_url" "$c_dim" "$c_off" "$agent_url" "$c_dim" "$c_off" "$rule"
 if [[ "$command" == "check" ]]; then

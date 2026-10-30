@@ -87,6 +87,12 @@
   .time { text-align: right; padding-top: 8px; color: var(--muted); font-size: 15px; white-space: nowrap; }
   .time small { display: block; color: var(--faint); font-size: 13px; }
 
+  .sim {
+    display: none; margin-bottom: 22px; padding: 10px 16px; border-radius: 10px; font-weight: 600;
+    background: var(--run-soft); color: var(--run); border: 1px dashed var(--run);
+  }
+  .sim.on { display: block; }
+
   footer { margin-top: 26px; color: var(--faint); font-size: 13px; display: flex; gap: 18px; flex-wrap: wrap; }
   footer .stale { color: var(--err); font-weight: 600; }
 
@@ -105,6 +111,7 @@
 </head>
 <body>
 <main>
+  <div class="sim" id="sim">Simulation · simulierte Systeme, kein Eingriff in staging</div>
   <header>
     <div>
       <div class="eyebrow">Playbook Selbstheilung</div>
@@ -149,6 +156,8 @@
     if (!status) return;
     const s = status, started = ms(s.started);
     $("env").textContent = "· " + s.environment;
+    $("sim").className = s.simulation ? "sim on" : "sim";
+    document.title = (s.simulation ? "Simulation · " : "") + "Selbstheilung AFFiNE";
     $("result").textContent = RESULT[s.result] || s.result;
     $("result").className = "pill " + s.result;
     $("now").className = "now " + s.result;

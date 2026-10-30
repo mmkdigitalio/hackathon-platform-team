@@ -65,6 +65,25 @@ platform/operations/apps/affine/playbook-self-heal.sh run --environment staging 
 
 Hell- und Dunkelmodus folgen dem System. Schreibt das Skript länger als 3 Minuten nichts, markiert die Seite den Stand als veraltet. Für die Demo Terminal und Browser nebeneinander zeigen; die Wartezeit auf den Alarm (5–10 Minuten) eignet sich, um Agent, Betriebsregeln und Alarmweg zu erklären.
 
+### Simulation (ohne staging)
+
+```bash
+platform/operations/apps/affine/playbook-self-heal.sh simulate --environment staging
+```
+
+Spielt denselben Ablauf in gut 2 Minuten mit simulierten Gegenstellen ab: [simulation/fake-cli.sh](simulation/fake-cli.sh) ersetzt über `simulation/bin` (Symlinks) `kubectl`, `gh`, `az`, `curl` und `psql`; `KUBECONFIG=/dev/null`, kein Datenbank- und kein Azure-Zugriff. Es ist dasselbe Skript mit denselben Stufen, Prüfungen und Ausgaben; Terminal und Live-Ansicht tragen den Hinweis „Simulation“, der Bericht `"simulation": true`, und Links zu Portal und Lauf entfallen. Ohne `--html` schreibt `simulate` die Live-Ansicht nach `$TMPDIR/selbstheilung-simulation`; Abfrage alle 2 Sekunden.
+
+| Sekunde nach dem Stopp | Simuliertes Ereignis |
+| --- | --- |
+| 0 | AFFiNE mit 0 Replicas, `/info` nicht erreichbar |
+| 25 | Alarm Fired |
+| 40 | Agent startet `app-deploy.yml` (Schritte Foundation-Ausgaben, Sperre erwerben, Ausrollen, Rollout prüfen, Smoke-Test) |
+| 100 | Lauf grün, AFFiNE wieder bereit |
+| 125 | Alarm Resolved |
+| 130 | Auftrag `resolved` |
+
+Gedacht als Probe und als Rückfallebene, wenn staging in der Demo nicht bereit ist; nicht als Nachweis, dass die Selbstheilung in staging funktioniert.
+
 ## Stufen
 
 | # | Stufe | Erfüllt, wenn | Zeitgrenze | Erwartete Dauer |
