@@ -303,3 +303,23 @@ to them where they build on them.
 - Alternatives: derive the test from the agent's catalog entry (agent outage monitoring
   would depend on B's entry); put it in the agent's app stack (app stacks hold no Azure
   resources, E5, and it would disappear with the release).
+
+## D12. Read-only Azure identity for the agent workspace
+
+- Status: Proposed (pending Erik's decision); added 2026-10-30 (Cornelius). Deviates from
+  E3/E6 for one identity only.
+- Context: the operations agent works in a workspace pod with `az` and should explore
+  the platform's Azure resources, metrics and logs (P1-07). E3 rules out role
+  assignments, but the subscription owner can create them.
+- Decision: behind `agentWorkspaceIdentity` (default `false`) the stack creates a
+  user-assigned identity, a federated credential for the workspace service account and
+  three role assignments: `Reader` on the platform and node resource groups,
+  `Log Analytics Reader` on the workspace. No AKS webhook: the agent projects the token
+  itself, so the cluster only keeps its OIDC issuer enabled.
+- Consequences: a deployer with Contributor only must keep the switch off (role
+  assignments fail). `Reader` cannot list keys (storage, ACR, PostgreSQL stay hidden).
+  The workspace can read every resource's configuration in both groups.
+- Alternatives: the AKS workload identity add-on (changes the cluster for nothing the
+  agent's code cannot do), a service principal with a secret (Entra app registration,
+  rotating secret).
+

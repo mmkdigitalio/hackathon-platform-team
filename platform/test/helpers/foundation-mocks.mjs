@@ -44,6 +44,7 @@ const nameInputs = {
     "azure-native:monitor:ActionGroup": "actionGroupName",
     "azure-native:monitor:MetricAlert": "ruleName",
     "azure-native:monitor:DataCollectionRule": "dataCollectionRuleName",
+    "azure-native:managedidentity:UserAssignedIdentity": "resourceName",
 };
 
 function computedOutputs(type, name) {
@@ -54,6 +55,12 @@ function computedOutputs(type, name) {
             return { loginServer: `${name}.azurecr.io` };
         case "azure-native:dbforpostgresql:Server":
             return { fullyQualifiedDomainName: `${name}.postgres.database.azure.com` };
+        case "azure-native:containerservice:ManagedCluster":
+            return { oidcIssuerProfile: { enabled: true, issuerURL: "https://westeurope.oic.prod-aks.azure.com/tenant/cluster/" } };
+        case "azure-native:managedidentity:UserAssignedIdentity":
+            return { clientId: "44444444-4444-4444-4444-444444444444", principalId: "55555555-5555-5555-5555-555555555555" };
+        case "random:index/randomUuid:RandomUuid":
+            return { result: `uuid-${name}` };
         case "kubernetes:helm.sh/v3:Release":
             return { status: { name, namespace: "platform-ingress", status: "deployed" } };
         case "kubernetes:core/v1:Service":

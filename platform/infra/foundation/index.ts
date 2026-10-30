@@ -6,6 +6,7 @@ import * as k8s from "@pulumi/kubernetes";
 import * as pulumi from "@pulumi/pulumi";
 import * as random from "@pulumi/random";
 import { foundationNames, operationsAgentAppId, platformAppId, requiredTags } from "../components/conventions";
+import { createAgentIdentity } from "./agentIdentity";
 import { readCatalog } from "./catalog";
 import { loadConfig } from "./config";
 import { createData, diagnosticsContainerName, postgresAdminLogin, postgresDatabaseName } from "./data";
@@ -52,6 +53,21 @@ const monitoring = createMonitoring({
     catalog,
 });
 
+const clientConfig = azure.authorization.getClientConfigOutput();
+const agentIdentity = cfg.agentWorkspaceIdentity
+    ? createAgentIdentity({
+          env: cfg.env,
+          location: cfg.location,
+          subscriptionId,
+          resourceGroupName,
+          nodeResourceGroupName: runtime.cluster.nodeResourceGroup.apply((name) => required(name, "the AKS node resource group")),
+          logAnalyticsWorkspaceId: runtime.workspace.id,
+          oidcIssuerUrl: runtime.cluster.oidcIssuerProfile.apply((p) => required(p?.issuerURL, "the AKS OIDC issuer")),
+          agentNamespace: `${operationsAgentAppId}-${cfg.env}`,
+          tags,
+      })
+    : undefined;
+
 function required<T>(value: T | undefined | null, what: string): T {
     if (value === undefined || value === null || value === "") {
         throw new Error(`Azure did not report ${what}.`);
@@ -89,6 +105,14 @@ export const githubWebhookSecret = pulumi.secret(cfg.githubWebhookSecret);
 export const modelApiKeys = pulumi.secret(cfg.modelApiKeys);
 export const opsGithubToken = pulumi.secret(cfg.opsGithubToken);
 export const githubAppPrivateKey = pulumi.secret(cfg.githubAppPrivateKey);
+// Outside the contract (additionalProperties): the app stack's desired state carries these values as workspace.azure.*.
+export const agentWorkspaceAzure = agentIdentity
+    ? pulumi.output({
+          clientId: agentIdentity.identity.clientId,
+          tenantId: clientConfig.tenantId,
+          subscriptionId,
+      })
+    : undefined;
 export const platformVersions = {
     kubernetes: cfg.kubernetesVersion,
     traefikChart: cfg.traefikChartVersion,

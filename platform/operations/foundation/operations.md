@@ -404,6 +404,54 @@ Back to HTTPS: set `httpFallback false`, release, run the ingress check, change 
 webhook URL back. The ingress check always tests HTTPS, so it fails while certificates
 are still refused.
 
+## Agent workspace identity
+
+Read-only Azure access for the operations agent's workspace pod: user-assigned identity
+`id-mmk-ops-workspace-<env>`, federated to the service account
+`operations-agent-<env>:operations-agent-workspace`, with `Reader` on
+`rg-mmk-platform-<env>` and `rg-mmk-platform-<env>-aks-nodes` and `Log Analytics Reader`
+on `log-mmk-platform-<env>`. The AKS workload identity webhook stays off; the agent
+projects the service account token itself (`operations-agent/src/tools/workspace.py`).
+Config switch `agentWorkspaceIdentity` (default `false`); it needs Owner or User Access
+Administrator for the role assignments, unlike the Contributor-only rule E3 ([D12](decisions.md#d12-read-only-azure-identity-for-the-agent-workspace)).
+The output `agentWorkspaceAzure` (outside the contract) carries `clientId`, `tenantId`
+and `subscriptionId` for `values.workspace.azure` in
+`platform/environments/<env>/operations-agent.yaml`.
+
+**Staging, 2026-10-30:** identity, federated credential and role assignments were
+created with the Azure CLI (tag `managed-by=az-cli-pending-pulumi`, client ID
+`83e90ad7-5780-418f-9a27-cefdc9b80fc7`). Take them over into the stack once, with the
+backend environment:
+
+1. Switch on and import identity and federated credential (the client ID stays the
+   same, so the desired state needs no change):
+
+   ```bash
+   cd platform/infra/foundation
+   pulumi config set agentWorkspaceIdentity true
+   rg=/subscriptions/e74d4729-d5f5-4fd4-ab22-17005555593e/resourceGroups/rg-mmk-platform-staging
+   pulumi import azure-native:managedidentity:UserAssignedIdentity agent-workspace-identity \
+     "$rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-mmk-ops-workspace-staging" --yes
+   pulumi import azure-native:managedidentity:FederatedIdentityCredential agent-workspace-federation \
+     "$rg/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-mmk-ops-workspace-staging/federatedIdentityCredentials/operations-agent-workspace" --yes
+   ```
+
+2. Delete the three CLI role assignments; `up` recreates them with names from the state
+   (the workspace loses Azure access for the minutes in between):
+
+   ```bash
+   az role assignment delete --ids \
+     /subscriptions/e74d4729-d5f5-4fd4-ab22-17005555593e/resourceGroups/rg-mmk-platform-staging/providers/Microsoft.Authorization/roleAssignments/576d522d-36f4-42bb-a28a-2ae5b5f9b5fa \
+     /subscriptions/e74d4729-d5f5-4fd4-ab22-17005555593e/resourceGroups/rg-mmk-platform-staging-aks-nodes/providers/Microsoft.Authorization/roleAssignments/d9fd619b-f790-4cec-a94e-88fd0e5ce316 \
+     /subscriptions/e74d4729-d5f5-4fd4-ab22-17005555593e/resourceGroups/rg-mmk-platform-staging/providers/Microsoft.OperationalInsights/workspaces/log-mmk-platform-staging/providers/Microsoft.Authorization/roleAssignments/5b5357b6-0c0c-479a-abde-045ae9906b08
+   ```
+
+3. Release it like any change (commit `Pulumi.staging.yaml`, `preview`, `up`). Expect the
+   three role assignments as creates, a tag update on the identity
+   (`managed-by=pulumi`) and an AKS update for `oidcIssuerProfile` (already enabled; no
+   node restart).
+4. Check from a workspace pod: `az-login && az resource list -g rg-mmk-platform-staging -o table`.
+
 ## Rotating keys
 
 | Credential | Rotate | Then |

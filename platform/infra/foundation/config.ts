@@ -18,6 +18,8 @@ export interface FoundationConfig {
     /** Documented Let's Encrypt fallback: availability tests and ops-intake use http://. */
     httpFallback: boolean;
     containerInsights: boolean;
+    /** Read-only Azure identity for the agent's workspace pod; needs Owner or User Access Administrator (not E3). */
+    agentWorkspaceIdentity: boolean;
     budgetAmount: number;
     budgetStartDate: string;
     postgres: { version: string; skuName: string; skuTier: string; storageSizeGb: number };
@@ -75,6 +77,7 @@ export function loadConfig(): FoundationConfig {
         acmeServer: config.get("acmeServer") ?? "https://acme-v02.api.letsencrypt.org/directory",
         httpFallback: config.getBoolean("httpFallback") ?? false,
         containerInsights: config.getBoolean("containerInsights") ?? true,
+        agentWorkspaceIdentity: config.getBoolean("agentWorkspaceIdentity") ?? false,
         budgetAmount: config.requireNumber("budgetAmount"),
         budgetStartDate,
         postgres: {

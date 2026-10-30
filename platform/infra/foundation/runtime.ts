@@ -101,6 +101,8 @@ export function createRuntime({ cfg, resourceGroupName, suffix, tags }: RuntimeA
         identity: { type: "SystemAssigned" },
         sku: { name: "Base", tier: "Free" },
         enableRBAC: true,
+        // OIDC issuer for the agent workspace's federated identity; Azure cannot switch it off again.
+        ...(cfg.agentWorkspaceIdentity ? { oidcIssuerProfile: { enabled: true } } : {}),
         // The admin kubeconfig is the access path for workflows (public API server, local accounts enabled).
         disableLocalAccounts: false,
         agentPoolProfiles: [
