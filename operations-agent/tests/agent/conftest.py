@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from pathlib import Path
 
 import httpx
 import pytest
 from pydantic import SecretStr
 
 from agent import Dependencies, execute
-from agent.config import AgentSettings, ModelSettings
+from agent.config import AgentSettings, ModelSettings, default_rules_file
 from contracts import AgentInvocation, AgentResult, ContextRefs, OperationsServices, ResumeInfo, RunLimits
 from contracts import Ownership as Lease
 from tools.http_check import HttpProbe
@@ -28,7 +27,7 @@ from .fakes import (
     ScriptedModel,
 )
 
-RULES = Path(__file__).resolve().parents[3] / "platform" / "operations" / "agent" / "betriebsregeln.md"
+RULES = default_rules_file()
 SMOKE_IMAGE = "acr.example/smoke-affine@sha256:" + "b" * 64
 DIGEST = "sha256:" + "a" * 64
 

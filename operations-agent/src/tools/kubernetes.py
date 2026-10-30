@@ -81,7 +81,9 @@ class KubernetesAdapter:
             context = os.environ.get("OPS_KUBE_CONTEXT")
             if not context:
                 raise ValidationFailed("OPS_KUBE_CONTEXT muss lokal gesetzt sein; der Standardkontext wird nie verwendet")
-            config.load_kube_config(context=context)
+            # Pfad erst hier lesen: der Client wertet KUBECONFIG sonst nur beim Import aus.
+            config_file = os.environ.get("OPS_KUBECONFIG") or os.environ.get("KUBECONFIG") or None
+            config.load_kube_config(config_file=config_file, context=context)
         return cls(policy, client.AppsV1Api(), client.CoreV1Api(), client.BatchV1Api())
 
     # Lesen
