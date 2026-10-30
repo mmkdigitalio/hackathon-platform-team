@@ -28,6 +28,8 @@ Maßgeblich ist [PRODUKT-UND-IMPLEMENTIERUNG.md](../PRODUKT-UND-IMPLEMENTIERUNG.
 | C | [operations-intake-and-state](changes/operations-intake-and-state/proposal.md) | API, Aufträge, Leases, Zustandsregeln, Persistenz, Heartbeat und gemeinsame Operations-Sperre | Lokales PostgreSQL, Beispiel-Webhooks und vertragskonforme Testausführung |
 | D | [operations-agent-and-tools](changes/operations-agent-and-tools/proposal.md) | Framework-Nachweis, Agent, Kubernetes- und GitHub-Werkzeuge, externe Abgleiche und Agentenpaket | Echtes Modell mit typisiertem Werkzeug und lokale Adaptertests |
 
+Nachtrag, keinem Strang zugeordnet: [platform-status-ui](changes/platform-status-ui/proposal.md) beschreibt nachträglich die schreibgeschützte Statusansicht „Plattformstatus“, die ohne Spec nach Staging ausgerollt wurde. Ihr Inhalt ist vorläufig und wird überarbeitet. Sie ist eine Leseansicht und kein Verwaltungsportal.
+
 Jeder Change enthält `proposal.md`, `design.md`, Capability-Specs und `tasks.md`. Mit `openspec instructions apply --change <name>` beziehungsweise `/opsx:apply <name>` wird der gewünschte Strang ausgewählt.
 
 ## Dateizuständigkeit im Monorepo
@@ -43,6 +45,8 @@ Jeder Change enthält `proposal.md`, `design.md`, Capability-Specs und `tasks.md
 | `operations-agent/src/contracts/`, `src/api/`, `src/persistence/`, `src/worker/` | C | Einstiegspunkte, Besitz, Zustände, Migrationen, Heartbeat |
 | `operations-agent/src/agent/`, `src/tools/`, `deploy/`, `Dockerfile`, Paketmanifest und Lockdatei, `.github/workflows/agent-*.yml` | D | Agentenausführung, Adapter, Image und Chart; C meldet Abhängigkeiten an D |
 | `operations-agent/tests/` | C und D in getrennten Unterverzeichnissen | Gemeinsame Szenarien mit benannter Federführung |
+| `operations-agent/src/api/status.py`, `src/api/static/`, `operations-agent/scripts/preview-status.py`, `platform/operations/state/status-ui.md` | C (liegt in C's Verzeichnissen) | Statusansicht, siehe [platform-status-ui](changes/platform-status-ui/proposal.md); nur lesend, Inhalt vorläufig |
+| `platform/infra/status-ui/`, `.github/workflows/status-ui-package.yml`, `platform/catalog/platform-status/`, `platform/environments/*/platform-status.yaml` | B (App-Paket, Katalog, Sollzustand) | Eigenständiges Chart und Katalogeintrag der Statusansicht; Chart-Pfad und Package-Workflow lagen vorher in keiner Zeile der Tabelle |
 | `mmkdigitalio/hackathon-platform-affine` | AFFiNE-Kollege | Chart/Werte, Smoke-Test-Image, Runbook; außerhalb dieser Specs |
 
 Jeder Strang arbeitet in einem eigenen Branch. Eine Änderung an einem fremden Bereich wird dem zuständigen Strang übergeben.
@@ -143,4 +147,4 @@ Die Nummern entsprechen Abschnitt 14 des Produktplans. Wegen E2 ist die „zweit
 | 9 | AFFiNE-Daten nach Neustart erhalten | B | AFFiNE-Kollege: Smoke-Test; A: Datenbausteine |
 | 10 | Durchgängige Nachvollziehbarkeit | C | A, B und D: Ressourcen-, Release-, Tool- und Testnachweise |
 
-Jeder Strang dokumentiert seine Start-, Stopp-, Wiederanlauf- und Fehlerverfahren. Phase 1 umfasst kein Portal, keine beliebige Softwareaufnahme, keine automatische Codekorrektur, keine Azure-Diagnose durch den Agenten und keine unbeaufsichtigte Wiederherstellung von Produktionsdaten.
+Jeder Strang dokumentiert seine Start-, Stopp-, Wiederanlauf- und Fehlerverfahren. Phase 1 umfasst kein Verwaltungsportal (die schreibgeschützte Statusansicht ist die einzige Ausnahme, siehe [platform-status-ui](changes/platform-status-ui/proposal.md)), keine beliebige Softwareaufnahme, keine automatische Codekorrektur, keine Azure-Diagnose durch den Agenten und keine unbeaufsichtigte Wiederherstellung von Produktionsdaten.
