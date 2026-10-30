@@ -4,7 +4,9 @@ Strang D hat gegen Lieferungen entwickelt, die es noch nicht gibt. Jede Annahme 
 
 ## Strang C
 
-| Punkt | Annahme von D | Stelle im Code |
+**Stand 30.10.2026: geliefert** (PR #1, `feat/operations-intake-and-state`). C hat den Vertrag v0.1 unverändert übernommen und um `contracts/actions.py`, `errors.py`, `states.py` ergänzt, die SDK-Migrationen in `ops migrate` aufgenommen und D's `agent.execute` an den Worker angebunden (`tests/state/test_agent_integration.py`, echte Datenbank und echter Checkpointer). Einstiegspunkte `ops`, `ops-api`, `ops-worker` passen zu den Chart-Standards. D hat daraufhin Katalog, Sollzustände und Ereignisschema ins Image aufgenommen (`OPS_PLATFORM_ROOT`), weil C's API sie aus dem Dateisystem liest.
+
+| Punkt | Annahme von D (bestätigt) | Stelle im Code |
 | --- | --- | --- |
 | Vertrag v0.1 | Entwurf von D unter `operations-agent/src/contracts/`; Besitz geht an C (C-Task 1.2), Abstimmung offen | `contracts/v0_1.py` |
 | Aufruf | Worker ruft `agent.execute(invocation, services)` und persistiert das `AgentResult` | `agent/runner.py` |
