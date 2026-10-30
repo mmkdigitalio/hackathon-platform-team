@@ -122,6 +122,7 @@ class AgentSettings:
     rules_file: Path
     post_issue_comment: bool
     smoke_timeout_seconds: int
+    acr_login_server: str | None = None
 
 
 def agent_settings(env: dict[str, str] | None = None) -> AgentSettings:
@@ -146,4 +147,5 @@ def agent_settings(env: dict[str, str] | None = None) -> AgentSettings:
         rules_file=Path(env["OPS_RULES_FILE"]) if env.get("OPS_RULES_FILE") else default_rules_file(),
         post_issue_comment=env.get("OPS_POST_ISSUE_COMMENT", "true").lower() == "true",
         smoke_timeout_seconds=int(env.get("OPS_SMOKE_TIMEOUT_SECONDS", "180")),
+        acr_login_server=env.get("OPS_ACR_LOGIN_SERVER") or None,
     )

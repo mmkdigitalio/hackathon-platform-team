@@ -44,6 +44,7 @@ class SmokeTest:
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
         poll_seconds: float = 5.0,
+        acr_login_server: str | None = None,
     ) -> None:
         self.k8s = k8s
         self.policy = policy
@@ -53,6 +54,15 @@ class SmokeTest:
         self.sleep = sleep
         self.clock = clock
         self.poll = poll_seconds
+        self.acr = acr_login_server
+
+    def resolve_image(self, image: str) -> str:
+        """``acr:<repo>@sha256:…`` aus dem Katalog gegen den ACR-Login-Server der Foundation auflösen."""
+        if not image.startswith("acr:"):
+            return image
+        if not self.acr:
+            raise ValueError("Smoke-Test-Image mit acr: braucht OPS_ACR_LOGIN_SERVER (Foundation-Ausgabe acrLoginServer)")
+        return f"{self.acr}/{image[len('acr:') :]}"
 
     def run(
         self,
@@ -62,14 +72,18 @@ class SmokeTest:
         secret_env: dict[str, str],
         operation_id: str,
         timeout_seconds: int,
+        static_env: dict[str, str] | None = None,
     ) -> VerificationEvidence:
         if "@sha256:" not in image:
             raise ValueError("Smoke-Test-Image muss per Digest referenziert sein")
+        image = self.resolve_image(image)
         action = self.s.actions.record_planned(operation_id, "smoke_test", f"{t.namespace}/job", {"image": image})
         name = job_name(action.action_id)
         target_url = f"{self.scheme}://{self.policy.host(t.app_id)}"
         started = utcnow()
-        self.k8s.create_job(t, self._job(t, name, image, target_url, secret_env, action.action_id, operation_id, timeout_seconds))
+        self.k8s.create_job(
+            t, self._job(t, name, image, target_url, secret_env, static_env or {}, action.action_id, operation_id, timeout_seconds)
+        )
         self.s.actions.update(action.action_id, "started", {"job": name})
         deadline = self.clock() + timeout_seconds
         exit_code: int | None = None
@@ -130,11 +144,14 @@ class SmokeTest:
         image: str,
         target_url: str,
         secret_env: dict[str, str],
+        static_env: dict[str, str],
         action_id: str,
         operation_id: str,
         timeout_seconds: int,
     ) -> client.V1Job:
+        # Wie app-deploy.yml: TARGET_URL, nicht geheime smokeTest.env, Test-Secrets per secretKeyRef
         env = [client.V1EnvVar(name="TARGET_URL", value=target_url)]
+        env += [client.V1EnvVar(name=k, value=str(v)) for k, v in sorted(static_env.items()) if k != "TARGET_URL"]
         env += [
             client.V1EnvVar(
                 name=var,

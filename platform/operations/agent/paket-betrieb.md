@@ -53,6 +53,7 @@ Werden über die `secrets:`-Zuordnung in `platform/catalog/operations-agent/app.
 | `OPS_MODEL_API_KEYS` | `modelApiKeys` | D |
 | `OPS_GITHUB_TOKEN` | `opsGithubToken` | D |
 | `OPS_BASE_DOMAIN` | `baseDomain` | D |
+| `OPS_ACR_LOGIN_SERVER` | `acrLoginServer` | D (löst `acr:`-Smoke-Test-Images aus dem Katalog auf) |
 | `POSTGRES_HOST`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DATABASE` | `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase` | C (Namen legt C fest) |
 | `ALERT_WEBHOOK_KEY`, `MAINTENANCE_API_KEY`, `GITHUB_WEBHOOK_SECRET` | gleichnamige Ausgaben | C (Namen legt C fest) |
 | `DIAGNOSTICS_STORAGE_ACCOUNT`, `DIAGNOSTICS_CONTAINER`, `DIAGNOSTICS_STORAGE_KEY` | `diagnostics*` | C/D |

@@ -95,7 +95,17 @@ def execute(
             dispatcher=WorkflowDispatcher(
                 gh, services, settings.dispatch_workflows, settings.dispatch_ref, deps.sleep, deps.clock, poll.get("workflow", 10.0)
             ),
-            smoke=SmokeTest(loader_k8s, policy, services, settings.image_pull_secret, settings.http_scheme, deps.sleep, deps.clock, poll.get("smoke", 5.0)),
+            smoke=SmokeTest(
+                loader_k8s,
+                policy,
+                services,
+                settings.image_pull_secret,
+                settings.http_scheme,
+                deps.sleep,
+                deps.clock,
+                poll.get("smoke", 5.0),
+                acr_login_server=settings.acr_login_server,
+            ),
         )
         _context_findings(scope)
         budget.repair_attempts = _previous_repairs(previous)

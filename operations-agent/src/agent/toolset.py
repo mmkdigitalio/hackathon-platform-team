@@ -92,7 +92,15 @@ class RunScope:
         if not image:
             raise ValidationFailed("Katalogeintrag ohne smokeTest.image")
         self.transition("verifying", "Smoke-Test und Kubernetes-Zustand prüfen")
-        ev = self.smoke.run(self.target, self.ctx.deployment, image, self.ctx.smoke_test.get("secrets") or {}, self.inv.operation_id, timeout)
+        ev = self.smoke.run(
+            self.target,
+            self.ctx.deployment,
+            image,
+            self.ctx.smoke_test.get("secrets") or {},
+            self.inv.operation_id,
+            timeout,
+            static_env=self.ctx.smoke_test.get("env") or {},
+        )
         self.recorder.verified(ev)
         return ToolOutcome.ok(
             "run_smoke_test",

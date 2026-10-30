@@ -19,6 +19,7 @@ secrets:
   OPS_MODEL_API_KEYS: foundation:modelApiKeys
   OPS_GITHUB_TOKEN: foundation:opsGithubToken
   OPS_BASE_DOMAIN: foundation:baseDomain
+  OPS_ACR_LOGIN_SERVER: foundation:acrLoginServer
   POSTGRES_HOST: foundation:postgresHost
   POSTGRES_USER: foundation:postgresAdminUser
   POSTGRES_PASSWORD: foundation:postgresAdminPassword
