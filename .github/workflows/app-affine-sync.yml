@@ -1,0 +1,105 @@
+# Übernimmt das neueste AFFiNE-Paket aus mmkdigitalio/hackathon-platform-affine: Katalogeintrag und
+# Sollzustand staging werden gesetzt, validiert und direkt auf main committet, danach startet app-deploy.yml.
+#
+# Ohne zusätzliches Token: Das Lieferrepository ist öffentlich, seine Releases sind ohne Anmeldung lesbar
+# (platform-package.yml legt je grünem Paket ein Release mit platform-release.json an). Gepusht wird mit
+# GITHUB_TOKEN; weil solche Pushes keine Workflows auslösen, startet dieser Workflow app-deploy.yml selbst
+# (workflow_dispatch ist davon ausgenommen).
+name: app-affine-sync
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+concurrency:
+  group: app-affine-sync
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: mmkdigitalio/hackathon-platform-affine
+  CATALOG: platform/catalog/affine/app.yaml
+  DESIRED: platform/environments/staging/affine.yaml
+
+jobs:
+  sync:
+    name: AFFiNE-Paket übernehmen
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+      - name: Neuestes Paket lesen
+        id: package
+        run: |
+          gh release download --repo "$SOURCE_REPO" --pattern platform-release.json --dir "$RUNNER_TEMP"
+          release="$RUNNER_TEMP/platform-release.json"
+          sha=$(jq -r .sourceSha "$release")
+          chart=$(jq -r .chartVersion "$release")
+          smoke=$(jq -r .smokeImage "$release")
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::sourceSha ungültig"; exit 1; }
+          [[ "$chart" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::chartVersion ungültig"; exit 1; }
+          [[ "$smoke" =~ ^ghcr\.io/mmkdigitalio/affine-smoke@sha256:[0-9a-f]{64}$ ]] || { echo "::error::smokeImage ungültig"; exit 1; }
+          {
+            echo "sha=$sha"
+            echo "chart=$chart"
+            echo "smoke=$smoke"
+          } >> "$GITHUB_OUTPUT"
+          if [[ "$(yq -r '.runbook.commit' "$CATALOG" 2>/dev/null)" == "$sha" &&
+                "$(yq -r '.chart.version' "$DESIRED" 2>/dev/null)" == "$chart" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "AFFiNE-Paket ${sha:0:12} (Chart $chart) ist bereits übernommen." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-node@v5
+        if: steps.package.outputs.changed == 'true'
+        with:
+          node-version: 22
+      - run: platform/infra/app-runtime/scripts/ci-setup.sh --catalog-only
+        if: steps.package.outputs.changed == 'true'
+      - name: Katalog und Sollzustand setzen, validieren
+        if: steps.package.outputs.changed == 'true'
+        env:
+          SHA: ${{ steps.package.outputs.sha }}
+          CHART: ${{ steps.package.outputs.chart }}
+          SMOKE: ${{ steps.package.outputs.smoke }}
+        run: |
+          raw="https://raw.githubusercontent.com/$SOURCE_REPO/$SHA/platform-delivery"
+          curl -fsSL "$raw/catalog/affine/app.yaml" |
+            yq '.smokeTest.image = strenv(SMOKE) | .runbook.commit = strenv(SHA)' > "$CATALOG"
+          image=$(curl -fsSL "$raw/environments/staging/affine.yaml" | yq -r '.image')
+          cd platform/schemas/app-catalog
+          npx tsx src/cli.ts set-desired --app affine --env staging --image "$image" --chart-version "$CHART"
+          npx tsx src/cli.ts validate
+      - name: Auf main committen und ausrollen
+        if: steps.package.outputs.changed == 'true'
+        env:
+          SHA: ${{ steps.package.outputs.sha }}
+          CHART: ${{ steps.package.outputs.chart }}
+        run: |
+          git add "$CATALOG" "$DESIRED"
+          if git diff --cached --quiet; then echo "Keine Änderung." >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "feat(apps): AFFiNE-Paket ${SHA:0:12} (Chart $CHART)" \
+            -m "Quelle: $GITHUB_SERVER_URL/$SOURCE_REPO/commit/$SHA"
+          # Andere pushen ebenfalls auf main: bei Bedarf neu aufsetzen und wiederholen
+          for attempt in 1 2 3; do
+            git push -q origin HEAD:main && break
+            [[ $attempt -lt 3 ]] || exit 1
+            git pull -q --rebase origin main
+          done
+          gh workflow run app-deploy.yml --ref main -f appId=affine -f environment=staging
+          {
+            echo "### AFFiNE-Paket übernommen"
+            echo "- Commit: \`$(git rev-parse --short HEAD)\` auf main"
+            echo "- Quelle: $SOURCE_REPO@${SHA:0:12}, Chart $CHART"
+            echo "- app-deploy.yml für affine/staging gestartet"
+          } >> "$GITHUB_STEP_SUMMARY"
