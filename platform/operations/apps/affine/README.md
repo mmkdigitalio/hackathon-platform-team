@@ -15,6 +15,9 @@ Den reparierbaren Fall mit Alarm und Reparatur durch den Agenten von Anfang bis 
 2. `KUBECONFIG` auf den Staging-Cluster (Admin-Kubeconfig aus den Foundation-Ausgaben), `gh` angemeldet.
 3. Agent läuft, wenn die autonome Reparatur Teil des Durchlaufs ist; sonst Rücksetzen manuell.
 
+Vor jedem Clusterzugriff prüfen `fault-scale-to-zero.sh` und `playbook-self-heal.sh` lokal den API-Server des aktuellen Kubeconfig-Kontexts: Sein Host muss mit `mmk-platform-<env>-` beginnen und auf `.azmk8s.io` enden, wobei `<env>` aus `--environment` stammt.
+Nur für lokale kind-Tests überspringt `OPS_ALLOW_ANY_CLUSTER=true` diese Prüfung und gibt eine Warnung auf stderr aus.
+
 ## Reparierbarer Fall: 0 Replicas
 
 ```bash

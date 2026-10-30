@@ -20,6 +20,9 @@ case "$(basename "$0")" in
   kubectl)
     args="$*"
     case "$args" in
+      'config view --minify -o jsonpath={.clusters[0].cluster.server}')
+        # Auch die lokale Clusterprüfung erhält einen simulierten, passenden API-Server.
+        echo "https://mmk-platform-staging-simulation.hcp.westeurope.azmk8s.io:443" ;;
       version*) ;;
       *"scale deployment"*) date +%s >"$state/trigger"; echo "deployment.apps/affine scaled" ;;
       *"operations-agent-staging get ingress"*) echo "operations-agent.simulation.invalid" ;;

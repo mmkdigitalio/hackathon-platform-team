@@ -38,6 +38,7 @@ if [[ "$environment" != "staging" ]]; then
 fi
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$here/../lib/cluster-guard.sh"
 root="$(git -C "$here" rev-parse --show-toplevel)"
 
 # Simulation: alle Gegenstellen aus simulation/bin, kein Kubeconfig, keine Datenbank, keine Azure-Subscription
@@ -221,6 +222,7 @@ preflight() {
   for tool in kubectl gh az jq curl; do command -v "$tool" >/dev/null || missing+=" $tool"; done
   [[ -z "$missing" ]] || fail "Werkzeuge fehlen:$missing"
   [[ -n "${KUBECONFIG:-}" ]] || fail "KUBECONFIG auf den Staging-Cluster fehlt (platform/operations/foundation/operations.md)"
+  require_platform_cluster "$environment" || fail "Clusterprüfung gescheitert"
   gh auth status >/dev/null 2>&1 || fail "gh nicht angemeldet: gh auth login"
 
   subscription="${AZURE_SUBSCRIPTION_ID:-$(sed -n 's/^SUBSCRIPTION_ID=//p' "platform/scripts/bootstrap/$environment.env")}"

@@ -8,6 +8,9 @@
 # Voraussetzungen: trigger braucht KUBECONFIG auf den Staging-Cluster, reset die GitHub-CLI (gh).
 set -euo pipefail
 
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$here/../lib/cluster-guard.sh"
+
 usage() { sed -n '2,8p' "$0" >&2; exit 2; }
 
 command="${1:-}"; shift || true
@@ -31,6 +34,7 @@ deployment="affine"
 case "$command" in
   trigger)
     : "${KUBECONFIG:?KUBECONFIG auf den Staging-Cluster fehlt}"
+    require_platform_cluster "$environment"
     replicas="$(kubectl -n "$namespace" get deployment "$deployment" -o jsonpath='{.spec.replicas}')"
     echo "Vorher: $namespace/$deployment mit $replicas Replica(s)"
     kubectl -n "$namespace" scale deployment "$deployment" --replicas=0
