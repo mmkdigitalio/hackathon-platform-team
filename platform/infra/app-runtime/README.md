@@ -34,6 +34,7 @@ Konfiguration (`APP_RUNTIME_CONFIG_<key>=<wert>` an das Skript oder `pulumi conf
 | `storageClass` | `managed-csi` | StorageClass für `persistent-volume` |
 | `ingressClassName`, `clusterIssuer`, `publicScheme` | Foundation-Ausgaben `ingressClassName`, `clusterIssuerName`, `publicScheme` | nur lokal übersteuern; `publicScheme: http` ist der HTTP-Fallback (E8) ohne Zertifikat |
 | `postgresSslMode` | `require` | lokal `disable` |
+| `postgresAdminHost`, `postgresAdminPort` | – | nur lokal: Adresse für den PostgreSQL-Provider, wenn Pods den Server unter `postgresHost` erreichen, Pulumi aber nicht |
 | `treeDir` | – | nur lokal: Baum mit `catalog/` und `environments/` statt `platform/`, z. B. `platform/infra/app-runtime/dev/test-tree` |
 
 ## Tests

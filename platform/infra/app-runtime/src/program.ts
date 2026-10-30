@@ -29,6 +29,9 @@ export interface AppStackOptions {
   clusterIssuer?: string;
   publicScheme?: "https" | "http";
   postgresSslMode: string;
+  /** Nur lokal: Verbindung des Pulumi-Providers, wenn der Server für Pods unter einer anderen Adresse erreichbar ist */
+  postgresAdminHost?: string;
+  postgresAdminPort?: number;
 }
 
 const ANNOTATION = "platform.mmk";
@@ -105,8 +108,8 @@ export function appStack(opts: AppStackOptions) {
   const postgresHost = out("postgresHost");
   const postgres = needsPostgres
     ? new postgresql.Provider("postgres", {
-        host: postgresHost,
-        port: 5432,
+        host: opts.postgresAdminHost ?? postgresHost,
+        port: opts.postgresAdminPort ?? 5432,
         username: out("postgresAdminUser"),
         password: pulumi.secret(out("postgresAdminPassword")),
         sslmode: opts.postgresSslMode,
