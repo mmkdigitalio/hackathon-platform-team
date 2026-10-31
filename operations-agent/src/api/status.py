@@ -19,7 +19,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from .catalog import APP_ID, ENVIRONMENTS, Catalog
+from .catalog import APP_ID, ENVIRONMENTS, Catalog, CatalogSource, catalog_source
 from .settings import Settings
 from .status_activity import admin_projection
 
@@ -87,16 +87,16 @@ class StatusCollector:
         configured = bool(DOMAIN.fullmatch(self.domain)) and self.scheme in ("http", "https")
         return {"url": f"{self.scheme}://operations-agent.{self.domain}" if configured else None, "enabled": configured}
 
-    def targets(self) -> tuple[list[dict], bool]:
+    def targets(self, source: CatalogSource | None = None) -> tuple[list[dict], bool]:
         apps = []
-        root = self.settings.platform_root
-        complete = root is not None and (root / "catalog").is_dir() and (root / "environments" / self.environment).is_dir()
-        for app_id in Catalog(root).app_ids():
-            if not APP_ID.fullmatch(app_id) or Catalog(root).problem(app_id, self.environment):
+        source = source or catalog_source(self.settings.platform_root)
+        complete = source.available(self.environment)
+        for app_id in source.app_ids():
+            if not APP_ID.fullmatch(app_id) or source.problem(app_id, self.environment):
                 continue
             try:
-                catalog = yaml.safe_load((root / "catalog" / app_id / "app.yaml").read_text())
-                desired = yaml.safe_load((root / "environments" / self.environment / f"{app_id}.yaml").read_text())
+                catalog = yaml.safe_load(source.catalog_path(app_id).read_text(encoding="utf-8"))
+                desired = yaml.safe_load(source.environment_path(self.environment, app_id).read_text(encoding="utf-8"))
                 path = catalog.get("availability", {}).get("path", "/")
                 if not isinstance(path, str) or not path.startswith("/") or path.startswith("//") or "?" in path or "#" in path:
                     raise ValueError("invalid availability path")
@@ -136,7 +136,8 @@ class StatusCollector:
         async with self._lock:
             if self._cached is not None and time.monotonic() < self._expires:
                 return self._cached
-            apps, catalog_ok = await run_in_threadpool(self.targets)
+            source = await run_in_threadpool(catalog_source, self.settings.platform_root)
+            apps, catalog_ok = await run_in_threadpool(self.targets, source)
             async with httpx.AsyncClient(timeout=4, follow_redirects=False, transport=self.transport, trust_env=False) as client:
                 results, operations, admin = await asyncio.gather(
                     asyncio.gather(*(self.probe(client, app) for app in apps)),
@@ -152,6 +153,7 @@ class StatusCollector:
             self._cached = {
                 "checkedAt": datetime.now(UTC).isoformat(), "refreshAfterSeconds": 30,
                 "environment": self.environment, "status": overall, "catalogAvailable": catalog_ok,
+                "catalogSource": {"kind": source.kind, "gitSha": source.git_sha},
                 "services": list(results), "operations": operations, "admin": admin,
                 "portal": self._portal(),
             }

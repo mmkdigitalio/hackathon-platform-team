@@ -42,6 +42,8 @@ spec:
             - secretRef:
                 name: {{ required "secretName fehlt" .Values.secretName }}
           env:
+            - name: OPS_CATALOG_SNAPSHOT_DIR
+              value: /app/platform-live
             - name: OPS_STATUS_ENVIRONMENT
               value: {{ .Values.platform.environment | quote }}
             - name: PYTHONDONTWRITEBYTECODE
@@ -65,10 +67,17 @@ spec:
             capabilities:
               drop: [ALL]
           volumeMounts:
+            - name: platform-catalog
+              mountPath: /app/platform-live
+              readOnly: true
             - name: entrypoint
               mountPath: /status-entrypoint
               readOnly: true
       volumes:
+        - name: platform-catalog
+          configMap:
+            name: platform-catalog
+            optional: true
         - name: entrypoint
           configMap:
             name: platform-status-entrypoint

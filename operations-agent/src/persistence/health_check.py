@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 import httpx
 import yaml
 
-from api.catalog import Catalog, find_platform_root
+from api.catalog import Catalog, catalog_source, find_platform_root
 
 EXCLUDED_APPS = {"operations-agent"}
 
@@ -35,6 +35,8 @@ def check_app(client: httpx.Client, url: str) -> tuple[bool, str]:
 def run_health_check(args, client: httpx.Client | None = None) -> int:
     root = find_platform_root()
     catalog = Catalog(root)
+    # Im Workflow ist das ausgecheckte Repository die Quelle; im Cluster gegebenenfalls der Live-Katalog.
+    source = catalog_source(root)
     now = datetime.now(UTC).replace(microsecond=0).isoformat()
     run_id = os.environ.get("GITHUB_RUN_ID", "local")
     attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
@@ -48,10 +50,10 @@ def run_health_check(args, client: httpx.Client | None = None) -> int:
     client = client or httpx.Client(timeout=args.timeout, follow_redirects=False)
 
     rows, failed = [], []
-    for app_id in catalog.app_ids():
+    for app_id in source.app_ids():
         if app_id in EXCLUDED_APPS or catalog.problem(app_id, args.env):
             continue
-        app_yaml = yaml.safe_load((root / "catalog" / app_id / "app.yaml").read_text(encoding="utf-8")) or {}
+        app_yaml = yaml.safe_load(source.catalog_path(app_id).read_text(encoding="utf-8")) or {}
         try:
             url = f"{args.scheme}://{app_id}.{args.base_domain}{availability_path(app_yaml)}"
         except ValueError as exc:

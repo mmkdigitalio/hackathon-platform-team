@@ -22,7 +22,7 @@ enthält weiterhin dieselbe UI; ihre bisherigen Endpunkte und Schutzmaßnahmen b
 
 ## Daten und Grenzen
 
-- Anwendungen kommen aus `platform/catalog/` und dem Sollzustand unter `platform/environments/<environment>/` im gebauten Image. Die angezeigte Sollversion ist keine Abfrage der laufenden Container-Version.
+- Anwendungen kommen aus dem Live-Katalog oder ersatzweise aus `platform/catalog/` und `platform/environments/<environment>/` im gebauten Image. Die angezeigte Sollversion ist keine Abfrage der laufenden Container-Version.
 - HTTP-Prüfungen nutzen `<app-id>.<OPS_BASE_DOMAIN>` und den `availability.path` aus dem Katalog. Nur HTTP 200 gilt als erreichbar. TLS wird geprüft, Redirects werden nicht verfolgt; Antwortkörper werden nicht geladen.
 - Datenbankstatus, Worker-Heartbeat, aktive Aufträge, abgeschlossene und fehlgeschlagene/eskalierte Aufträge der letzten 24 Stunden sowie die sechs zuletzt aktualisierten Aufträge kommen aus der Operations-Datenbank. Auftragsabfragen sind auf die gewählte Umgebung beschränkt. Der Heartbeat entspricht wie `/healthz` dem jüngsten Worker-Heartbeat in dieser Datenbank.
 - Die Datenbankabfragen laufen in einer lesenden Transaktion mit einem Statement-Timeout von 2,5 Sekunden. HTTP-Prüfungen laufen parallel mit 4 Sekunden Timeout.
@@ -32,12 +32,15 @@ enthält weiterhin dieselbe UI; ihre bisherigen Endpunkte und Schutzmaßnahmen b
 
 ## Konfiguration
 
+Nach jedem erfolgreichen App-Deployment veröffentlicht `app-deploy.yml` den vollständigen Katalog und die Sollzustände der Umgebung als ConfigMap `platform-catalog` in vorhandene Agenten- und Status-Namespaces. API, Worker und Statusdienst mounten sie unter `/app/platform-live` über `OPS_CATALOG_SNAPSHOT_DIR`; neue Apps erscheinen nach ihrem ersten erfolgreichen Deployment in UI und Chat, sobald Kubernetes das Volume aktualisiert und der Status-Cache von 10 Sekunden abläuft. `/status` nennt unter `catalogSource` Quelle und Git-SHA. Fehlt ein gültiger Snapshot, gilt der Katalog aus dem Image. Manuell erneut veröffentlichen: `gh workflow run app-deploy.yml -f appId=<any> -f environment=staging`, wobei `<any>` eine vorhandene App-ID ersetzt und diese App erneut ausgerollt wird.
+
 | Variable | Bedeutung |
 | --- | --- |
 | `OPS_BASE_DOMAIN` | Foundation-Ausgabe, z. B. `57-153-7-126.sslip.io`; kein fest eingebauter Host |
 | `OPS_PUBLIC_SCHEME` | `https`, alternativ dokumentierter `http`-Fallback; nutzt ersatzweise `OPS_HTTP_SCHEME` |
 | `OPS_STATUS_ENVIRONMENT` | `staging` oder `production`, Standard `staging`; das Helm-Chart übernimmt `platform.environment` vom App-Stack |
 | `OPS_PLATFORM_ROOT` | Katalog und Sollzustände, bereits Teil des Agenten-Images |
+| `OPS_CATALOG_SNAPSHOT_DIR` | Optionaler Live-Katalog aus der ConfigMap, im Cluster `/app/platform-live` |
 | `OPS_DATABASE_URL` / `POSTGRES_*` | Vorhandene Datenbankkonfiguration der API |
 
 ## Lokal starten

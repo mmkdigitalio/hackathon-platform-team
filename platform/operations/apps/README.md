@@ -37,6 +37,8 @@ Vor dem ersten Deployment: Foundation ausgerollt (A), `ops-migrate.yml` einmal g
 
 Ein Deployment gilt erst als erfolgreich, wenn Rollout und Smoke-Test erfolgreich waren und das laufende Release dem Sollzustand entspricht. Das Deployment-Ergebnis steht in der Zusammenfassung, als Artefakt `deployment-<app>-<env>` und im Aktionsprotokoll (`ops runs show` bzw. die Operation zur `operationId`).
 
+Nach erfolgreicher Deploy-Matrix veröffentlicht `app-deploy.yml` einen vollständigen Live-Katalog aus dem ausgecheckten Commit als ConfigMap `platform-catalog` in `operations-agent-<env>` und `platform-status-<env>`; fehlende Namespaces werden mit Hinweis übersprungen. API, Chat, Alert-Zuordnung und Status-UI lesen den gemounteten Snapshot ohne Neustart, mit Rückfall auf das Image bei fehlendem oder ungültigem Snapshot. Eine neue App erscheint nach ihrem ersten erfolgreichen Deployment in UI und Chat, sobald das ConfigMap-Volume und der Status-Cache aktualisiert sind. Zum erneuten Veröffentlichen `gh workflow run app-deploy.yml -f appId=<any> -f environment=staging` ausführen und `<any>` durch eine vorhandene App-ID ersetzen; der Lauf deployt diese App erneut. Bei parallelen App-Läufen gilt last-writer-wins mit dem vollständigen Snapshot des zuletzt veröffentlichenden Commits.
+
 Änderungen an `platform/catalog/` oder `platform/infra/app-runtime/` lösen kein Deployment aus. Sie wirken mit dem nächsten Lauf; sofort per `workflow_dispatch`:
 
 ```bash

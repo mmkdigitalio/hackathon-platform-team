@@ -55,6 +55,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.targets.outputs.matrix }}
+      environments: ${{ steps.catalog-environments.outputs.environments }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -96,6 +97,17 @@ jobs:
           for d in json.load(open(sys.argv[1]))["decommission"]:
               print(f"⚠️ `{d['file']}` wurde gelöscht. Der Stack bleibt unverändert; die Außerbetriebnahme "
                     "ist ein separater Vorgang laut platform/operations/apps/README.md.")
+          EOF
+
+      - name: Katalog-Umgebungen bestimmen
+        id: catalog-environments
+        env:
+          TARGET_MATRIX: ${{ steps.targets.outputs.matrix }}
+        run: |
+          python3 - <<'EOF' >> "$GITHUB_OUTPUT"
+          import json, os
+          targets = json.loads(os.environ["TARGET_MATRIX"])
+          print("environments=" + json.dumps(sorted({target["environment"] for target in targets})))
           EOF
 
   deploy:
@@ -298,3 +310,64 @@ jobs:
         if: always() && steps.lock.outcome != 'skipped'
         run: |
           "$SCRIPTS"/ops-lock.sh release
+
+  catalog-snapshot:
+    name: Live-Katalog ${{ matrix.environment }}
+    needs: [targets, deploy]
+    if: always() && needs.deploy.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: ${{ fromJSON(needs.targets.outputs.environments) }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Foundation-Ausgaben
+        id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+          environment: ${{ matrix.environment }}
+          expected-contract-version: ${{ env.FOUNDATION_CONTRACT_VERSION }}
+      - name: Live-Katalog veröffentlichen
+        env:
+          KUBECONFIG_CONTENT: ${{ steps.foundation.outputs.kubeconfig }}
+          ENVIRONMENT: ${{ matrix.environment }}
+        # Sperre und Concurrency gelten je App. Hier gilt last-writer-wins:
+        # Jeder Lauf veröffentlicht den vollständigen Snapshot seines Commits.
+        run: |
+          umask 077
+          printf '%s' "$KUBECONFIG_CONTENT" > "$RUNNER_TEMP/kubeconfig"
+          export KUBECONFIG="$RUNNER_TEMP/kubeconfig"
+          python3 - <<'EOF'
+          import json, os
+          from datetime import datetime, timezone
+          from pathlib import Path
+          metadata = {"gitSha": os.environ["GITHUB_SHA"], "generatedAt": datetime.now(timezone.utc).isoformat()}
+          (Path(os.environ["RUNNER_TEMP"]) / "catalog-snapshot.json").write_text(json.dumps(metadata), encoding="utf-8")
+          EOF
+          args=(--from-file="snapshot.json=$RUNNER_TEMP/catalog-snapshot.json")
+          shopt -s nullglob
+          for file in platform/catalog/*/app.yaml "platform/environments/$ENVIRONMENT/"*.yaml; do
+            if [[ "$file" == platform/catalog/* ]]; then
+              app="${file%/app.yaml}"
+              key="catalog--${app##*/}--app.yaml"
+            else
+              key="environments--$ENVIRONMENT--${file##*/}"
+            fi
+            [[ "$key" =~ ^[-._a-zA-Z0-9]+$ ]] || { echo "::error::Ungültiger ConfigMap-Key: $key"; exit 1; }
+            args+=(--from-file="$key=$file")
+          done
+          for namespace in "operations-agent-$ENVIRONMENT" "platform-status-$ENVIRONMENT"; do
+            existing="$(kubectl get namespace "$namespace" --ignore-not-found -o name)"
+            if [[ -z "$existing" ]]; then
+              echo "::notice::Namespace $namespace fehlt; Live-Katalog übersprungen"
+              continue
+            fi
+            kubectl -n "$namespace" create configmap platform-catalog "${args[@]}" --dry-run=client -o yaml \
+              | kubectl -n "$namespace" apply -f -
+          done

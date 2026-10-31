@@ -33,5 +33,10 @@ spec:
           resources: {{- toYaml .Values.worker.resources | nindent 12 }}
           volumeMounts:
             - { name: tmp, mountPath: /tmp }
+            - { name: platform-catalog, mountPath: /app/platform-live, readOnly: true }
       volumes:
         - { name: tmp, emptyDir: {} }
+        - name: platform-catalog
+          configMap:
+            name: platform-catalog
+            optional: true
