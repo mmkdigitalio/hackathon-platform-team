@@ -2,9 +2,9 @@
 # Quell-Commit und Artefakte sind im zugehörigen Sollzustands-PR dokumentiert.
 # app-deploy.yml rollt diesen versionierten Stand per Pulumi aus.
 schemaVersion: "0.1"
-image: acr:operations-agent@sha256:78e42c486c4c55cc9fb3ba7f5e772fdd796c03b7b2178a014a6058290ab3f215
+image: acr:operations-agent@sha256:bce088f2865b5ff6d94cbc52b5740c17167e084fd577a62e9c205aeba58812be
 chart:
-  version: 0.1.23
+  version: 0.1.26
 sizes:
   replicas: 1
 values:
