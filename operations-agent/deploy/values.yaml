@@ -46,7 +46,7 @@ workspace:
   maxCommandTimeoutSeconds: 1800
   maxOutputBytes: 100000       # höchstens 100 KB Ausgabe je Befehl für den Modellkontext
   azure:
-    clientId: ""              # leer: keine Workload Identity; Foundation muss sie bereitstellen
+    clientId: ""              # leer: keine Azure-Identität im Workspace; staging setzt sie im Sollzustand (D14)
     tenantId: ""
     subscriptionId: ""
 

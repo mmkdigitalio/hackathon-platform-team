@@ -227,3 +227,5 @@ Alle mit einem Auftrag verknüpften Nachweise SHALL als JSON ohne Secrets abrufb
 ## Abgrenzung
 
 C besitzt Zustands- und Sperrregeln, Datenmodell, Migrations-CLI, Heartbeat, `/healthz`, Laufnachweisabruf und Worker-Auftragsübernahme. A liefert Datenbankserver, Admin-Passwort als Foundation-Ausgabe und den Verfügbarkeitstest auf `/healthz`. B verwendet die Sperr-CLI in den Deploy-Workflows. D liefert Agentenausführung, externe Abgleiche, Verifikationsbefunde sowie das Chart mit Migrations-Hook und einem Worker-Replica. SDK-Checkpoints ersetzen weder Aktionsprotokoll noch Operations-Sperre.
+
+(geändert 31.10.2026) Die lesende Statusprojektion `GET /status` samt Status-Seiten wird zusätzlich von der Agenten-API ausgeliefert und läuft als eigenständige App `platform-status`. Ihre Anforderungen stehen im Change `platform-status-ui`. `/healthz` bleibt der maßgebliche Gesundheitsendpunkt dieses Changes.

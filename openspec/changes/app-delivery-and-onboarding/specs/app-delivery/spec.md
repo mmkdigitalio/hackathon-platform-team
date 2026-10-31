@@ -104,7 +104,7 @@ Vor jeder Zieländerung SHALL der Deploy-Workflow Katalog und Sollzustand gegen 
 - **AND** nennt die Workflow-Zusammenfassung die fehlgeschlagenen Prüfungen
 
 ### Requirement: Plan-Prüfung für Pull Requests
-Der Workflow `.github/workflows/app-plan.yml` SHALL bei Pull Requests mit Änderungen unter `platform/catalog/`, `platform/environments/`, `platform/schemas/app-catalog/` oder `platform/infra/app-runtime/` die Validierung und ein Pulumi-Preview der betroffenen App-Stacks ausführen. Sein Ergebnis-Job `Plan-Ergebnis` SHALL als erforderlicher Status-Check für `main` konfiguriert sein.
+Der Workflow `.github/workflows/app-plan.yml` SHALL bei Pull Requests mit Änderungen unter `platform/catalog/`, `platform/environments/`, `platform/schemas/app-catalog/` oder `platform/infra/app-runtime/` die Validierung und ein Pulumi-Preview der betroffenen App-Stacks ausführen. Sein Ergebnis-Job `Plan-Ergebnis` SHALL als erforderlicher Status-Check für `main` konfiguriert sein (Stand 31.10.2026: im Repository noch nicht gesetzt, `main` hat keinen Branch-Schutz; ergänzt 31.10.2026).
 
 #### Scenario: Pull Request ohne Änderungen am App-Pfad
 - **WHEN** ein Pull Request nur Dateien außerhalb des App-Pfads ändert
@@ -116,7 +116,7 @@ Der Workflow `.github/workflows/app-plan.yml` SHALL bei Pull Requests mit Änder
 - **AND** zeigt die Zusammenfassung die geplanten Änderungen ohne Secret-Werte
 
 ### Requirement: Deploy-Workflow
-Der Workflow `.github/workflows/app-deploy.yml` SHALL bei Push auf `main` mit Änderungen unter `platform/environments/` genau die betroffenen App-Stacks ausrollen. Er SHALL zusätzlich per `workflow_dispatch` mit den Eingaben `appId`, `environment`, `operationId`, `actionId` und `force` startbar sein. Fehlt `operationId`, SHALL der Workflow eine erzeugen.
+Der Workflow `.github/workflows/app-deploy.yml` SHALL bei Push auf `main` mit Änderungen unter `platform/environments/` genau die betroffenen App-Stacks ausrollen. Er SHALL zusätzlich per `workflow_dispatch` mit den Eingaben `appId`, `environment`, `operationId`, `actionId`, `force` und `clusterRebuilt` startbar sein (geändert 31.10.2026; war: ohne `clusterRebuilt`, das den Wiederanlauf nach Cluster-Verlust ermöglicht). Fehlt `operationId`, SHALL der Workflow eine erzeugen.
 
 #### Scenario: Push auf main
 - **WHEN** ein Merge `platform/environments/staging/affine.yaml` ändert
@@ -135,7 +135,7 @@ Der `run-name` jedes Deploy-Laufs SHALL App-ID, Umgebung, `operationId` und, fal
 - **AND** startet er keinen zweiten Lauf für dieselbe Operation
 
 ### Requirement: Zugänge ohne Azure-Identität
-Plan- und Deploy-Workflow SHALL sich nur mit den Repo-Secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY` und `PULUMI_CONFIG_PASSPHRASE` anmelden und Admin-Kubeconfig, ACR-Admin-User und PostgreSQL-Zugang über die Composite Action `.github/actions/foundation-outputs` beziehen. Sie SHALL keine Azure-Anmeldung ausführen.
+Plan- und Deploy-Workflow SHALL sich nur mit den Repo-Secrets `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY` und `PULUMI_CONFIG_PASSPHRASE` anmelden (zusätzlich reichen sie für `operations-agent` das Repo-Secret `OPS_GITHUB_APP_PRIVATE_KEY` als Rückfall für den GitHub-App-Schlüssel durch; geändert 31.10.2026) und Admin-Kubeconfig, ACR-Admin-User und PostgreSQL-Zugang über die Composite Action `.github/actions/foundation-outputs` beziehen. Sie SHALL keine Azure-Anmeldung ausführen.
 
 #### Scenario: Lauf auf GitHub-hosted Runner
 - **WHEN** `app-deploy.yml` auf einem GitHub-hosted Runner läuft
@@ -147,12 +147,12 @@ Plan- und Deploy-Workflow SHALL sich nur mit den Repo-Secrets `PULUMI_BACKEND_AC
 - **THEN** bricht der Workflow vor jeder Zieländerung ab
 
 ### Requirement: Sollzustand per Pull Request ändern
-Der wiederverwendbare Workflow `.github/workflows/app-update-desired-state.yml` (`workflow_call`) SHALL Image-Digest (Eingabe `imageDigest`, Repository standardmäßig `acr:<app-id>`) und Chart-Version in `platform/environments/<env>/<app-id>.yaml` setzen und mit einem Token der GitHub App des Agenten (Rückfall `OPS_GITHUB_TOKEN`) Commit und Pull Request mit Auto-Merge anlegen. `GITHUB_TOKEN` SHALL dafür nicht verwendet werden, weil damit ausgelöste Ereignisse keine weiteren Workflows starten.
+Der wiederverwendbare Workflow `.github/workflows/app-update-desired-state.yml` (`workflow_call`) SHALL Image-Digest (Eingabe `imageDigest`, Repository standardmäßig `acr:<app-id>`) und Chart-Version in `platform/environments/<env>/<app-id>.yaml` setzen und mit einem Token der GitHub App des Agenten (Schlüssel aus `githubAppPrivateKey` der Foundation-Ausgaben oder Repo-Secret `OPS_GITHUB_APP_PRIVATE_KEY`, letzter Rückfall `OPS_GITHUB_TOKEN`) Commit und Pull Request anlegen und Auto-Merge aktivieren, sofern das Repository ihn erlaubt; andernfalls bleibt der Pull Request für einen manuellen Merge nach grünem `app-plan.yml` offen (geändert 31.10.2026; war: „… Pull Request mit Auto-Merge anlegen“ ohne Bedingung). `GITHUB_TOKEN` SHALL dafür nicht verwendet werden, weil damit ausgelöste Ereignisse keine weiteren Workflows starten.
 
 #### Scenario: Neues Agentenpaket
 - **WHEN** der Agenten-Build den wiederverwendbaren Workflow mit neuem Image-Digest und neuer Chart-Version aufruft
 - **THEN** entsteht ein Pull Request, dessen Commit Quell-Commit und Artefaktreferenzen nennt
-- **AND** wird er nach grünem `app-plan.yml` gemerged, worauf `app-deploy.yml` startet
+- **AND** wird er nach grünem `app-plan.yml` gemerged (automatisch oder, bei deaktiviertem Auto-Merge, manuell), worauf `app-deploy.yml` startet
 
 #### Scenario: Roter Plan
 - **WHEN** die Plan-Prüfung für einen solchen Pull Request fehlschlägt
@@ -219,7 +219,7 @@ Foundation-, App- und Agenten-Releases SHALL getrennt ausführbar und protokolli
 - **THEN** wird der Rollback-PR erst nach dokumentierter Kompatibilitätsprüfung gemerged
 
 ### Requirement: Betriebsverfahren des App-Pfads
-Unter `platform/operations/apps/` SHALL dokumentiert sein, wie Apps ausgerollt, zurückgerollt, gestoppt und wieder gestartet werden, wie Break-glass ausgelöst und nachgetragen wird und welche Repository-Einstellungen (erforderlicher Status-Check, Auto-Merge) der Sollzustandsfluss voraussetzt.
+Unter `platform/operations/apps/` SHALL dokumentiert sein, wie Apps ausgerollt, zurückgerollt, gestoppt und wieder gestartet werden, wie Break-glass ausgelöst und nachgetragen wird und welche Repository-Einstellungen (erforderlicher Status-Check, Auto-Merge) der Sollzustandsfluss voraussetzt (Stand 31.10.2026: nicht gesetzt, die Anleitung beschreibt sie als aktiviert).
 
 #### Scenario: Wiederanlauf nach Cluster-Verlust
 - **WHEN** der Foundation-Stack einen neuen Cluster bereitgestellt hat

@@ -20,18 +20,20 @@ GitHub Actions ist in Phase 1 der einzige automatische Weg, den Git-Sollzustand 
 | Einstellung | Wert |
 | --- | --- |
 | Repo-Secrets | `PULUMI_BACKEND_ACCOUNT`, `PULUMI_BACKEND_KEY`, `PULUMI_CONFIG_PASSPHRASE` (A), optional `OPS_GITHUB_TOKEN` (PAT, nur Rückfall ohne App-Schlüssel) |
-| Allow auto-merge | aktiviert (Settings → General → Pull Requests) |
-| Branch-Schutz `main` | erforderlicher Status-Check **app-plan / Plan-Ergebnis**; „Require branches to be up to date“ empfohlen |
-| Reviews | keine Pflicht-Reviews für PRs, die nur `platform/environments/` ändern; sonst blockiert Auto-Merge. Wird eine Review-Pflicht gebraucht, CODEOWNERS so setzen, dass `platform/environments/` ausgenommen ist |
+| Allow auto-merge | empfohlen, **nicht aktiv** (`allow_auto_merge` ist `false`; Stand 31.10.2026, geändert 31.10.2026) |
+| Branch-Schutz `main` | empfohlen, **nicht aktiv** (`main` hat keinen Branch-Schutz; Stand 31.10.2026): erforderlicher Status-Check **app-plan / Plan-Ergebnis**; „Require branches to be up to date“ empfohlen |
+| Reviews | keine Pflicht-Reviews für PRs, die nur `platform/environments/` ändern; sonst blockiert Auto-Merge, sobald er aktiv ist. Wird eine Review-Pflicht gebraucht, CODEOWNERS so setzen, dass `platform/environments/` ausgenommen ist |
 | Actions | „Read and write permissions“ ist nicht nötig; Commits und PRs laufen über ein Token der GitHub App des Agenten |
 
 Vor dem ersten Deployment: Foundation ausgerollt (A), `ops-migrate.yml` einmal gelaufen (C), A's Verträge unter `platform/schemas/conventions/` und `platform/schemas/foundation-outputs/` sowie die Composite Action `.github/actions/foundation-outputs` vorhanden.
 
 ## Release
 
-**Agent:** `agent-build.yml` (D) baut Image und Chart und ruft `app-update-desired-state.yml` auf. Es entsteht ein PR auf `platform/environments/staging/operations-agent.yaml` mit Auto-Merge; nach grünem `app-plan.yml` wird er gemerged, und `app-deploy.yml` startet.
+**Agent (geändert 31.10.2026):** `agent-build.yml` (D) baut Image, Toolbox und Chart und ruft `app-update-desired-state.yml` auf. Es entsteht ein PR auf `platform/environments/staging/operations-agent.yaml`. Auto-Merge ist nicht aktiv (siehe oben): Ein Mensch prüft den PR nach grünem `app-plan.yml` und merged ihn manuell; danach startet `app-deploy.yml`.
 
-**AFFiNE und andere Apps:** manueller PR auf `platform/environments/<env>/<app-id>.yaml` mit neuem `image` (Digest) und `chart.version`. Datenmigrationen der neuen Version müssen vorher in `dataProcedures.migration` des Katalogeintrags beschrieben sein.
+**AFFiNE (geändert 31.10.2026):** `.github/workflows/app-affine-sync.yml` läuft alle 15 Minuten, baut Chart und Smoke-Image aus dem neuesten getesteten Stand von `mmkdigitalio/hackathon-platform-affine` in die ACR, setzt Katalogeintrag und Sollzustand `platform/environments/staging/affine.yaml`, committet direkt auf `main` und startet `app-deploy.yml`. Ein manueller PR ist dafür nicht nötig.
+
+**Andere Apps:** manueller PR auf `platform/environments/<env>/<app-id>.yaml` mit neuem `image` (Digest) und `chart.version`. Datenmigrationen der neuen Version müssen vorher in `dataProcedures.migration` des Katalogeintrags beschrieben sein.
 
 Ein Deployment gilt erst als erfolgreich, wenn Rollout und Smoke-Test erfolgreich waren und das laufende Release dem Sollzustand entspricht. Das Deployment-Ergebnis steht in der Zusammenfassung, als Artefakt `deployment-<app>-<env>` und im Aktionsprotokoll (`ops runs show` bzw. die Operation zur `operationId`).
 
@@ -43,7 +45,7 @@ gh workflow run app-deploy.yml -f appId=affine -f environment=staging
 
 ## Rollback
 
-Ein Rollback ist ein PR auf einen früheren Sollzustand, kein Eingriff am Cluster.
+Ein Rollback ist ein PR auf einen früheren Sollzustand, kein Eingriff am Cluster. Bei AFFiNE setzt `app-affine-sync.yml` den Sollzustand beim nächsten Lauf (alle 15 Minuten) wieder auf das neueste Paket; für ein Rollback den Workflow vorher deaktivieren (geändert 31.10.2026).
 
 1. Früheren Stand ermitteln: `git log -p -- platform/environments/<env>/<app-id>.yaml`.
 2. **Datenkompatibilität prüfen und im PR dokumentieren:** Hat ein Release seit dem Zielstand Daten migriert (Runbook, `dataProcedures.migration`, Release-Notes)? Kann die alte Version das aktuelle Schema lesen? Ohne positive Antwort kein Merge.

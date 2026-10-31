@@ -69,6 +69,7 @@ Phase 1 SHALL Secrets mit geringem Aufwand verwalten und keine separate Secret-I
 | PostgreSQL-Admin-Passwort, `alertWebhookKey`, `maintenanceApiKey` | Geheime Foundation-Ausgaben | Foundation-Stack (zufällig generiert) |
 | Modell-Keys, `githubWebhookSecret`, privater Schlüssel der GitHub App des Agenten (`githubAppPrivateKey`; geändert 2026-10-30 (Erik); war: PAT des Agenten), optional ein PAT (`opsGithubToken`) | Geheime Foundation-Konfiguration, als geheime Ausgabe weitergereicht | Einmalig manuell per `pulumi config set --secret` |
 | Optional: PAT für Workflows, die noch kein Installations-Token der GitHub App nutzen | Repo-Secret `OPS_GITHUB_TOKEN`, nur gesetzt, wenn ein PAT vorliegt | Ein Teammitglied |
+| Rückfall: privater Schlüssel der GitHub App für die Workflows von B, solange die Foundation-Ausgabe `githubAppPrivateKey` leer ist (ergänzt 31.10.2026; Stand: Repo-Secret gesetzt, Ausgabe leer) | Repo-Secret `OPS_GITHUB_APP_PRIVATE_KEY`, nur für den Agenten-App-Stack verwendet | Ein Teammitglied |
 
 Key Vault, Secret-Rotation und getrennte Secrets pro Verbraucher SHALL NOT Voraussetzung für Phase 1 sein. Die Dokumentation SHALL diese Vereinfachung als bewusst akzeptiertes Risiko für Staging nennen.
 
@@ -90,9 +91,10 @@ Die Plattform SHALL ohne Azure-Rollenzuweisungen und ohne Entra-App-Registrierun
 | Workflows und Agent | PostgreSQL | Admin-Login mit Passwort, TLS erzwungen |
 | Agent | Diagnose-Storage | Storage-Key |
 | Agent | Kubernetes | ServiceAccount `operations-agent` mit ClusterRoleBinding aus dem Agenten-Chart |
-| Agent und Workflows | GitHub | Installations-Token der GitHub App `hackathonplatformagent` aus dem privaten Schlüssel `githubAppPrivateKey` (geändert 2026-10-30 (Erik); war: Fine-grained PAT eines Teammitglieds); optional ein PAT im Repo-Secret `OPS_GITHUB_TOKEN` als Rückfall |
+| Agent und Workflows | GitHub | Installations-Token der GitHub App `hackathonplatformagent` aus dem privaten Schlüssel `githubAppPrivateKey` (geändert 2026-10-30 (Erik); war: Fine-grained PAT eines Teammitglieds); Rückfall für die Workflows von B: Repo-Secret `OPS_GITHUB_APP_PRIVATE_KEY` (ergänzt 31.10.2026); optional ein PAT im Repo-Secret `OPS_GITHUB_TOKEN` als weiterer Rückfall |
+| Workspace-Pod des Agenten (nur mit Schalter `agentWorkspaceIdentity`) | Azure, lesend | User-assigned Identity `id-mmk-ops-workspace-<env>` mit Federated Credential auf den ServiceAccount `operations-agent-workspace`; `Reader` auf Plattform- und Node-Resource-Group, `Log Analytics Reader` auf den Workspace; keine Schlüssel abrufbar (ergänzt 31.10.2026) |
 
-Der Agent SHALL in Phase 1 keinen Zugriff auf Azure Resource Manager, Azure-Messwerte oder Log Analytics benötigen.
+Der Agent SHALL in Phase 1 keinen Zugriff auf Azure Resource Manager, Azure-Messwerte oder Log Analytics benötigen. Ausnahme (geändert 31.10.2026; war: ausnahmslos ohne Azure-Zugriff): Ein Schalter `agentWorkspaceIdentity` (Standard aus) legt die schreibgeschützte Identität des Workspace-Pods an. Nur dafür sind Rollenzuweisungen nötig, die Owner oder User Access Administrator verlangen; ohne den Schalter bleibt jeder Schritt mit Contributor ausführbar (Entscheidung D14, in decisions.md vorgeschlagen).
 
 #### Scenario: Workflow ohne Azure-Identität
 - **WHEN** ein App-Deploy-Workflow auf einem GitHub-hosted Runner läuft
@@ -100,8 +102,13 @@ Der Agent SHALL in Phase 1 keinen Zugriff auf Azure Resource Manager, Azure-Mess
 - **AND** benötigt er dafür keine Azure-Anmeldung
 
 #### Scenario: Kein Schritt braucht Owner
-- **WHEN** Bootstrap und Foundation-Stack mit einer Contributor-Identität ausgerollt werden
+- **WHEN** Bootstrap und Foundation-Stack mit einer Contributor-Identität und ausgeschaltetem `agentWorkspaceIdentity` ausgerollt werden (geändert 31.10.2026; ergänzt: ausgeschaltetem Schalter)
 - **THEN** schlägt kein Schritt wegen fehlender Berechtigung für Rollenzuweisungen fehl
+
+#### Scenario: Leseidentität des Agent-Workspace (Opt-in)
+- **WHEN** `agentWorkspaceIdentity` eingeschaltet ist und der Lauf mit Owner-Rechten erfolgt (ergänzt 31.10.2026)
+- **THEN** entstehen Identität, Federated Credential und drei Rollenzuweisungen im Foundation-Stack
+- **AND** liefert die Ausgabe `agentWorkspaceAzure` (außerhalb des Ausgabevertrags) `clientId`, `tenantId` und `subscriptionId` für den Sollzustand des Agenten
 
 ### Requirement: Dokumentierte manuelle Voraussetzungen
 Die Bootstrap-Dokumentation SHALL alle nicht automatisierten Schritte nennen und die dafür nötigen Rechte: Contributor auf der Subscription, Admin-Rechte auf dem Repository für Repo-Secrets und den Issue-Webhook, die GitHub App des Agenten, installiert auf `hackathon-platform-team` und `hackathon-platform-affine` mit Schreibrechten für Issues, Contents, Pull Requests und Actions, und ihren privaten Schlüssel (geändert 2026-10-30 (Erik); war: ein Fine-grained PAT mit diesen Rechten). Ein Vorab-Check SHALL diese Voraussetzungen prüfen, bevor Ressourcen angelegt werden; die Rechte der GitHub App prüft er, wenn ihm der private Schlüssel übergeben wird.
@@ -132,6 +139,7 @@ Jede verwaltete Ressource SHALL genau einem Stack zugeordnet sein. Grundregel: A
 | Action Groups `ops-intake` und `ops-humans`, Budget-Alarm | Foundation-Stack |
 | Verfügbarkeitstests und Alarmregeln je App, erzeugt aus `platform/catalog/<app-id>/app.yaml` | Foundation-Stack |
 | Verfügbarkeitstest des Betriebsagenten | Foundation-Stack |
+| Optional: Leseidentität des Agent-Workspace (User-assigned Identity, Federated Credential, drei Rollenzuweisungen; Schalter `agentWorkspaceIdentity`; ergänzt 31.10.2026) | Foundation-Stack |
 | Namespaces, Helm-Releases, Kubernetes-Secrets, -ConfigMaps und Ingress-Regeln einer App | App-Stack |
 | App-eigene Datenbanken und Logins auf dem gemeinsamen PostgreSQL-Server | App-Stack (über das PostgreSQL-Protokoll) |
 

@@ -200,7 +200,12 @@ Die Anwendungsliste SHALL nach Name oder Host suchbar und nach Erreichbarkeit bz
 - **THEN** sind Suche und Filter unverändert
 
 ### Requirement: Nachvollziehbare Überwachung
-Die Detailseite SHALL Live-HTTP-Prüfung, konfigurierte externe Verfügbarkeit und konfigurierten Smoke-Test unterscheiden. Sie SHALL Prüfpfad, TLS-Verhalten, Takt, Alarmziel und vorhandene Signal- bzw. Verifikationszeitpunkte nennen. Aus IaC abgeleitete Monitoring-Konfiguration SHALL nicht als verifizierte aktive Azure-Konfiguration erscheinen.
+Die Detailseite SHALL Live-HTTP-Prüfung, konfigurierte externe Verfügbarkeit und konfigurierten Smoke-Test unterscheiden. Sie SHALL Prüfpfad, TLS-Verhalten, Takt, Alarmziel und vorhandene Signal- bzw. Verifikationszeitpunkte nennen. Die im Code hinterlegte Monitoring-Konfiguration SHALL nicht als verifizierte aktive Azure-Konfiguration erscheinen.
+
+#### Scenario: Konfiguration ohne Verifikation
+- **WHEN** die Monitoring-Parameter angezeigt werden
+- **THEN** stammen sie aus `status.py` und nicht aus einer Abfrage von Azure oder der IaC (geändert 31.10.2026 (Cornelius); war: „aus IaC abgeleitet“)
+- **AND** wird ihre Aktivierung als nicht verifiziert gekennzeichnet
 
 #### Scenario: Noch kein externes Signal
 - **WHEN** die externe Überwachung konfiguriert ist, aber kein empfangenes Signal existiert
@@ -240,4 +245,4 @@ Die App-Detailseite SHALL den letzten gespeicherten Deployment-Lauf mit Zeitpunk
 
 ## Abgrenzung
 
-C besitzt `operations-agent/src/api/` einschließlich `status.py` und `static/`, B Katalogeintrag, Sollzustand und App-Rollout, A den daraus erzeugten Verfügbarkeitstest. Die Statusansicht ist kein Verwaltungsportal und kein Ersatz für ein unabhängiges externes Monitoring.
+C besitzt `operations-agent/src/api/` einschließlich `status.py`, `status_activity.py` und `static/`, B Katalogeintrag, Sollzustand und App-Rollout, A den daraus erzeugten Verfügbarkeitstest. Die Statusansicht ist kein Verwaltungsportal und kein Ersatz für ein unabhängiges externes Monitoring.

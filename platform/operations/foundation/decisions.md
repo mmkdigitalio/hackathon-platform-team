@@ -29,6 +29,7 @@ to them where they build on them.
 | [D11](#d11-git-sha-only-in-the-run-summary-versions-as-an-optional-output) | Git SHA only in the run summary, versions as optional output | [`summary.mjs`](../../scripts/bootstrap/summary.mjs), [`index.ts`](../../infra/foundation/index.ts) |
 | [D12](#d12-access-check-runs-once-with-a-break-category-for-the-red-run) | Access check runs once, break category for the red run | [`access-check.sh`](../../scripts/bootstrap/access-check.sh), [`foundation-access-check.yml`](../../../.github/workflows/foundation-access-check.yml) |
 | [D13](#d13-agent-health-test-independent-of-the-catalog) | Agent health test independent of the catalog | [`monitoring.ts`](../../infra/foundation/monitoring.ts) |
+| [D14](#d14-read-only-azure-identity-for-the-agent-workspace) | Read-only Azure identity for the agent workspace, opt-in | [`agentIdentity.ts`](../../infra/foundation/agentIdentity.ts), [operations.md](operations.md#agent-workspace-identity) |
 
 ## D1. Ingress controller: Traefik
 
@@ -304,7 +305,7 @@ to them where they build on them.
   would depend on B's entry); put it in the agent's app stack (app stacks hold no Azure
   resources, E5, and it would disappear with the release).
 
-## D12. Read-only Azure identity for the agent workspace
+## D14. Read-only Azure identity for the agent workspace
 
 - Status: Proposed (pending Erik's decision); added 2026-10-30 (Cornelius). Deviates from
   E3/E6 for one identity only.

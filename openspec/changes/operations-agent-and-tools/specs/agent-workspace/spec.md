@@ -14,6 +14,11 @@ Der Worker SHALL für eine Operation bei Bedarf genau einen Workspace-Pod `ops-w
 - **THEN** legt der Worker den Workspace-Pod an und wartet, bis er bereit ist
 - **AND** meldet er Image-Pull- oder Startfehler als strukturierten Fehler statt als leere Ausgabe
 
+#### Scenario: Offener Workflow-Lauf oder Besitzverlust (geändert 31.10.2026; war: Pod wird am Laufende immer gelöscht)
+- **WHEN** der Lauf endet, während ein eigener Workflow-Lauf offen ist oder der Operations-Besitz verloren ging
+- **THEN** löscht der Worker den Pod nicht
+- **AND** bleibt er für die Wiederaufnahme bis zum Ablauf der TTL stehen
+
 #### Scenario: Worker-Neustart während der Arbeit
 - **WHEN** der Worker nach einem Neustart denselben Auftrag wieder übernimmt und der Pod der Operation noch läuft
 - **THEN** arbeitet der Agent in derselben Arbeitskopie weiter
@@ -34,6 +39,16 @@ Die Shell im Workspace SHALL nur Leserechte haben: Kubernetes clusterweit lesend
 - **WHEN** das Modell im Workspace `git push` ausführt
 - **THEN** scheitert der Push an fehlenden Schreibrechten des Lese-Tokens
 - **AND** gelingt derselbe Stand über `commit_and_push` auf `agent/<operationId>` mit Aktionsdatensatz
+
+#### Scenario: PAT-Rückfall (geändert 31.10.2026)
+- **WHEN** keine GitHub App konfiguriert ist und der PAT als Rückfall dient
+- **THEN** lässt sich das Token der Shell nicht auf Leserechte einschränken
+- **AND** bleibt die Grenze für Änderungen allein die Werkzeugbindung (Betriebsregeln, `commit_and_push` mit Aktionsdatensatz)
+
+#### Scenario: Azure-Leseidentität (geändert 31.10.2026; war: „Workload Identity“ ohne Ausführung)
+- **WHEN** der Workspace eine konfigurierte Azure-Client-ID hat
+- **THEN** bekommt der Pod ein projiziertes ServiceAccount-Token (Audience `api://AzureADTokenExchange`) ohne AKS-Webhook, und `az-login` meldet die Managed Identity mit Reader und Log Analytics Reader an
+- **AND** beendet sich `az-login` ohne Client-ID mit Exit-Code 2, sodass die Diagnose ohne Azure weiterläuft (Stand 31.10.2026: Identität in Staging per az CLI angelegt, Pulumi-Übernahme offen; siehe design.md, Entscheidung 13)
 
 #### Scenario: Ändernder kubectl-Befehl
 - **WHEN** das Modell `kubectl scale` oder `kubectl delete` ausführt

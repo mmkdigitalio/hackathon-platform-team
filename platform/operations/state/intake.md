@@ -49,9 +49,11 @@ Danach Katalogprüfung: `platform/catalog/<app-id>/app.yaml` und `platform/envir
 
 ## Schleifenschutz
 
-Kommentare und Issues, deren Text `<!-- mmk-ops-agent -->` enthält, werden ignoriert (Antwort `ignored`). Der Autor zählt nicht: Der Agent schreibt per PAT unter einem Teammitglied (E7), dessen eigene Kommentare ohne Markierung normal verarbeitet werden. Kommentare zu Pull Requests werden ignoriert.
+Kommentare und Issues, deren Text `<!-- mmk-ops-agent -->` enthält, werden ignoriert (Antwort `ignored`). Der Autor zählt nicht: Der Agent schreibt über die GitHub App `hackathonplatformagent` (App-ID 5542094, E7; ein PAT ist nur Rückfall, geändert 31.10.2026). Kommentare von Teammitgliedern ohne Markierung werden normal verarbeitet; die App erscheint als eigener Autor, die Markierung bleibt trotzdem der Schleifenschutz. Kommentare zu Pull Requests werden ignoriert.
 
 ## GitHub-Webhook einrichten (Repo-Admin, einmalig)
+
+**Zurückgestellt (E11, geändert 31.10.2026):** Der GitHub-Issue-Webhook wird derzeit nicht eingerichtet. Meldungen von Mitarbeitenden sollen über einen Chat in der Plattform-UI kommen (Change `openspec/changes/employee-chat-intake`). Der Endpunkt `/events/github` bleibt bestehen; die Anleitung unten gilt, falls der Webhook doch aktiviert wird.
 
 1. Werte aus der Foundation lesen: `operationsApiHost` und `githubWebhookSecret` (lokal mit Pulumi, siehe `platform/operations/foundation/`).
 2. GitHub → `mmkdigitalio/hackathon-platform-team` → Settings → Webhooks → Add webhook:
@@ -112,7 +114,7 @@ curl -s -X POST "$API/events/maintenance" -H "X-Api-Key: $MAINTENANCE_API_KEY" \
 | Symptom | Ursache und Prüfung |
 | --- | --- |
 | Azure Monitor: 401 | Key in der Action Group ≠ `ALERT_WEBHOOK_KEY` im Pod. URL der Action Group mit Foundation-Ausgabe vergleichen. |
-| GitHub: 401 | Webhook-Secret ≠ `GITHUB_WEBHOOK_SECRET`; oder ein Proxy verändert den Body. |
+| GitHub: 401 (nur bei eingerichtetem Webhook, E11) | Webhook-Secret ≠ `GITHUB_WEBHOOK_SECRET`; oder ein Proxy verändert den Body. |
 | GitHub: 403 | Repository nicht in `OPS_GITHUB_REPO_ALLOWLIST`. |
 | GitHub: 202 `ignored` | Ereignistyp nicht `issues.opened`/`issue_comment.created`, Agentenmarkierung oder PR-Kommentar; `reason` lesen. |
 | 400 | Kein Common Alert Schema (Action Group: „Enable the common alert schema“) bzw. Pflichtfeld fehlt. |

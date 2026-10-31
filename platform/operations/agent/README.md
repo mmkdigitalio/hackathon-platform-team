@@ -109,7 +109,7 @@ Protokoll ohne Secrets: [nachweise/2026-10-30-p1-02-azure.json](nachweise/2026-1
 
 ## Umsetzungsstand je Task
 
-Abgehakt sind in `tasks.md` nur Tasks, deren Abschlussprüfung vollständig lief (1.1–1.4, 2.1, 2.3–2.5, 3.5, 6.4, 8.1, 8.2). Für die übrigen ist der Code fertig, mit simulierten Gegenstellen und größtenteils im lokalen kind-Cluster getestet; es fehlt die genannte Prüfung:
+Abgehakt sind in `tasks.md` nur Tasks, deren Abschlussprüfung vollständig lief (1.1–1.4, 2.1, 2.3–2.5, 3.5, 6.1, 6.2, 6.4, 6.5, 8.1, 8.2, 9.3; Stand 31.10.2026, geändert 31.10.2026). Für die übrigen ist der Code fertig, mit simulierten Gegenstellen und größtenteils im lokalen kind-Cluster getestet; es fehlt die genannte Prüfung:
 
 | Task | Offene Abschlussprüfung | Wartet auf |
 | --- | --- | --- |
@@ -119,9 +119,12 @@ Abgehakt sind in `tasks.md` nur Tasks, deren Abschlussprüfung vollständig lief
 | 3.6 | Review mit A | A |
 | 4.1–4.5 | echter Neustart, echter `app-deploy.yml`-Lauf, Besitzverlust mit C | Staging, B-Workflow, C-Sperrclient |
 | 5.1–5.5 | Läufe gegen AFFiNE in Staging | Staging, Smoke-Test-Image |
-| 6.1 | Start von C's API und Worker aus dem Image gegen eine Datenbank (Einstiegspunkte liegen jetzt im Image) | lokaler Lauf mit PostgreSQL im kind-Cluster |
-| 6.2, 6.3 | Start gegen B's Secret, Upgrade mit echter Migration (lokal: Install mit Hook-Job und Platzhalter-Migration belegt) | B-App-Stack, C-Migrationen |
-| 6.5, 6.6 | Lauf auf `main`, Agenten-Update in Staging | A-Composite-Action, B-Workflow |
+| 6.3 | Upgrade mit neuer Migration (lokal: Install mit Hook-Job und Platzhalter-Migration; Staging-Upgrades 0.1.21 bis 0.1.23 liefen durch) | C-Migrationen |
+| 6.6 | Agenten-Update mit erhaltenem Auftrag und fortgesetzter Workflow-Beobachtung | laufender Auftrag in Staging |
+| 8.3, 8.4 | Token-Abruf durch den Pod in Staging; nicht reparierbarer Fall mit Pull Request | verarbeiteter Auftrag; Foundation-Ausgabe `githubAppPrivateKey` |
+| 9.1, 9.2, 9.4 | Workspace-Pod, `toolbox-info` und Lauf mit Codeänderung und Pull Request in Staging | Staging-Auftrag |
+| 9.5 | `az-login` und Log-Analytics-Abfrage im Staging-Pod (Identität per az CLI angelegt, Pulumi-Übernahme D14 offen) | Staging-Auftrag, A |
+| 9.6 | Review mit A | A |
 | 7.1–7.3 | gemeinsame Abnahme | alle Stränge |
 
 ## Persistenzbefund für C (Task 1.3)

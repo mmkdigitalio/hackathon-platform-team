@@ -34,6 +34,9 @@ Die API unter `operations-agent/src/api/` bietet folgende Endpunkte:
 | `POST /events/maintenance` | `X-Api-Key` mit `maintenanceApiKey` | Wartungsaufträge, etwa aus `health-check.yml` |
 | `GET /runs/{auftragsId}` | `X-Api-Key` mit `maintenanceApiKey` | Laufnachweise als JSON |
 | `GET /healthz` | keiner | Datenbank und Worker-Heartbeat |
+| `GET /status`, `/`, `/applications`, `/applications/{appId}`, `/activity` | keiner | Lesende Statusprojektion und Status-Seiten (geändert 31.10.2026; Anforderungen im Change `platform-status-ui`) |
+
+Die Statusprojektion ist read-only, enthält keine Auftrags- oder Vorfalltexte, IDs, Logs, Secrets oder Modellantworten und liest Datenbank und Heartbeat in einer lesenden Transaktion. Dieselbe UI läuft zusätzlich als eigenständige App `platform-status` ohne Ereigniseingang und ohne `/runs` (geändert 31.10.2026; war: nur die fünf Endpunkte der Tabelle).
 
 Keys werden mit konstanter Laufzeit verglichen. Request-Logs maskieren den Query-Parameter `key` und die Header `X-Api-Key` und `X-Hub-Signature-256`. Die Werte kommen aus den Foundation-Ausgaben über das Kubernetes-Secret, das der Agenten-App-Stack anlegt.
 
@@ -47,7 +50,7 @@ Jeder Endpunkt normalisiert auf den Ereignisvertrag unter `platform/schemas/even
 
 **Azure Monitor.** `appId` und `environment` kommen zuerst aus den Custom Properties `app-id` und `environment`, sonst aus dem Regelnamen `alert-<app-id>-<env>-<check>`. `externalRef` ist `essentials.alertId`. `monitorCondition` wird zu `state` `fired` oder `resolved`. Resolved aktualisiert nur den Alarmzustand.
 
-**GitHub.** Ein Repo-Admin legt den Webhook auf `mmkdigitalio/hackathon-platform-team` manuell an: URL `https://<operationsApiHost>/events/github`, Inhalt JSON, Ereignisse Issues und Issue comments, Secret gleich `githubWebhookSecret`. Die Anleitung liegt in `platform/operations/state/`. Der Eingang prüft die Signatur über den unveränderten Body, dann die Repository-Allowlist (Phase 1: nur dieses Repository), dann Ereignistyp und Aktion (`issues.opened`, `issue_comment.created`). App und Umgebung liest er aus den Abschnitten `### App` und `### Umgebung`, die die Issue-Form unter `.github/ISSUE_TEMPLATE/` mit Dropdowns erzeugt. Die Dropdown-Werte werden aus `platform/catalog/` gepflegt. Kommentare mit `<!-- mmk-ops-agent -->` im Text werden ignoriert. Der Autor zählt nicht, weil der Agent per PAT unter einem Teammitglied schreibt (E7).
+**GitHub.** Ein Repo-Admin legt den Webhook auf `mmkdigitalio/hackathon-platform-team` manuell an (geändert 31.10.2026: Stand 31.10.2026 ist er nicht angelegt und bewusst zurückgestellt; der Endpunkt ist implementiert und mit Beispielzustellungen getestet, wurde aber noch nie von GitHub aufgerufen. Mitarbeitermeldungen sollen künftig über einen Chat in der UI kommen, geplant als eigener Change): URL `https://<operationsApiHost>/events/github`, Inhalt JSON, Ereignisse Issues und Issue comments, Secret gleich `githubWebhookSecret`. Die Anleitung liegt in `platform/operations/state/`. Der Eingang prüft die Signatur über den unveränderten Body, dann die Repository-Allowlist (Phase 1: nur dieses Repository), dann Ereignistyp und Aktion (`issues.opened`, `issue_comment.created`). App und Umgebung liest er aus den Abschnitten `### App` und `### Umgebung`, die die Issue-Form unter `.github/ISSUE_TEMPLATE/` mit Dropdowns erzeugt. Die Dropdown-Werte werden aus `platform/catalog/` gepflegt. Kommentare mit `<!-- mmk-ops-agent -->` im Text werden ignoriert. Der Autor zählt nicht (geändert 31.10.2026; war: „weil der Agent per PAT unter einem Teammitglied schreibt (E7)“): Der Agent schreibt als GitHub App, ein PAT eines Teammitglieds ist nur Rückfall (E7). Kommentare tragen die Markierung, unabhängig vom Konto.
 
 **Wartung.** `.github/workflows/health-check.yml` liest Host und `maintenanceApiKey` über `.github/actions/foundation-outputs`, führt die deterministischen Prüfungen direkt aus und sendet nur bei Fehlschlag einen Wartungsauftrag.
 
@@ -115,5 +118,7 @@ Ein Auftrag verknüpft Ereignisse, Vorfall, Operationen, Aktionen, externe Refer
 2. API, Duplikaterkennung, Worker-Leases, Heartbeat und Zustandsregeln mit vertragskonformer Testausführung prüfen.
 3. D's SDK-Ausführung anbinden; SDK-Tabellen in die Migrationsfolge aufnehmen.
 4. Migrations-CLI und Sperr-CLI an B und D übergeben; gegen A's Datenbank von einem GitHub-hosted Runner testen.
-5. Webhook einrichten lassen und echte Ereignisse anschließen. Danach Wiederanlauf, Mehrfachzustellung und konkurrierende Änderung mit B und D nachweisen.
+5. Webhook einrichten lassen und echte Ereignisse anschließen. Danach Wiederanlauf, Mehrfachzustellung und konkurrierende Änderung mit B und D nachweisen. (geändert 31.10.2026: Der Webhook ist zugunsten eines geplanten UI-Chats als Meldekanal zurückgestellt. Bis dahin fehlen echte Ereignisse aus GitHub und Azure Monitor; Nachweise laufen über Tests mit Beispielzustellungen.)
 6. Schemaänderungen nur kompatibel ausrollen; der Hook-Job läuft vor neuen Prozessen. Ein Code-Rollback setzt Schema-Kompatibilität voraus und löscht weder Aufträge noch Aktionsnachweise.
+
+Stand 31.10.2026: Schritte 1 bis 4 sind umgesetzt. Die Datenbank `operations` wurde mit `ops-migrate.yml` initialisiert, API und Worker laufen als getrennte Deployments (je ein Replica) mit Agenten-Chart 0.1.23 in Staging, und `/healthz` und der Heartbeat sind gesund. Es wurde noch kein echter Auftrag verarbeitet, und kein Azure-Monitor-Alarm hat den Agenten erreicht. Die Nachweise je Task stehen in [tasks.md](tasks.md).

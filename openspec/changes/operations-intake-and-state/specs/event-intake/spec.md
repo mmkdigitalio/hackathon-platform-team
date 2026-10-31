@@ -75,6 +75,8 @@ Der Ereigniseingang SHALL `appId` und `environment` zuerst aus den Custom Proper
 ### Requirement: GitHub-Webhook authentifizieren
 Der Ereigniseingang SHALL Issue- und Kommentarereignisse aus dem Repo-Webhook von `mmkdigitalio/hackathon-platform-team` annehmen. Er SHALL die Signatur `X-Hub-Signature-256` über den unveränderten Request-Body mit `githubWebhookSecret` prüfen und nur Repositories der Allowlist annehmen. Ein Repo-Admin richtet den Webhook manuell nach Dokumentation ein.
 
+(geändert 31.10.2026: Stand 31.10.2026 ist der Webhook nicht eingerichtet und bewusst zurückgestellt; Mitarbeitermeldungen sollen über einen UI-Chat kommen, geplant als eigener Change. Die Anforderungen an den Eingang gelten unverändert.)
+
 #### Scenario: Ungültige Signatur
 - **WHEN** ein Ereignis mit fehlender oder falscher Signatur eintrifft
 - **THEN** wird es abgelehnt und erzeugt keinen Auftrag
@@ -96,14 +98,14 @@ Unter `.github/ISSUE_TEMPLATE/` SHALL eine Issue-Form mit Dropdowns für App-ID 
 - **THEN** wird es als Zuordnungsfehler gespeichert und erzeugt keinen ändernden Auftrag
 
 ### Requirement: Schleifenschutz über Markierung
-Der Ereigniseingang SHALL Kommentare, deren Text die Markierung `<!-- mmk-ops-agent -->` enthält, ignorieren. Der Autor des Kommentars SHALL dafür nicht ausgewertet werden, weil der Agent per PAT unter einem Teammitglied schreibt.
+Der Ereigniseingang SHALL Kommentare, deren Text die Markierung `<!-- mmk-ops-agent -->` enthält, ignorieren. Der Autor des Kommentars SHALL dafür nicht ausgewertet werden (geändert 31.10.2026; war: „weil der Agent per PAT unter einem Teammitglied schreibt“; jetzt schreibt der Agent als GitHub App, ein PAT eines Teammitglieds ist nur Rückfall, E7).
 
 #### Scenario: Agent kommentiert
 - **WHEN** der Agent einen Diagnosekommentar mit `<!-- mmk-ops-agent -->` erstellt und dessen Webhook eintrifft
 - **THEN** wird daraus kein neuer Auftrag und keine neue Untersuchung
 
 #### Scenario: Mensch kommentiert mit demselben Account
-- **WHEN** das Teammitglied, dessen PAT der Agent nutzt, selbst einen Kommentar ohne Markierung schreibt
+- **WHEN** das Teammitglied, dessen PAT der Agent im Rückfall nutzt, selbst einen Kommentar ohne Markierung schreibt (geändert 31.10.2026; war: „dessen PAT der Agent nutzt“)
 - **THEN** wird der Kommentar wie jeder andere Kommentar verarbeitet
 
 ### Requirement: Zustellungen deduplizieren
@@ -151,4 +153,4 @@ Der Workflow `.github/workflows/health-check.yml` SHALL zeitgesteuert determinis
 
 ## Abgrenzung
 
-C besitzt Empfänger, Normalisierung, Ereignisschema, Issue-Form und Gesundheitscheck-Workflow. A liefert Action Group `ops-intake`, Alarmregeln mit Custom Properties und die Keys und Secrets als Foundation-Ausgaben. Ein Repo-Admin richtet den GitHub-Webhook ein. B liefert Katalog und fachliche Prüfungen, D die Issue-Antwort mit Markierung und die Diagnose nach der Annahme.
+C besitzt Empfänger, Normalisierung, Ereignisschema, Issue-Form und Gesundheitscheck-Workflow. A liefert Action Group `ops-intake`, Alarmregeln mit Custom Properties und die Keys und Secrets als Foundation-Ausgaben. Ein Repo-Admin richtet den GitHub-Webhook ein (Stand 31.10.2026 zurückgestellt). B liefert Katalog und fachliche Prüfungen, D die Issue-Antwort mit Markierung und die Diagnose nach der Annahme.

@@ -7,7 +7,7 @@ Der gemeinsame App-Pfad wird an AFFiNE als einziger Fach-App und am Betriebsagen
 ## ADDED Requirements
 
 ### Requirement: Lieferumfang des AFFiNE-Pakets
-Die externe Lieferung aus `mmkdigitalio/hackathon-platform-affine` SHALL einen schemakonformen Katalogeintrag `platform/catalog/affine/app.yaml`, ein Chart mit fester Version, ein Smoke-Test-Image nach Smoke-Test-Vertrag und ein Runbook mit Commit-SHA umfassen. Chart-Inhalt, Smoke-Test-Logik und Runbook-Inhalt SHALL nicht Teil dieser Spec sein.
+Die externe Lieferung aus `mmkdigitalio/hackathon-platform-affine` SHALL einen schemakonformen Katalogeintrag `platform/catalog/affine/app.yaml`, ein Chart mit fester Version, ein Smoke-Test-Image nach Smoke-Test-Vertrag und ein Runbook mit Commit-SHA umfassen. Die Quellen von Chart und Smoke-Test-Image baut `app-affine-sync.yml` in die Foundation-ACR (`acr: helm/affine`, `acr:affine-smoke@sha256:…`), weil die GHCR-Pakete nicht öffentlich sind (ergänzt 31.10.2026). Chart-Inhalt, Smoke-Test-Logik und Runbook-Inhalt SHALL nicht Teil dieser Spec sein.
 
 #### Scenario: Unvollständige Lieferung
 - **WHEN** der AFFiNE-Katalogeintrag kein Smoke-Test-Image mit Digest oder kein Runbook referenziert
@@ -23,7 +23,7 @@ AFFiNE SHALL als unverändertes Upstream-Release über dasselbe App-Programm sow
 - **AND** ist AFFiNE unter `affine.<baseDomain>` erreichbar und der Smoke-Test erfolgreich
 
 ### Requirement: AFFiNE-Versionswechsel per Pull Request
-Ein AFFiNE-Versionswechsel SHALL als manueller Pull Request auf `platform/environments/<env>/affine.yaml` erfolgen und Plan-Prüfung, Merge und Deploy-Workflow durchlaufen. Datenmigrationen der neuen Version SHALL vorher im Datenverfahren des Katalogeintrags beschrieben sein.
+Ein AFFiNE-Versionswechsel SHALL als Pull Request auf `platform/environments/<env>/affine.yaml` erfolgen und Plan-Prüfung, Merge und Deploy-Workflow durchlaufen. Für Staging übernimmt zusätzlich `app-affine-sync.yml` neue grüne Pakete des Lieferrepositories automatisch, committet Katalogeintrag und Sollzustand direkt auf `main` und startet `app-deploy.yml` (geändert 31.10.2026; war: ausschließlich manueller Pull Request). Datenmigrationen der neuen Version SHALL vorher im Datenverfahren des Katalogeintrags beschrieben sein.
 
 #### Scenario: Neue AFFiNE-Version
 - **WHEN** ein Teammitglied einen Pull Request mit neuem Image-Digest und neuer Chart-Version öffnet
@@ -88,7 +88,7 @@ Der abgeleitete Host `operations-agent.<baseDomain>` SHALL der Foundation-Ausgab
 - **THEN** erreicht ein Request von `ops-intake` an `https://<operationsApiHost>/events/azure-monitor` die Agenten-API über die Ingress-Regel des App-Stacks
 
 ### Requirement: Agenten-Secret aus Foundation-Ausgaben
-Der Katalogeintrag des Agenten SHALL per `foundation:`-Referenzen `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase`, `alertWebhookKey`, `maintenanceApiKey`, `githubWebhookSecret`, `modelApiKeys` (als JSON), `opsGithubToken`, `githubAppPrivateKey`, `publicScheme`, `diagnosticsStorageAccount`, `diagnosticsContainer` und `diagnosticsStorageKey` in das Kubernetes-Secret seines Namespace übernehmen.
+Der Katalogeintrag des Agenten SHALL per `foundation:`-Referenzen `postgresHost`, `postgresAdminUser`, `postgresAdminPassword`, `postgresOperationsDatabase`, `alertWebhookKey`, `maintenanceApiKey`, `githubWebhookSecret`, `modelApiKeys` (als JSON), `opsGithubToken`, `githubAppPrivateKey`, `publicScheme`, `baseDomain`, `acrLoginServer`, `diagnosticsStorageAccount`, `diagnosticsContainer` und `diagnosticsStorageKey` in das Kubernetes-Secret seines Namespace übernehmen.
 
 #### Scenario: Agent startet mit Secret
 - **WHEN** API und Worker starten
@@ -125,4 +125,4 @@ Jeder Katalogeintrag SHALL auf ein versioniertes Runbook verweisen: AFFiNE auf d
 
 ## Abgrenzung
 
-B integriert AFFiNE und Agent, liefert Fehlerszenarien und den Smoke-Test-Vertrag. Der AFFiNE-Kollege liefert Chart, Werte, Smoke-Test-Image und Runbook aus `hackathon-platform-affine`. A liefert Laufzeit, Verfügbarkeitstests und Alarmtransport, C Auftragsverarbeitung, Migrationen und Abschlussregeln, D Agentenpaket, Diagnose und Reparatur.
+B integriert AFFiNE und Agent, liefert Fehlerszenarien und den Smoke-Test-Vertrag. Die Status-UI `platform-status` läuft als dritter Katalogeintrag über denselben Pfad; ihre Anforderungen stehen im Change platform-status-ui (ergänzt 31.10.2026). Der AFFiNE-Kollege liefert Chart, Werte, Smoke-Test-Image und Runbook aus `hackathon-platform-affine`. A liefert Laufzeit, Verfügbarkeitstests und Alarmtransport, C Auftragsverarbeitung, Migrationen und Abschlussregeln, D Agentenpaket, Diagnose und Reparatur.

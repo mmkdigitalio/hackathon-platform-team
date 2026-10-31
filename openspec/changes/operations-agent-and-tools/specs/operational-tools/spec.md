@@ -17,10 +17,15 @@ Werkzeuge SHALL validierte Eingaben und strukturierte Ergebnisse mit Ziel, Statu
 ### Requirement: Kubernetes-Zugang über ServiceAccount
 Kubernetes-Werkzeuge SHALL ausschließlich den ServiceAccount `operations-agent` verwenden, den das Agenten-Chart mit ClusterRole und ClusterRoleBinding anlegt. Die Rolle SHALL nur Lesen von Workloads, Pods, Logs, Events und Jobs, `patch` auf Deployments sowie Anlegen und Löschen von Jobs erlauben.
 
+#### Scenario: Workspace-Modus (geändert 31.10.2026)
+- **WHEN** der Workspace-Modus `kubernetes` aktiv ist
+- **THEN** darf der ServiceAccount `operations-agent` zusätzlich `pods` und `pods/exec` nur im Release-Namespace verwalten
+- **AND** nutzt die Shell im Workspace den getrennten ServiceAccount `operations-agent-workspace` (siehe agent-workspace)
+
 #### Scenario: Agent im Cluster
 - **WHEN** der Agent im Namespace `operations-agent-staging` läuft
 - **THEN** greifen seine Kubernetes-Werkzeuge mit dem Token des ServiceAccounts `operations-agent` zu
-- **AND** benötigt er weder Admin-Kubeconfig noch Workload Identity
+- **AND** benötigen diese Werkzeuge weder Admin-Kubeconfig noch Workload Identity (geändert 31.10.2026; war: „benötigt er weder Admin-Kubeconfig noch Workload Identity“; eine Azure-Identität gibt es nur für den Workspace-Pod)
 
 ### Requirement: Zielbeschränkung auf Katalog-Namespaces
 Kubernetes-Werkzeuge SHALL Ziele im Code auf Namespaces `<app-id>-<env>` von Apps aus dem Katalog beschränken, obwohl die Bindung clusterweit gilt.
@@ -39,7 +44,7 @@ Werkzeuge SHALL Deployment- und Pod-Zustand, Replica-Zahlen, Image-Digest, Neust
 - **AND** sind die Angaben mit Namespace, Ressourcenname und Abfragezeitpunkt belegt
 
 ### Requirement: Diagnose aus Alarm, Kubernetes und HTTP
-Die Diagnose SHALL Alarm-Payload, Kubernetes-Zustand, Events, Logs und eigene HTTP-Prüfungen kombinieren. Werkzeuge für Azure Resource Manager, Azure-Messwerte oder Log Analytics SHALL in Phase 1 nicht existieren. Diese Abweichung von P1-07 SHALL in den Agenten-Betriebsregeln stehen.
+Die Diagnose SHALL Alarm-Payload, Kubernetes-Zustand, Events, Logs und eigene HTTP-Prüfungen kombinieren. Typisierte Werkzeuge für Azure Resource Manager, Azure-Messwerte oder Log Analytics SHALL in Phase 1 nicht existieren. Diese Abweichung von P1-07 SHALL in den Agenten-Betriebsregeln stehen. (geändert 31.10.2026; war: „Werkzeuge für Azure … SHALL in Phase 1 nicht existieren“; Azure-Lesezugriff gibt es nur über die Shell im Workspace, siehe agent-workspace.)
 
 #### Scenario: Alarm untersuchen
 - **WHEN** der Agent einen echten Verfügbarkeitsalarm für `affine` untersucht

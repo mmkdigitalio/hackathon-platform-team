@@ -9,13 +9,25 @@ is a proposal; nothing has been decided yet (see [Open decisions](#open-decision
 What we can use is listed under [Available resources](#available-resources).
 
 The implementation plan has since moved on (AKS, Pulumi, GitHub Actions, own agent
-service). For the current state see:
+service); several of the open decisions below (platform, IaC, CI, agent layer, pilot
+application) have been made there. State as of 2026-10-31, where to look:
 
-- [openspec/PARALLEL-IMPLEMENTATION.md](openspec/PARALLEL-IMPLEMENTATION.md): decisions,
-  the four strands and who owns which directory (also in
+- [openspec/PARALLEL-IMPLEMENTATION.md](openspec/PARALLEL-IMPLEMENTATION.md): hackathon
+  decisions, the four strands and who owns which directory (also in
   [.github/CODEOWNERS](.github/CODEOWNERS))
+- [openspec/changes/](openspec/changes/): one change per strand (`platform-foundation`,
+  `app-delivery-and-onboarding`, `operations-intake-and-state`,
+  `operations-agent-and-tools`) plus `platform-status-ui`; each has proposal, design,
+  specs and tasks with evidence
 - [platform/](platform/README.md): foundation, app runtime, catalog, schemas, runbooks
-- [operations-agent/](operations-agent/): intake API, state and the operations agent
+- [operations-agent/](operations-agent/): intake API, state, the operations agent and the
+  status UI code (`src/api/`)
+
+Running in staging (smoke-checked 2026-10-31, HTTP 200):
+
+- Platform status UI: <https://platform-status.57-153-7-126.sslip.io>
+- AFFiNE (the one business app): <https://affine.57-153-7-126.sslip.io>
+- Operations agent health: <https://operations-agent.57-153-7-126.sslip.io/healthz>
 
 ## Problem
 

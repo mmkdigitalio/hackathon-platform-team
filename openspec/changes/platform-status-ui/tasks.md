@@ -36,3 +36,18 @@
 - Finaler Azure-Rollout [41125342717](https://github.com/mmkdigitalio/hackathon-platform-team/actions/runs/41125342717) erfolgreich, Smoke-Test erfolgreich, Release entspricht dem Sollzustand, kein Break-glass.
 - Live-Journeys am 30.10.2026: vorhandenen Browser-Tab normal neu geladen, Dashboard mit drei erreichbaren Apps, App-Suche → AFFiNE-Details → Zurück mit erhaltenem Filter, Monitoring-/Rollout-Nachweise und Systemaktivitäten für AFFiNE geprüft. Statusprojektion verfügbar, elf reale Aktivitäten zum Prüfzeitpunkt. Screenshots: `admin-status-azure.jpg`, `admin-activity-azure.jpg`.
 - Alle Seiten, `/healthz` und `/status` über gültiges HTTPS mit HTTP 200 geprüft; `/docs`, `/redoc` und `/openapi.json` des eigenständigen Dienstes liefern HTTP 404. OpenSpec mit `--strict` ohne Warnungen gültig.
+
+## 5. Stand 31.10.2026
+
+Nachweise dieser Sitzung (lesend, ohne neue Rollouts):
+
+- Lokal ausgeführt: `uv run --frozen pytest tests/state/test_status.py tests/state/test_status_admin.py` ergab 20 bestanden. Das bestätigt die Angabe „20 bestanden“ oben für den heutigen Stand von `main` (`442496a`, entspricht `origin/main`).
+- Live: `/`, `/applications/affine` und `/status` von `https://platform-status.57-153-7-126.sslip.io` antworten mit HTTP 200, ohne Zugangsdaten. `/status` meldete um 06:47 UTC Gesamtzustand `healthy`, drei Apps (`affine`, `operations-agent`, `platform-status`) erreichbar, Worker `healthy`, zwölf Aktivitäten im Verlauf. Das ist eine Momentaufnahme, keine Uptime-Zusage. Browser- und Screenshot-Journeys wurden heute nicht wiederholt; es gelten die Nachweise vom 30.10.2026 oben.
+- Die Sollversion von `operations-agent` in `/status` (0.1.22) liegt hinter dem Sollzustand im Repository (0.1.23); erklärt durch den Sollzustand im Image der Status-App (siehe design.md).
+
+Offen, nicht abgehakt:
+
+- [ ] 5.1 Monitoring-Parameter (Takt, Standorte, Alarmschwelle) nicht mehr fest in `status.py` führen oder per Test an `monitoring.ts` koppeln.
+- [ ] 5.2 Zuständigkeit für `platform/infra/status-ui/` und `status-ui-package.yml` in `.github/CODEOWNERS` und PARALLEL-IMPLEMENTATION.md angleichen.
+- [ ] 5.3 Beim Chat-Change (E11) klären, ob die Anforderung „Ausschließlich lesende Statusansicht“ gilt oder ein getrennter Dienst entsteht.
+

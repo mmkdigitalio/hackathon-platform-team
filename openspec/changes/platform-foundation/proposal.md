@@ -9,11 +9,11 @@ Die Phase-1-Plattform benötigt eine reproduzierbare Azure-Grundlage, bevor Anwe
 - Strang A übernimmt P1-01 für Monorepo-Gerüst und Konventionen sowie P1-03 und P1-04 für Bootstrap und Grundplattform.
 - Verbindliche Konventionen für App-IDs, abgeleitete Ressourcennamen und Release-Referenzen.
 - State-Backend, AKS, ACR, Ingress mit HTTPS über sslip.io, Log Analytics, Application Insights, Diagnoseartefakt-Speicher und ein gemeinsamer PostgreSQL-Server werden bereitgestellt.
-- Zugänge laufen über Schlüssel statt Rollen: Admin-Kubeconfig, ACR-Admin-User, Datenbankpasswort, Storage-Keys und der private Schlüssel der GitHub App des Agenten (geändert 2026-10-30 (Cornelius); war: ein PAT). Der Foundation-Stack wird lokal mit Contributor ausgerollt; GitHub Actions brauchen keine Azure-Identität.
+- Zugänge laufen über Schlüssel statt Rollen: Admin-Kubeconfig, ACR-Admin-User, Datenbankpasswort, Storage-Keys und der private Schlüssel der GitHub App des Agenten (geändert 2026-10-30 (Cornelius); war: ein PAT). Der Foundation-Stack wird lokal mit Contributor ausgerollt; GitHub Actions brauchen keine Azure-Identität. Einzige Ausnahme: eine schreibgeschützte Azure-Identität für den Workspace-Pod des Agenten, die der Stack nur auf Wunsch anlegt (Schalter `agentWorkspaceIdentity`, Standard aus) und die Rollenzuweisungen braucht (geändert 31.10.2026; war: keine Rollenzuweisungen und keine Azure-Identität für den Agenten).
 - Ein versionierter Ausgabevertrag verbindet die Infrastruktur mit App-Stacks, Workflows und Agentenkonfiguration.
 - Alle Azure-Ressourcen liegen im Foundation-Stack, auch die aus dem Katalog erzeugten Verfügbarkeitstests und Alarmregeln. Die Action Group `ops-intake` leitet App-Alarme an den Ereigniseingang; der Ausfall des Agenten wird per E-Mail gemeldet.
 - Secrets und Netzzugang sind für Staging bewusst einfach gehalten: Pulumi-Ausgaben und Repo-Secrets statt Key Vault, öffentliche Endpunkte mit Passwort bzw. API-Key statt privater Netze.
-- Budget-Alarm und dokumentiertes Stoppen für Staging. Bootstrap, Wiederanlauf und Foundation-Release funktionieren ohne laufenden Agenten.
+- Budget-Alarm und dokumentiertes Stoppen für Staging. Staging läuft in `westeurope` (geändert 31.10.2026; die Wahl der Region war zunächst offen, `germanywestcentral` und `swedencentral` scheiterten an PostgreSQL Flexible Server). Bootstrap, Wiederanlauf und Foundation-Release funktionieren ohne laufenden Agenten.
 
 ## Capabilities
 
@@ -30,7 +30,7 @@ Keine. Es existieren noch keine implementierten Plattform-Capabilities.
 
 Zielbereiche im Monorepo `mmkdigitalio/hackathon-platform-team` sind `platform/infra/foundation/`, `platform/infra/components/`, `platform/scripts/bootstrap/`, `platform/schemas/conventions/`, `platform/schemas/foundation-outputs/`, `platform/operations/foundation/`, `.github/actions/foundation-outputs/` und `.github/workflows/foundation-*.yml`. A integriert gemeinsame Root-Dateien.
 
-Maßgeblich sind [PRODUKT-UND-IMPLEMENTIERUNG.md](../../../PRODUKT-UND-IMPLEMENTIERUNG.md), insbesondere Abschnitte 3 bis 5, 9 und 12 bis 14, und die Hackathon-Entscheidungen in der [gemeinsamen Arbeitsaufteilung](../../PARALLEL-IMPLEMENTATION.md). Abweichend vom Produktdokument laufen Bootstrap und Wiederherstellung lokal statt aus GitHub Actions, und der Agent erhält keinen Azure-Lesezugriff.
+Maßgeblich sind [PRODUKT-UND-IMPLEMENTIERUNG.md](../../../PRODUKT-UND-IMPLEMENTIERUNG.md), insbesondere Abschnitte 3 bis 5, 9 und 12 bis 14, und die Hackathon-Entscheidungen in der [gemeinsamen Arbeitsaufteilung](../../PARALLEL-IMPLEMENTATION.md). Abweichend vom Produktdokument laufen Bootstrap und Wiederherstellung lokal statt aus GitHub Actions, und der Agent erhält standardmäßig keinen Azure-Lesezugriff; nur der optionale Schalter `agentWorkspaceIdentity` legt eine Leseidentität für seinen Workspace-Pod an, siehe Entscheidung D14 in [decisions.md](../../../platform/operations/foundation/decisions.md) (geändert 31.10.2026; war: der Agent erhält keinen Azure-Lesezugriff).
 
 ### Out of scope und Lieferungen anderer Stränge
 

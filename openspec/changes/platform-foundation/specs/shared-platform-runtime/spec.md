@@ -86,6 +86,8 @@ Der Ausgabevertrag SHALL aus den Stack-Ausgaben von `organization/foundation/sta
 | `alertWebhookKey`, `maintenanceApiKey`, `githubWebhookSecret` | Schutz der Eingänge | ja |
 | `modelApiKeys`, `githubAppPrivateKey`, `opsGithubToken` | Modell- und GitHub-Zugang des Agenten: privater Schlüssel (PEM) der GitHub App; `opsGithubToken` ist ein optionaler PAT als Rückfall und leer, wenn kein PAT hinterlegt ist (geändert 2026-10-30 (Erik); war: PAT als einziger GitHub-Zugang; additive Ergänzung, `contractVersion` bleibt 1) | ja |
 
+Weitere Ausgaben, die das Schema ebenfalls beschreibt, sind additiv und lassen `contractVersion` bei 1 (ergänzt 31.10.2026; die Tabelle nannte sie nicht): `ingressClassName` (`traefik`), `clusterIssuerName` (`letsencrypt`), `publicScheme` (`https` oder `http` im HTTP-Fallback) und die optionale Ausgabe `platformVersions`. Die Ausgabe `agentWorkspaceAzure` (`clientId`, `tenantId`, `subscriptionId` der Leseidentität des Agent-Workspace) gehört nicht zum Vertrag: Sie steht nicht im Schema, erscheint nur bei eingeschaltetem `agentWorkspaceIdentity` und wird über den Sollzustand der App weitergegeben, nicht über die Composite Action.
+
 #### Scenario: Neue Ausgabe ergänzen
 - **WHEN** der Foundation-Stack eine zusätzliche Ausgabe erhält
 - **THEN** bleibt `contractVersion` gleich und bestehende Verbraucher laufen unverändert weiter

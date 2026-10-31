@@ -10,12 +10,13 @@ Die Plattform benötigt einen selbst gehosteten Betriebsagenten, der echte Syste
 - Ein lokaler Prototyp mit gepinnten Paketversionen verwendet ein echtes Tool-Calling-Modell und ein typisiertes Diagnosewerkzeug. Anbieter (Azure OpenAI oder Anthropic) und Modell sind konfigurierbar; Keys kommen aus der Foundation-Ausgabe `modelApiKeys`.
 - Die Agentenausführung konsumiert C's Auftrags-, Zustands-, Sperr- und Checkpoint-Verträge sowie B's Katalog und das AFFiNE-Runbook.
 - Typisierte Kubernetes-, HTTP-, GitHub-, Kontext- und Verifikationswerkzeuge führen begrenzte Maßnahmen aus und gleichen unklare externe Ergebnisse ab.
-- Zugänge ohne Azure-Identität (E6, E7): Kubernetes über den ServiceAccount `operations-agent` mit ClusterRoleBinding aus dem Agenten-Chart, GitHub über die GitHub App `hackathonplatformagent` (Installations-Token), der PAT aus `opsGithubToken` nur als Rückfall. Agentenkommentare tragen die Markierung `<!-- mmk-ops-agent -->`. Keine Workload Identity.
-- **Abweichung von P1-07:** Der Agent liest keine Azure-Ressourcen, Messwerte oder Log-Analytics-Daten, weil nur Contributor ohne Rollenzuweisungen vorhanden ist (E3, E6). „Monitor abfragen“ wird ersetzt durch Auswertung der Alarm-Payload, Kubernetes-Zustand, Events und Logs sowie eigene HTTP-Prüfungen.
+- Zugänge ohne Azure-Identität (E6, E7): Kubernetes über den ServiceAccount `operations-agent` mit ClusterRoleBinding aus dem Agenten-Chart, GitHub über die GitHub App `hackathonplatformagent` (Installations-Token), der PAT aus `opsGithubToken` nur als Rückfall. Agentenkommentare tragen die Markierung `<!-- mmk-ops-agent -->`. Keine Workload Identity für API, Worker und typisierte Werkzeuge. (geändert 31.10.2026; war: „Keine Workload Identity.“ Ausnahme: nur der Workspace-Pod bekommt eine lesende Azure-Identität, siehe unten und [agent-workspace](specs/agent-workspace/spec.md).)
+- **Abweichung von P1-07:** Der Agent liest keine Azure-Ressourcen, Messwerte oder Log-Analytics-Daten, weil nur Contributor ohne Rollenzuweisungen vorhanden ist (E3, E6). „Monitor abfragen“ wird ersetzt durch Auswertung der Alarm-Payload, Kubernetes-Zustand, Events und Logs sowie eigene HTTP-Prüfungen. (geändert 31.10.2026: Die Abweichung gilt für die typisierten Werkzeuge und für Läufe ohne Workspace-Azure-Identität. Die Shell im Workspace-Pod liest Azure lesend über die Managed Identity `id-mmk-ops-workspace-staging` (Reader, Log Analytics Reader), die per az CLI angelegt wurde; die Übernahme in die Foundation per Pulumi steht aus. Entscheidung D14 der Foundation.)
 - Bekannte Reparatur: Ist das AFFiNE-Deployment auf 0 Replicas skaliert, stellt der Agent den Sollzustand per Dispatch von `app-deploy.yml` (Eingaben `operationId` und `actionId`) wieder her und verfolgt den Lauf. Ein Smoke-Test als Kubernetes-Job und der aktuelle Kubernetes-Zustand belegen den Erfolg. Der Neustart bleibt allgemeines Werkzeug.
 - Nicht reparierbarer Fall: Ein ungültiger AFFiNE-Konfigurationswert im Sollzustand führt zu `needs_attention` mit Verweis auf den letzten Sollzustands-Commit.
 - Der Agent kann Repository-Änderungen vorschlagen: klonen, ändern, auf `agent/<operationId>` pushen, Pull Request öffnen. Er merged nie, pusht nie auf Standard-Branches und ändert keine Workflows (Änderung vom 30.10.2026). Workflows startet er nur aus einer vorgegebenen Liste.
-- Codebasierte Grenzen mit konfigurierbaren Startwerten: 10 Minuten Laufzeit, 30 Tool-Aufrufe, 2 Reparaturversuche und etwa 1 USD Modellkosten pro Lauf.
+- Codebasierte Grenzen mit konfigurierbaren Startwerten: 10 Minuten Laufzeit, 30 Tool-Aufrufe, 2 Reparaturversuche und etwa 1 USD Modellkosten pro Lauf. (geändert 31.10.2026: Das sind die Code-Standardwerte. Das Chart setzt für Staging seit 30.10.2026 1800 s, 150 Tool-Aufrufe und 5 USD; Reparaturversuche bleiben 2.)
+- Der Agent arbeitet in einem Workspace-Pod je Operation (Toolbox-Image mit git, gh, kubectl, helm, az, Python und Node) mit Shell- und Dateiwerkzeugen: lesen breit, ändern nur über die protokollierten Werkzeuge (geändert 31.10.2026; ergänzt am 30.10.2026, Capability `agent-workspace`).
 - Ein Image und ein Helm-Chart starten C's API und Worker als getrennte Deployments; ein Helm-Hook-Job führt C's Migrations-CLI aus.
 - Der Build-Workflow pusht das Image mit dem ACR-Admin-User und ruft B's wiederverwendbaren Workflow `app-update-desired-state.yml` auf.
 
@@ -25,6 +26,7 @@ Die Plattform benötigt einen selbst gehosteten Betriebsagenten, der echte Syste
 
 - `agent-execution`: Konfigurierbare Deep-Agent-Ausführung mit Kontext, Grenzen, Wiederaufnahme, verifizierten Ergebnissen und Agentenpaket.
 - `operational-tools`: Typisierte Integrationen, nachvollziehbare Maßnahmen und Abgleich externer Ausführungen.
+- `agent-workspace`: Workspace-Pod je Operation mit Shell, Toolbox und lesenden Zugängen (geändert 31.10.2026; fehlte in dieser Liste).
 
 ### Modified Capabilities
 
@@ -40,6 +42,7 @@ Monorepo `mmkdigitalio/hackathon-platform-team` (E1). Zielbereiche von D:
 | `operations-agent/src/tools/` | Kubernetes-, HTTP-, GitHub-, Kontext- und Verifikationsadapter |
 | `operations-agent/deploy/` | Helm-Chart für API, Worker, Migrations-Hook und RBAC |
 | `operations-agent/Dockerfile`, Paketmanifest und Lockdatei unter `operations-agent/` | Gemeinsames Image |
+| `operations-agent/toolbox/` | Toolbox-Image des Workspace-Pods (geändert 31.10.2026) |
 | `.github/workflows/agent-*.yml` | Prüfung, Image-Build und Übergabe an den Sollzustand |
 | `platform/operations/agent/` | Agenten-Betriebsregeln |
 | D's Unterverzeichnis in `operations-agent/tests/` | Agenten- und Adaptertests |
@@ -57,4 +60,4 @@ Grundlage sind [PRODUKT-UND-IMPLEMENTIERUNG.md](../../../PRODUKT-UND-IMPLEMENTIE
 | [C: Ereignisse und Zustand](../operations-intake-and-state/proposal.md) | Verträge, API, Worker, Zustandsmaschine, Migrations-CLI, Checkpoint-Zugang, Aktionsprotokoll, Operations-Sperre, Heartbeat und Schleifenschutz | D implementiert den aufrufbaren Agenten und liefert strukturierte Ergebnisse. D schreibt keine zweite Queue und keine eigenen Zustands- oder Sperrtabellen. |
 | AFFiNE-Kollege (`hackathon-platform-affine`) | AFFiNE-Chart und -Werte, Smoke-Test-Image, Runbook | D führt den Smoke-Test aus und liest das Runbook. |
 
-Nicht Teil des Changes: Mergen von Pull Requests, Pushes auf Standard-Branches, automatische Codekorrekturen, Azure-Diagnose durch den Agenten, Workload Identity, mehrere spezialisierte Agents, eine Chatoberfläche, Managed Deep Agents und unbeaufsichtigte irreversible Datenoperationen.
+Nicht Teil des Changes: Mergen von Pull Requests, Pushes auf Standard-Branches, automatische Codekorrekturen ohne Pull Request und menschlichen Merge, typisierte Azure-Diagnosewerkzeuge, Workload Identity für API, Worker und typisierte Werkzeuge (geändert 31.10.2026; war: „automatische Codekorrekturen, Azure-Diagnose durch den Agenten, Workload Identity“; Pull Requests und lesender Azure-Zugriff über die Workspace-Shell sind seit 30.10.2026 vorgesehen), mehrere spezialisierte Agents, eine Chatoberfläche, Managed Deep Agents und unbeaufsichtigte irreversible Datenoperationen.

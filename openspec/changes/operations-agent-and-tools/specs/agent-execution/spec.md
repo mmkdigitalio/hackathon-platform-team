@@ -39,7 +39,7 @@ Der Agent SHALL Katalog, Sollzustand, tatsächlichen Release, Runbook und frühe
 - **AND** bleibt die Eingabe als Kontextdaten nachvollziehbar
 
 ### Requirement: Diagnose ohne Azure-Zugriff
-Der Agent SHALL in Phase 1 ausschließlich aus Alarm-Payload, Kubernetes-Zustand, Events, Logs, eigenen HTTP-Prüfungen und versioniertem Repository-Kontext diagnostizieren. Er SHALL keinen Zugriff auf Azure Resource Manager, Azure-Messwerte oder Log Analytics benötigen.
+Der Agent SHALL in Phase 1 ausschließlich aus Alarm-Payload, Kubernetes-Zustand, Events, Logs, eigenen HTTP-Prüfungen und versioniertem Repository-Kontext diagnostizieren. Er SHALL dafür keinen Azure-Zugriff benötigen. (geändert 31.10.2026: Mit Workspace-Azure-Identität zusätzlich lesend über die Shell, siehe agent-workspace; ohne sie bleibt die Diagnose vollständig.)
 
 #### Scenario: Agent ohne Azure-Anmeldung
 - **WHEN** der Agent im Cluster ohne Azure-Identität und ohne Azure-Zugangsdaten läuft
@@ -55,7 +55,7 @@ Der Agent SHALL im Katalog erlaubte Maßnahmen ohne zusätzliche menschliche Rou
 - **AND** benötigt er keine manuelle Bestätigung
 
 ### Requirement: Konfigurierbare Laufgrenzen
-Code um die Agentenausführung SHALL je Lauf Laufzeit, Tool-Aufrufe, Reparaturversuche und Modellkosten begrenzen. Startwerte SHALL 10 Minuten, 30 Tool-Aufrufe, 2 Reparaturversuche und etwa 1 USD sein und ohne Codeänderung anpassbar bleiben. Ein Reparaturversuch SHALL eine ändernde Maßnahme mit anschließender Verifikation sein.
+Code um die Agentenausführung SHALL je Lauf Laufzeit, Tool-Aufrufe, Reparaturversuche und Modellkosten begrenzen. Startwerte SHALL 10 Minuten, 30 Tool-Aufrufe, 2 Reparaturversuche und etwa 1 USD sein und ohne Codeänderung anpassbar bleiben. (geändert 31.10.2026: Das sind die Code-Standardwerte; für Staging setzt das Chart 1800 s, 150 Tool-Aufrufe und 5 USD, siehe agent-workspace.) Ein Reparaturversuch SHALL eine ändernde Maßnahme mit anschließender Verifikation sein.
 
 #### Scenario: Grenze erreicht
 - **WHEN** eine Grenze erreicht ist und keine bestätigte Lösung vorliegt
@@ -135,7 +135,7 @@ Der Chart SHALL Konfiguration und Secrets aus genau einem Kubernetes-Secret lese
 - **AND** enthalten Chart und Werte-Dateien keine Secret-Werte
 
 ### Requirement: Image-Build ohne Azure-Identität
-Ein Workflow unter `.github/workflows/agent-*.yml` SHALL das Image mit dem ACR-Admin-User aus der Composite Action `foundation-outputs` nach ACR pushen und den Chart veröffentlichen. Danach SHALL er den wiederverwendbaren Workflow `app-update-desired-state.yml` für `platform/environments/staging/operations-agent.yaml` aufrufen.
+Ein Workflow unter `.github/workflows/agent-*.yml` SHALL das Image mit dem ACR-Admin-User aus der Composite Action `foundation-outputs` nach ACR pushen und den Chart veröffentlichen. Er SHALL außerdem das Toolbox-Image pushen und dessen Digest in die Chart-Werte schreiben (geändert 31.10.2026). Danach SHALL er den wiederverwendbaren Workflow `app-update-desired-state.yml` für `platform/environments/staging/operations-agent.yaml` aufrufen.
 
 #### Scenario: Merge auf main
 - **WHEN** eine Änderung unter `operations-agent/` auf `main` landet und die Prüfungen bestehen

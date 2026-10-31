@@ -4,7 +4,7 @@
 
 Motivation und Umfang stehen im [Proposal](proposal.md), Verhalten in [agent-execution](specs/agent-execution/spec.md) und [operational-tools](specs/operational-tools/spec.md). Deep Agents und LangGraph werden selbst gehostet; konkrete Bibliotheksintegration und Modellzugang werden im echten Prototyp geprüft. Die [gemeinsame Übersicht](../../PARALLEL-IMPLEMENTATION.md) definiert Übergaben, Verträge und die Hackathon-Entscheidungen E1 bis E10, die vor dem Produktdokument gelten.
 
-Rahmenbedingungen: ein Monorepo (E1), AFFiNE als einzige Fach-App (E2), nur Contributor ohne Rollenzuweisungen (E3), Zugänge über Schlüssel, ServiceAccount und GitHub App (E6; E7 durch Entscheidung vom 30.10.2026 ersetzt, PAT nur noch Rückfall).
+Rahmenbedingungen: ein Monorepo (E1), AFFiNE als einzige Fach-App (E2), nur Contributor ohne Rollenzuweisungen (E3), Zugänge über Schlüssel, ServiceAccount und GitHub App (E6; E7 durch Entscheidung vom 30.10.2026 ersetzt, PAT nur noch Rückfall). Für den Workspace-Pod gilt E6 seit 30.10.2026 nicht mehr uneingeschränkt: eine lesende Azure-Identität ist vorgesehen (geändert 31.10.2026, Entscheidung 13, Foundation D14).
 
 ## Goals / Non-Goals
 
@@ -19,7 +19,7 @@ Non-Goals:
 
 - Keine zusätzliche Auftragsverwaltung, kein autonomer Datenbankabschluss und keine Sperrlogik im Prompt.
 - Keine Foundation-Bereitstellung, App-Pipeline oder frei ausführbare Infrastruktur-Shell als zweiter Rolloutpfad.
-- Kein Zugriff auf Azure Resource Manager, Azure-Messwerte oder Log Analytics.
+- Keine typisierten Werkzeuge für Azure Resource Manager, Azure-Messwerte oder Log Analytics; Azure-Lesezugriff nur über die Shell im Workspace (geändert 31.10.2026; war: „Kein Zugriff auf Azure Resource Manager, Azure-Messwerte oder Log Analytics.“).
 - Keine Merges, keine Pushes auf Standard-Branches und keine Workflow-Änderungen durch den Agenten.
 - A, B und C liefern die im Proposal bezeichneten Infrastruktur-, App- und Zustandsdienste.
 
@@ -50,12 +50,15 @@ D integriert das SDK mit C's Checkpoint-Zugang. D besitzt Framework-Konfiguratio
 | Modell | API-Key | Foundation-Ausgabe `modelApiKeys` |
 | PostgreSQL | Admin-Login mit Passwort | Foundation-Ausgaben über C's Client |
 | Diagnose-Storage | Storage-Key | Foundation-Ausgabe `diagnosticsStorageKey` |
+| Workspace-Shell: Kubernetes | ServiceAccount `operations-agent-workspace`, clusterweit nur lesend ohne Secrets, ohne `pods/exec` (geändert 31.10.2026) | Agenten-Chart (`workspace-rbac.yaml`) |
+| Workspace-Shell: Azure | User-Assigned Managed Identity `id-mmk-ops-workspace-staging` mit Federated Credential auf den Workspace-ServiceAccount, Reader und Log Analytics Reader (geändert 31.10.2026) | Foundation (D14); in Staging per az CLI angelegt, Pulumi-Übernahme offen |
+| Workspace-Shell: GitHub | Installations-Token mit reinen Leserechten; im PAT-Rückfall nicht einschränkbar (geändert 31.10.2026) | GitHub App |
 
-Die ClusterRole erlaubt Lesen von Deployments, ReplicaSets, Pods, Pod-Logs, Events und Jobs, `patch` auf Deployments für den Neustart sowie Anlegen und Löschen von Jobs für Smoke-Tests. Weil die Bindung clusterweit gilt, beschränken die Adapter Ziele im Code auf Namespaces `<app-id>-<env>` aus dem Katalog.
+Die ClusterRole erlaubt Lesen von Deployments, ReplicaSets, Pods, Pod-Logs, Events und Jobs, `patch` auf Deployments für den Neustart sowie Anlegen und Löschen von Jobs für Smoke-Tests. Weil die Bindung clusterweit gilt, beschränken die Adapter Ziele im Code auf Namespaces `<app-id>-<env>` aus dem Katalog. (geändert 31.10.2026: Im Workspace-Modus erhält der ServiceAccount `operations-agent` zusätzlich eine Role im Release-Namespace für `pods` (anlegen, lesen, löschen) und `pods/exec`.)
 
 Kommentare, Commits und Pull Requests erscheinen unter `hackathonplatformagent[bot]`; nur im PAT-Rückfall unter dem Teammitglied, dem der PAT gehört. Jeder Agentenkommentar und jeder Pull Request enthält `<!-- mmk-ops-agent -->`, damit C's Schleifenschutz ihn unabhängig vom Autor ignoriert. Die App hat `contents`, `pull_requests`, `issues` und `actions` mit Schreibrecht, aber kein `workflows`-Recht.
 
-**Abweichung von P1-07 und Produktdokument:** P1-07 verlangt „Monitor abfragen“. Ohne Rollenzuweisungen bekommt der Agent keinen Lesezugriff auf Azure Resource Manager, Messwerte oder Log Analytics (E6). Phase 1 ersetzt diese Quelle durch die Alarm-Payload im Auftrag (Common Alert Schema mit Regel, Zeitpunkt und Testergebnis), Kubernetes-Zustand, Events und Logs sowie eigene HTTP-Prüfungen. Container-Logs in Log Analytics bleiben Menschen vorbehalten.
+**Abweichung von P1-07 und Produktdokument:** P1-07 verlangt „Monitor abfragen“. Ohne Rollenzuweisungen bekommt der Agent keinen Lesezugriff auf Azure Resource Manager, Messwerte oder Log Analytics (E6). Phase 1 ersetzt diese Quelle durch die Alarm-Payload im Auftrag (Common Alert Schema mit Regel, Zeitpunkt und Testergebnis), Kubernetes-Zustand, Events und Logs sowie eigene HTTP-Prüfungen. Container-Logs in Log Analytics bleiben Menschen vorbehalten. (geändert 31.10.2026: Diese Abweichung gilt für die typisierten Werkzeuge und für Läufe ohne Workspace-Azure-Identität. Die Workspace-Shell liest Azure und Log Analytics über die lesende Managed Identity, siehe Entscheidung 13. Die Abweichung bleibt in `abweichung-p1-07.md` dokumentiert; das Review mit A steht aus.)
 
 ### 5. Typisierte Adapter mit überprüften Grenzen
 
@@ -78,7 +81,7 @@ Grenzen liegen in ausführbarem Code um Agenten- und Werkzeugausführung. Startw
 | Reparaturversuche | 2 | Ein Fehlschlag darf einmal korrigiert werden |
 | Modellkosten | etwa 1 USD | Anthropic-Budget ca. 400 USD/Monat laut README |
 
-Ein Reparaturversuch ist eine ändernde Maßnahme mit anschließender Verifikation. Wird eine Grenze erreicht, endet der Lauf mit `needs_attention` und den bisherigen Befunden.
+Für Staging setzt das Chart seit 30.10.2026 1800 Sekunden, 150 Tool-Aufrufe und 5 USD; die Tabelle nennt die Code-Standardwerte (geändert 31.10.2026). Ein Reparaturversuch ist eine ändernde Maßnahme mit anschließender Verifikation. Wird eine Grenze erreicht, endet der Lauf mit `needs_attention` und den bisherigen Befunden.
 
 Tickettext, Logs und Alarm-Payload sind Daten. Betriebsregeln stammen aus `platform/operations/agent/` und dem versionierten Katalog. Ein gespeicherter Runbook-Verbesserungsvorschlag enthält Herkunft und wird nicht automatisch zu einer bestätigten Regel.
 
@@ -126,13 +129,22 @@ Der Chart enthält:
 - Deployment `api` und Deployment `worker` aus demselben Image mit unterschiedlichem Startbefehl, Service für die API.
 - Helm-Hook-Job (`pre-install,pre-upgrade`), der C's Migrations-CLI ausführt. API und Worker prüfen beim Start nur die Schema-Version und werden ohne passende Version nicht bereit.
 - ServiceAccount `operations-agent`, ClusterRole und ClusterRoleBinding.
+- Nur im Modus `workspace.mode: kubernetes` (geändert 31.10.2026): ServiceAccount `operations-agent-workspace` mit lesender ClusterRole und ClusterRoleBinding sowie Role und RoleBinding für Pod-Verwaltung des Agenten-ServiceAccounts im Release-Namespace.
 - Werte für Image-Referenz mit Digest, Name des Image-Pull-Secrets, Name des Kubernetes-Secrets mit Konfiguration und Secrets, Modellkonfiguration und Grenzen.
 
 Der Chart legt keine Secrets und keine Ingress-Regel an. Beides liefert B's App-Stack aus den Foundation-Ausgaben; das Secret muss vor dem Hook-Job existieren.
 
 ### 12. Image-Build ohne Azure-Identität
 
-`.github/workflows/agent-build.yml` prüft Änderungen unter `operations-agent/`. Auf `main` liest er über `.github/actions/foundation-outputs` ACR-Login-Server und Admin-User, baut und pusht das Image mit Git-SHA als Tag, ermittelt den Digest und veröffentlicht den Chart als OCI-Artefakt in derselben Registry. Danach ruft er B's wiederverwendbaren Workflow `app-update-desired-state.yml` auf, der `platform/environments/staging/operations-agent.yaml` mit Digest und Chart-Version aktualisiert. Den Rollout übernimmt `app-deploy.yml`. Bei einem Agenten-Update kann der bisherige Worker enden, während GitHub Actions den Release und der neue Worker später die Beobachtung fortsetzen.
+`.github/workflows/agent-build.yml` prüft Änderungen unter `operations-agent/`. Auf `main` liest er über `.github/actions/foundation-outputs` ACR-Login-Server und Admin-User, baut und pusht das Image mit Git-SHA als Tag, ermittelt den Digest und veröffentlicht den Chart als OCI-Artefakt in derselben Registry. Zusätzlich baut er das Toolbox-Image, pusht es mit Git-SHA als Tag und schreibt dessen Digest vor dem Veröffentlichen in die Werte des Charts (geändert 31.10.2026). Danach ruft er B's wiederverwendbaren Workflow `app-update-desired-state.yml` auf, der `platform/environments/staging/operations-agent.yaml` mit Digest und Chart-Version aktualisiert. Den Rollout übernimmt `app-deploy.yml`. Bei einem Agenten-Update kann der bisherige Worker enden, während GitHub Actions den Release und der neue Worker später die Beobachtung fortsetzen.
+
+### 13. Workspace-Pod mit Shell (ergänzt 30.10.2026, dokumentiert 31.10.2026)
+
+Für Coding- und Ops-Arbeit startet der Worker bei Bedarf je Operation einen Pod `ops-ws-<operationId>` im Release-Namespace (`tools/workspace.py`, `KubernetesWorkspace`; lokal `LocalWorkspace`). Er verwendet das Toolbox-Image mit festem Digest (`operations-agent/toolbox/`), läuft ohne Root und ohne Capabilities, hat ein begrenztes `/workspace` und endet über `activeDeadlineSeconds` nach der TTL. Der Worker führt Befehle über `pods/exec` aus; Zeit- und Ausgabegrenzen sowie die Bereinigung bekannter Secrets liegen im Worker. Die SDK-Werkzeuge `execute`, `ls`, `read_file`, `write_file`, `edit_file`, `glob` und `grep` wirken auf diesen Pod; `git_repo.py` arbeitet über `WorkspaceShell` in derselben Arbeitskopie.
+
+Lesen breit, ändern eng: Die Shell nutzt den ServiceAccount `operations-agent-workspace` (clusterweit lesend, keine Secrets, kein `pods/exec`) und ein lesendes GitHub-Installations-Token (`read_only_token`), das als Datei im Pod vor jedem Befehl erneuert wird. Den schreibenden Token bekommt nur der einzelne Push-Aufruf. Azure liest die Shell über die Managed Identity `id-mmk-ops-workspace-staging`; mangels AKS-Workload-Identity-Webhook legt der Worker das projizierte ServiceAccount-Token (Audience `api://AzureADTokenExchange`) selbst in den Pod, `az-login` meldet sich damit an. Fehlt die Client-ID, beendet sich `az-login` mit Code 2 und der Agent diagnostiziert wie nach Entscheidung 4. Ändernde Maßnahmen bleiben an die typisierten Werkzeuge mit Aktionsdatensatz und Sperre gebunden.
+
+Stand der Prüfung am 31.10.2026: Chart 0.1.23 mit Workspace-RBAC ist in Staging, die Berechtigungen sind per `kubectl auth can-i` verifiziert. Ein Workspace-Pod lief dort noch nicht; Pod-Betrieb und echter Modelllauf sind nur im lokalen kind-Cluster belegt (siehe `tasks.md`, Abschnitt 9).
 
 ## Risks / Trade-offs
 
@@ -144,6 +156,7 @@ Der Chart legt keine Secrets und keine Ingress-Regel an. Beides liefert B's App-
 - Ein Deploy-Workflow kann länger als die Laufzeitgrenze dauern. Dann endet der Lauf mit `needs_attention` und Laufreferenz; der Startwert wird nach dem ersten gemessenen Lauf angepasst.
 - Helm-Hooks laufen nur, wenn B den Chart als Helm-Release ausrollt und nicht nur rendert.
 - Externe Dienste liefern nach Timeout keinen eindeutigen Status. Stabile Korrelation und Adapterabgleich reduzieren die Unsicherheit; verbleibende Fälle bleiben offen.
+- Die Shell im Workspace vergrößert die Angriffsfläche. Begrenzung: Der Workspace-ServiceAccount liest nur (ohne Secrets), die Azure-Identität hat nur Leserollen, das GitHub-Token der Shell ist lesend; ändernde Aufrufe laufen nur über protokollierte Werkzeuge. Im PAT-Rückfall lässt sich das GitHub-Token nicht einschränken (geändert 31.10.2026).
 - Diagnosekontext wächst oder enthält irreführende Anweisungen. Begrenzte Ausschnitte, Herkunftsreferenzen, getrennte Betriebsregeln und codegeprüfte Aktionen begrenzen den Einfluss.
 
 ## Migration Plan
@@ -156,4 +169,4 @@ Der Chart legt keine Secrets und keine Ingress-Regel an. Beides liefert B's App-
 
 ## Open Questions
 
-- Standardanbieter und Modell werden beim Prototyp anhand der verfügbaren Keys gewählt und in `platform/operations/agent/` dokumentiert.
+- Standardanbieter und Modell werden beim Prototyp anhand der verfügbaren Keys gewählt und in `platform/operations/agent/` dokumentiert. (Beantwortet 30.10.2026, vermerkt 31.10.2026: Azure OpenAI, Deployment `gpt-6.1-terra`, siehe `platform/operations/agent/README.md`.)

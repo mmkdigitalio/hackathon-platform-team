@@ -413,7 +413,7 @@ Read-only Azure access for the operations agent's workspace pod: user-assigned i
 on `log-mmk-platform-<env>`. The AKS workload identity webhook stays off; the agent
 projects the service account token itself (`operations-agent/src/tools/workspace.py`).
 Config switch `agentWorkspaceIdentity` (default `false`); it needs Owner or User Access
-Administrator for the role assignments, unlike the Contributor-only rule E3 ([D12](decisions.md#d12-read-only-azure-identity-for-the-agent-workspace)).
+Administrator for the role assignments, unlike the Contributor-only rule E3 ([D14](decisions.md#d14-read-only-azure-identity-for-the-agent-workspace)).
 The output `agentWorkspaceAzure` (outside the contract) carries `clientId`, `tenantId`
 and `subscriptionId` for `values.workspace.azure` in
 `platform/environments/<env>/operations-agent.yaml`.
