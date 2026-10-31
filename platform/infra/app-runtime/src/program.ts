@@ -141,6 +141,7 @@ export function appStack(opts: AppStackOptions) {
     operationsDatabase: out("postgresOperationsDatabase"),
     storageClass: opts.storageClass,
     volumeSize: app.desired.sizes.volumeSize,
+    databaseSize: app.desired.sizes.databaseSize,
   });
 
   const appSecrets: Record<string, pulumi.Output<string>> = { ...blocks.secrets };

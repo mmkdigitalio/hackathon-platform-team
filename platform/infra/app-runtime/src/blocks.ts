@@ -7,6 +7,12 @@ import type { DataBlockName } from "../../../schemas/app-catalog/src/catalog";
 /** Redis ohne Persistenz; Version per Digest fixiert. */
 export const REDIS_IMAGE = "redis:7.4-alpine@sha256:8da19c7399dca900c6822a1cf30f9d2285585e2c4b457ff4095b0f4500054d3f";
 
+// Multi-Arch-Index und Patch-Version laut offizieller Docker-Library, geprüft am 31.10.2026:
+// https://github.com/docker-library/repo-info/blob/master/repos/mariadb/remote/11.4.md
+export const MARIADB_VERSION = "11.4.13";
+export const MARIADB_IMAGE_DIGEST = "sha256:d1891ede5a559f1086f55053bb8cc1569b0298338c4d72d71725a7f74f6ba620";
+export const MARIADB_IMAGE = `mariadb:11.4@${MARIADB_IMAGE_DIGEST}`;
+
 export interface BlockContext {
   appId: string;
   namespace: pulumi.Input<string>;
@@ -18,6 +24,7 @@ export interface BlockContext {
   operationsDatabase: pulumi.Output<string>;
   storageClass: string;
   volumeSize?: string;
+  databaseSize?: string;
 }
 
 export interface BlockResult {
@@ -126,6 +133,72 @@ function redis(ctx: BlockContext): BlockResult {
   };
 }
 
+function mariadb(ctx: BlockContext): BlockResult {
+  const name = `${ctx.appId}-mariadb`;
+  const database = ctx.appId.replace(/-/g, "_");
+  const labels = { ...ctx.labels, "app.kubernetes.io/name": "mariadb", "app.kubernetes.io/instance": name };
+  const opts = { provider: ctx.k8s };
+  // Kimais Entrypoint zerlegt DATABASE_URL an :/@; Passwörter bleiben alphanumerisch.
+  const password = new random.RandomPassword(`${name}-password`, { length: 32, special: false });
+  const rootPassword = new random.RandomPassword(`${name}-root-password`, { length: 32, special: false });
+  const secret = new kubernetes.core.v1.Secret(name, {
+    metadata: { name, namespace: ctx.namespace, labels },
+    stringData: { password: password.result, "root-password": rootPassword.result },
+  }, opts);
+  const claimName = `${name}-data`;
+  const claim = new kubernetes.core.v1.PersistentVolumeClaim(claimName, {
+    metadata: { name: claimName, namespace: ctx.namespace, labels, annotations: { "pulumi.com/skipAwait": "true" } },
+    spec: {
+      accessModes: ["ReadWriteOnce"], storageClassName: ctx.storageClass,
+      resources: { requests: { storage: ctx.databaseSize ?? "5Gi" } },
+    },
+  }, { ...opts, protect: true });
+  const probe = { exec: { command: ["healthcheck.sh", "--connect", "--innodb_initialized"] }, timeoutSeconds: 5 };
+  const deployment = new kubernetes.apps.v1.Deployment(name, {
+    metadata: { name, namespace: ctx.namespace, labels },
+    spec: {
+      replicas: 1, strategy: { type: "Recreate" },
+      selector: { matchLabels: { "app.kubernetes.io/instance": name } },
+      template: {
+        metadata: { labels },
+        spec: {
+          containers: [{
+            name: "mariadb", image: MARIADB_IMAGE,
+            env: [
+              { name: "MARIADB_DATABASE", value: database },
+              { name: "MARIADB_USER", value: database },
+              { name: "MARIADB_PASSWORD", valueFrom: { secretKeyRef: { name, key: "password" } } },
+              { name: "MARIADB_ROOT_PASSWORD", valueFrom: { secretKeyRef: { name, key: "root-password" } } },
+            ],
+            ports: [{ name: "mariadb", containerPort: 3306 }],
+            readinessProbe: { ...probe, periodSeconds: 5 },
+            livenessProbe: { ...probe, periodSeconds: 10 },
+            // Die erste Initialisierung darf länger dauern als ein normaler Neustart.
+            startupProbe: { ...probe, periodSeconds: 5, failureThreshold: 60 },
+            resources: { requests: { cpu: "50m", memory: "256Mi" }, limits: { memory: "512Mi" } },
+            volumeMounts: [{ name: "data", mountPath: "/var/lib/mysql" }],
+          }],
+          volumes: [{ name: "data", persistentVolumeClaim: { claimName } }],
+        },
+      },
+    },
+  }, { ...opts, dependsOn: [secret, claim] });
+  const service = new kubernetes.core.v1.Service(name, {
+    metadata: { name, namespace: ctx.namespace, labels },
+    spec: { selector: { "app.kubernetes.io/instance": name }, ports: [{ name: "mariadb", port: 3306, targetPort: 3306 }] },
+  }, opts);
+  const host = pulumi.interpolate`${service.metadata.name}.${ctx.namespace}.svc.cluster.local`;
+  return {
+    secrets: {
+      "mariadb-host": host, "mariadb-port": pulumi.output("3306"),
+      "mariadb-database": pulumi.output(database), "mariadb-user": pulumi.output(database),
+      "mariadb-password": pulumi.secret(password.result),
+      "mariadb-url": pulumi.secret(pulumi.interpolate`mysql://${database}:${password.result}@${host}:3306/${database}?charset=utf8mb4&serverVersion=${MARIADB_VERSION}-MariaDB`),
+    },
+    resources: [secret, claim, deployment, service],
+  };
+}
+
 function persistentVolume(ctx: BlockContext): BlockResult {
   if (!ctx.volumeSize) throw new Error("persistent-volume ohne sizes.volumeSize");
   const name = `${ctx.appId}-data`;
@@ -153,6 +226,7 @@ function persistentVolume(ctx: BlockContext): BlockResult {
 const IMPLEMENTATIONS: Record<DataBlockName, (ctx: BlockContext) => BlockResult> = {
   "postgres-database": postgresDatabase,
   redis,
+  mariadb,
   "persistent-volume": persistentVolume,
 };
 

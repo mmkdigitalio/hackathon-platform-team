@@ -21,8 +21,9 @@ const USAGE = `Verwendung: app-catalog <befehl> [optionen]
   validate [--tree <dir>] [--conventions <f>] [--foundation-outputs <f>] [--json]
       Prüft alle Katalogeinträge und Sollzustände (Standard: platform/).
   new-app --app-id <id> --description <text> (--image <ref@sha256:digest> | --acr-image <repo@sha256:digest>) --port <port>
-      [--source-repository <owner/name>] [--health-path /] [--data-blocks postgres-database,redis,persistent-volume]
+      [--source-repository <owner/name>] [--health-path /] [--data-blocks postgres-database,mariadb,redis,persistent-volume]
       [--volume-size 5Gi] [--mount-path /data] [--env KEY=VALUE] [--runbook-commit <sha>]
+      [--generated-secret ENV_NAME] [--root-start] [--memory-limit 512Mi] [--cpu-request 50m]
       [--environment staging] [--dry-run]
       Erzeugt Katalogeintrag und Sollzustand für staging; bestehende Dateien bleiben erhalten.
   show --app <id> --env <env>
@@ -68,6 +69,10 @@ function main(argv: string[]): number {
       port: { type: "string" },
       "health-path": { type: "string" },
       "data-blocks": { type: "string" },
+      "generated-secret": { type: "string", multiple: true },
+      "root-start": { type: "boolean" },
+      "memory-limit": { type: "string" },
+      "cpu-request": { type: "string" },
       "volume-size": { type: "string" },
       "mount-path": { type: "string" },
       "runbook-commit": { type: "string" },
@@ -113,6 +118,10 @@ function main(argv: string[]): number {
         port: need("port"),
         healthPath: values["health-path"],
         dataBlocks: values["data-blocks"],
+        generatedSecrets: values["generated-secret"],
+        rootStart: values["root-start"],
+        memoryLimit: values["memory-limit"],
+        cpuRequest: values["cpu-request"],
         volumeSize: values["volume-size"],
         mountPath: values["mount-path"],
         env: values.env as string[] | undefined,

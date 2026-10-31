@@ -1,0 +1,28 @@
+schemaVersion: "0.1"
+# Beispiel-Digest für kimai/kimai2:apache; vor Aufnahme den echten Digest ermitteln.
+image: docker.io/kimai/kimai2@sha256:0000000000000000000000000000000000000000000000000000000000000000
+chart:
+  version: 0.1.0
+sizes:
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 512Mi }
+    limits: { memory: 1Gi }
+  # MariaDB verwendet separat 5Gi; databaseSize wird noch nicht im Schemavertrag geführt.
+  volumeSize: 5Gi
+values:
+  container:
+    port: 8001
+    env:
+      APP_ENV: prod
+      ADMINMAIL: admin@example.com
+      # Beispiel-Domain vor Aufnahme ersetzen; Pod-IP erlaubt HTTP-Proben des Kubelets.
+      TRUSTED_HOSTS: '^(kimai\.example\.com|localhost|127\.0\.0\.1|[0-9.]+)$'
+  probes:
+    path: /en/login
+  persistence:
+    mountPath: /opt/kimai/var/data
+  # Apache/PHP-Images starten als root und wechseln den Benutzer selbst.
+  securityContext:
+    runAsNonRoot: false
+    relaxed: true

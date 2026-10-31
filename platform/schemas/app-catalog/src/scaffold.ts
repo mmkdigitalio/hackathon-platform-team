@@ -3,7 +3,10 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 import { Document, isNode, parse as parseYaml } from "yaml";
-import { formatIssues, loadContracts, validateTree, type Contracts } from "./catalog";
+import {
+  DATA_BLOCK_ENV, formatIssues, generatedSecretName, loadContracts, loadDataBlocks, reservedBlockSecret,
+  resourceQuantity, validateTree, type Contracts, type DataBlockName,
+} from "./catalog";
 
 export interface ScaffoldOptions {
   appId: string;
@@ -17,6 +20,10 @@ export interface ScaffoldOptions {
   volumeSize?: string;
   mountPath?: string;
   env?: string[];
+  generatedSecrets?: string[];
+  rootStart?: boolean;
+  memoryLimit?: string;
+  cpuRequest?: string;
   runbookCommit?: string;
   environment?: string;
   dryRun?: boolean;
@@ -27,7 +34,7 @@ const PLATFORM_REPOSITORY = "mmkdigitalio/hackathon-platform-team";
 function yaml(data: object, comments: Record<string, string>): string {
   const doc = new Document(data);
   for (const [key, comment] of Object.entries(comments)) {
-    const node = doc.get(key, true);
+    const node = doc.getIn(key.split("."), true);
     if (isNode(node)) node.commentBefore = ` ${comment}`;
   }
   return doc.toString();
@@ -55,12 +62,38 @@ export function scaffoldNewApp(repoRoot: string, options: ScaffoldOptions, contr
   if (options.sourceRepository !== undefined && !/^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(options.sourceRepository)) {
     throw new Error("--source-repository muss owner/name sein");
   }
-  const blocks = options.dataBlocks ? options.dataBlocks.split(",").map((block) => block.trim()) : [];
-  if (blocks.some((block) => !["postgres-database", "redis", "persistent-volume"].includes(block)) || new Set(blocks).size !== blocks.length) {
-    throw new Error("--data-blocks erlaubt postgres-database,redis,persistent-volume jeweils einmal");
+  const blockSpecs = loadDataBlocks(repoRoot);
+  const selected = options.dataBlocks ? options.dataBlocks.split(",").map((block) => block.trim()) : [];
+  if (selected.some((block) => !Object.hasOwn(blockSpecs, block)) || new Set(selected).size !== selected.length) {
+    throw new Error("--data-blocks erlaubt postgres-database,mariadb,redis,persistent-volume jeweils einmal");
   }
+  const blocks = selected as DataBlockName[];
   const volume = blocks.includes("persistent-volume");
   const postgres = blocks.includes("postgres-database");
+  const maria = blocks.includes("mariadb");
+  if (postgres && maria) throw new Error("nur eine SQL-Datenbank pro App: postgres-database oder mariadb");
+  const secrets: Record<string, string> = Object.assign({}, ...blocks.map((block) => DATA_BLOCK_ENV[block]));
+  const generatedSecrets: string[] = [];
+  for (const key of options.generatedSecrets ?? []) {
+    if (!/^[A-Z][A-Z0-9_]*$/.test(key)) throw new Error("--generated-secret erwartet einen gültigen Env-Namen wie APP_SECRET");
+    const name = generatedSecretName(key);
+    if (name.length > 63) throw new Error("--generated-secret darf höchstens 63 Zeichen haben");
+    if (generatedSecrets.includes(name)) throw new Error(`--generated-secret ${key} ist doppelt`);
+    if (reservedBlockSecret(name, blocks, blockSpecs)) throw new Error(`--generated-secret ${key} kollidiert mit einem Datenbaustein`);
+    generatedSecrets.push(name);
+    secrets[key] = `app:${name}`;
+  }
+  const memoryLimit = options.memoryLimit ?? "512Mi";
+  const cpuRequest = options.cpuRequest ?? "50m";
+  const quantity = (flag: string, value: string) => {
+    try { return resourceQuantity(value); } catch { throw new Error(`${flag} erwartet eine positive Kubernetes-Quantity, z. B. 512Mi, 1Gi, 100m oder 0.5`); }
+  };
+  const limit = quantity("--memory-limit", memoryLimit);
+  quantity("--cpu-request", cpuRequest);
+  const request = Math.min(limit / 2, 512 * 1024 ** 2);
+  const memoryRequest = limit > 512 * 1024 ** 2
+    ? (Number.isInteger(request / 1024 ** 2) ? `${request / 1024 ** 2}Mi` : String(Math.ceil(request)))
+    : "128Mi";
   if (!volume && (options.volumeSize !== undefined || options.mountPath !== undefined)) {
     throw new Error("--volume-size und --mount-path brauchen den Datenbaustein persistent-volume");
   }
@@ -75,8 +108,7 @@ export function scaffoldNewApp(repoRoot: string, options: ScaffoldOptions, contr
     if (separator < 1) throw new Error("--env erwartet KEY=VALUE mit einem gültigen Variablennamen");
     if (/PASSWORD|SECRET|TOKEN|KEY/i.test(key)) throw new Error(`--env ${key} sieht wie ein Secret aus; stattdessen Data-Blocks nutzen`);
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) throw new Error("--env erwartet KEY=VALUE mit einem gültigen Variablennamen");
-    if ((postgres && ["DATABASE_URL", "PGHOST", "PGDATABASE", "PGUSER"].includes(key)) ||
-        (blocks.includes("redis") && key === "REDIS_HOST")) throw new Error(`--env ${key} wird bereits vom Data-Block gesetzt`);
+    if (Object.hasOwn(secrets, key)) throw new Error(`--env ${key} wird bereits vom Data-Block oder --generated-secret gesetzt`);
     env[key] = entry.slice(separator + 1);
   }
   const files = [
@@ -98,21 +130,17 @@ export function scaffoldNewApp(repoRoot: string, options: ScaffoldOptions, contr
   }
   const commit = options.runbookCommit ?? execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim();
   if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error("--runbook-commit muss ein vollständiger Commit-SHA mit 40 Hex-Zeichen sein");
-  const secrets: Record<string, string> = {};
-  if (postgres) Object.assign(secrets, {
-    DATABASE_URL: "app:postgres-url", PGHOST: "app:postgres-host", PGDATABASE: "app:postgres-database",
-    PGUSER: "app:postgres-user", PGPASSWORD: "app:postgres-password",
-  });
-  if (blocks.includes("redis")) Object.assign(secrets, { REDIS_HOST: "app:redis-host", REDIS_PASSWORD: "app:redis-password" });
   const backup = [
     ...(postgres ? ["Datenbank über Foundation-PostgreSQL (PITR, 7 Tage)"] : []),
+    ...(maria ? ["MariaDB auf In-Cluster-Volume ohne Backup (Staging-Risiko)"] : []),
     ...(volume ? ["Volumes ohne Backup (Staging-Risiko)"] : []),
   ].join("; ") || "not-applicable";
   files[0].content = yaml({
     schemaVersion: "0.1", appId, description: options.description,
     source: { repository: options.sourceRepository ?? PLATFORM_REPOSITORY },
     chart: { platform: { name: "web-app" } },
-    ingress: { service: appId, port: 80 }, dataBlocks: blocks, secrets,
+    ingress: { service: appId, port: 80 }, dataBlocks: blocks,
+    ...(generatedSecrets.length ? { generatedSecrets } : {}), secrets,
     availability: { path: healthPath }, smokeTest: { image: smokeImage, env: { CHECK_PATH: healthPath } },
     runbook: { repository: PLATFORM_REPOSITORY, path: "platform/operations/apps/standard-runbook.md", commit },
     allowedActions: ["restart", "redeploy"],
@@ -121,15 +149,23 @@ export function scaffoldNewApp(repoRoot: string, options: ScaffoldOptions, contr
     source: options.sourceRepository ? "Quell-Repository für spätere Releases." : "Kein Quell-Repository angegeben; das Plattform-Repository verwaltet diesen Eintrag.",
     chart: "Standard-Chart aus dem Plattform-Repository.",
     ingress: "Der Service nutzt Port 80; der Container-Port steht im Sollzustand.",
-    secrets: "Nur Referenzen; die Plattform stellt die Werte aus den Datenbausteinen bereit.",
+    secrets: "Nur Referenzen; die Plattform stellt Datenbaustein-Werte und generierte Secrets bereit.",
     smokeTest: "Prüft die Erreichbarkeit; einen fachlichen Smoke-Test als nächsten Schritt ergänzen.",
     dataProcedures: "Vor dem ersten Release prüfen; Staging-Volumes haben keine Sicherung.",
   });
   files[1].content = yaml({
     schemaVersion: "0.1", image, chart: { version: chartVersion },
-    sizes: { replicas: 1, resources: { requests: { cpu: "50m", memory: "128Mi" }, limits: { memory: "512Mi" } }, ...(volume ? { volumeSize } : {}) },
-    values: { container: { port: Number(options.port), env }, probes: { path: healthPath }, ...(volume ? { persistence: { mountPath } } : {}) },
-  }, { sizes: "Kleine Anfragen für Staging, Speicherlimit für Lastspitzen.", values: "Container-Port und nicht geheime Konfiguration des Standard-Charts." });
+    sizes: { replicas: 1, resources: { requests: { cpu: cpuRequest, memory: memoryRequest }, limits: { memory: memoryLimit } }, ...(volume ? { volumeSize } : {}) },
+    values: {
+      container: { port: Number(options.port), env }, probes: { path: healthPath },
+      ...(volume ? { persistence: { mountPath } } : {}),
+      ...(options.rootStart ? { securityContext: { relaxed: true } } : {}),
+    },
+  }, {
+    sizes: "Kleine Anfragen für Staging, Speicherlimit für Lastspitzen.",
+    values: "Container-Port und nicht geheime Konfiguration des Standard-Charts.",
+    ...(options.rootStart ? { "values.securityContext": "Apache/PHP-Images starten als root und wechseln den Benutzer selbst; runAsNonRoot bleibt false." } : {}),
+  });
 
   // Ein eigener Baum prüft nur diese App und erhält dieselben Verträge wie validate.
   const validate = (written: boolean) => {

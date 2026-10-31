@@ -72,7 +72,7 @@ describe("Gerüst für neue Apps", () => {
     assert.match(app.dataProcedures.backup, /Foundation-PostgreSQL.*PITR, 7 Tage.*Volumes ohne Backup \(Staging-Risiko\)/);
   });
 
-  for (const block of ["postgres-database", "redis", "persistent-volume"]) {
+  for (const block of ["postgres-database", "mariadb", "redis", "persistent-volume"]) {
     it(`erzeugt auch den einzelnen Datenbaustein ${block}`, () => {
       generate({ dataBlocks: block, ...(block === "persistent-volume" ? { volumeSize: "8Gi", mountPath: "/var/lib/app" } : {}) });
       assert.deepEqual(read(catalog()).dataBlocks, [block]);
@@ -83,6 +83,69 @@ describe("Gerüst für neue Apps", () => {
         assert.equal(read(desired()).sizes.volumeSize, undefined);
         assert.equal(read(desired()).values.persistence, undefined);
       }
+    });
+  }
+
+  it("verknüpft MariaDB und generierte Secrets ohne Klartextwerte", () => {
+    generate({ dataBlocks: "mariadb", generatedSecrets: ["APP_SECRET", "ADMINPASS"] });
+    const app = read(catalog());
+    assert.deepEqual(app.generatedSecrets, ["app-secret", "adminpass"]);
+    assert.deepEqual(app.secrets, {
+      DATABASE_URL: "app:mariadb-url", DB_HOST: "app:mariadb-host", DB_PORT: "app:mariadb-port",
+      DB_NAME: "app:mariadb-database", DB_USER: "app:mariadb-user", DB_PASSWORD: "app:mariadb-password",
+      APP_SECRET: "app:app-secret", ADMINPASS: "app:adminpass",
+    });
+    assert.match(app.dataProcedures.backup, /MariaDB.*ohne Backup.*Staging-Risiko/);
+    assert.equal(read(desired()).sizes.volumeSize, undefined);
+  });
+
+  it("erlaubt Datenbank-Variablennamen ohne gewählten Datenbaustein", () => {
+    generate({ generatedSecrets: ["DATABASE_URL", "DB_HOST"] });
+    assert.deepEqual(read(catalog()).generatedSecrets, ["database-url", "db-host"]);
+  });
+
+  it("erzeugt Root-Start mit Begründung und übernimmt runAsNonRoot=false aus dem Chart", () => {
+    generate({ rootStart: true });
+    assert.deepEqual(read(desired()).values.securityContext, { relaxed: true });
+    assert.match(fs.readFileSync(desired(), "utf8"), /Apache\/PHP-Images starten als root.*runAsNonRoot bleibt false/);
+    assert.equal(read(path.join(root, "platform/charts/web-app/values.yaml")).securityContext.runAsNonRoot, false);
+  });
+
+  for (const [limit, request] of [["512Mi", "128Mi"], ["768Mi", "384Mi"], ["1Gi", "512Mi"], ["2Gi", "512Mi"],
+    ["1G", "500000000"], ["2e9", "512Mi"], ["0.5", "128Mi"], ["2", "128Mi"], ["100m", "128Mi"]]) {
+    it(`setzt das Speicherlimit ${limit} mit Anfrage ${request}`, () => {
+      generate({ memoryLimit: limit, cpuRequest: "100m" });
+      assert.deepEqual(read(desired()).sizes.resources, { requests: { cpu: "100m", memory: request }, limits: { memory: limit } });
+    });
+  }
+
+  for (const cpuRequest of ["0.5", "2"]) {
+    it(`akzeptiert CPU-Quantity ${cpuRequest}`, () => {
+      generate({ cpuRequest });
+      assert.equal(read(desired()).sizes.resources.requests.cpu, cpuRequest);
+    });
+  }
+
+  const secretInvalid: [string, Partial<ScaffoldOptions>][] = [
+    ["Duplikat", { generatedSecrets: ["APP_SECRET", "APP_SECRET"] }],
+    ["Kleinbuchstaben", { generatedSecrets: ["app_secret"] }],
+    ["Bindestrich", { generatedSecrets: ["APP-SECRET"] }],
+    ["Ziffer am Anfang", { generatedSecrets: ["1TOKEN"] }],
+    ["leerer Name", { generatedSecrets: [""] }],
+    ["zu langer Name", { generatedSecrets: ["A".repeat(64)] }],
+    ["SQL-URL", { dataBlocks: "mariadb", generatedSecrets: ["DATABASE_URL"] }],
+    ["DB-Variable", { dataBlocks: "mariadb", generatedSecrets: ["DB_CUSTOM"] }],
+    ["MariaDB-Schlüssel", { dataBlocks: "mariadb", generatedSecrets: ["MARIADB_PASSWORD"] }],
+    ["Postgres-Variable", { dataBlocks: "postgres-database", generatedSecrets: ["PGHOST"] }],
+    ["Postgres-Schlüssel", { dataBlocks: "postgres-database", generatedSecrets: ["POSTGRES_URL"] }],
+    ["Redis-Schlüssel", { dataBlocks: "redis", generatedSecrets: ["REDIS_PASSWORD"] }],
+    ["env-Kollision", { generatedSecrets: ["CUSTOM_VALUE"], env: ["CUSTOM_VALUE=kein-secret"] }],
+  ];
+  for (const [name, options] of secretInvalid) {
+    it(`lehnt generierte Secrets mit ${name} vor dem Schreiben ab`, () => {
+      assert.throws(() => generate(options), /--generated-secret|kollidiert|bereits/);
+      assert.equal(fs.existsSync(catalog()), false);
+      assert.equal(fs.existsSync(desired()), false);
     });
   }
 
@@ -137,6 +200,11 @@ describe("Gerüst für neue Apps", () => {
     ["falsche Umgebung", { environment: "production" }, /nur --environment staging/],
     ["unbekannter Datenbaustein", { dataBlocks: "mysql" }, /--data-blocks erlaubt/],
     ["doppelter Datenbaustein", { dataBlocks: "redis,redis" }, /jeweils einmal/],
+    ["zwei SQL-Datenbanken", { dataBlocks: "postgres-database,mariadb" }, /nur eine SQL-Datenbank/],
+    ["MariaDB-env-Kollision", { dataBlocks: "mariadb", env: ["DB_HOST=anders"] }, /bereits vom Data-Block/],
+    ...["1GB", "512mi", "NaN", "0", "-1Gi", "1 Gi", "1e999"].map((memoryLimit): [string, Partial<ScaffoldOptions>, RegExp] =>
+      [`Speicherlimit ${memoryLimit}`, { memoryLimit }, /--memory-limit.*Kubernetes-Quantity/]),
+    ["ungültige CPU", { cpuRequest: "hundert" }, /--cpu-request.*Kubernetes-Quantity/],
     ["Volume-Option ohne Volume", { volumeSize: "8Gi" }, /brauchen den Datenbaustein/],
     ["ungültiger Port", { port: "65536" }, /--port muss/],
     ["ungültiger Prüfpfad", { healthPath: "health" }, /--health-path muss/],
@@ -175,6 +243,16 @@ describe("Gerüst für neue Apps", () => {
     assert.ok(fs.existsSync(desired()));
     assert.match(result.stdout, /Nächste Schritte:.*Pull Request.*app-plan/);
     assert.equal(runCli(cliArgs).status, 1);
+  });
+
+  it("CLI übergibt alle neuen Optionen einschließlich wiederholbarer Secrets", () => {
+    const result = runCli([...cliArgs, "--data-blocks", "mariadb", "--generated-secret", "APP_SECRET",
+      "--generated-secret", "ADMINPASS", "--root-start", "--memory-limit", "1Gi", "--cpu-request", "100m"]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(read(catalog()).generatedSecrets, ["app-secret", "adminpass"]);
+    assert.equal(read(catalog()).secrets.DATABASE_URL, "app:mariadb-url");
+    assert.deepEqual(read(desired()).values.securityContext, { relaxed: true });
+    assert.deepEqual(read(desired()).sizes.resources, { requests: { cpu: "100m", memory: "512Mi" }, limits: { memory: "1Gi" } });
   });
 
   it("CLI meldet ungültige Optionen auf Deutsch und gibt Secret-Werte nicht aus", () => {

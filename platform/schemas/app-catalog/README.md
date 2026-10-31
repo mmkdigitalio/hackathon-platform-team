@@ -10,7 +10,7 @@ Vertrag zwischen App-Lieferungen und dem App-Pfad. Strang B besitzt Schema, Vali
 | [`v0.1/smoke-test-output.schema.json`](v0.1/smoke-test-output.schema.json) | Ausgabe eines Smoke-Test-Images |
 | [`v0.1/verification-result.schema.json`](v0.1/verification-result.schema.json) | Verifikationsergebnis (Deploy-Workflow und D's Verifikationswerkzeug) |
 | [`v0.1/deployment-result.schema.json`](v0.1/deployment-result.schema.json) | Ergebnis eines `app-deploy.yml`-Laufs |
-| [`examples/`](examples/) | Gültige Bäume (AFFiNE-artig, `operations-agent`, `whoami`), ungültige Fälle mit erwarteter Meldung, Beispielergebnisse |
+| [`examples/`](examples/) | Gültige Bäume (AFFiNE-artig, `operations-agent`, `whoami`, `kimai`), ungültige Fälle mit erwarteter Meldung, Beispielergebnisse |
 
 ## Zwei Dateien je App
 
@@ -23,7 +23,7 @@ Vertrag zwischen App-Lieferungen und dem App-Pfad. Strang B besitzt Schema, Vali
 | `source.repository`, `source.upstream` | Herkunft (`owner/name`) |
 | `chart` | genau eine Quelle: `acr.repository` (OCI in der Foundation-ACR), `oci.url` (`oci://…`), `repository.{url,name}` (Helm-Repository) oder `platform.name` (lokales Chart) |
 | `ingress.service`, `ingress.port` | Ziel der Ingress-Regel |
-| `dataBlocks` | Teilmenge von `postgres-database`, `redis`, `persistent-volume` |
+| `dataBlocks` | Teilmenge von `postgres-database`, `mariadb`, `redis`, `persistent-volume`; nur eine SQL-Datenbank pro App |
 | `generatedSecrets` | Namen zufälliger, stabiler Werte, referenzierbar als `app:<name>` |
 | `secrets` | `ENV_NAME: foundation:<ausgabe>` oder `app:<name>`; landet im Secret `<app-id>-platform` |
 | `availability.path` | Pfad, der ohne Anmeldung 200 liefert; A erzeugt daraus `alert-<app-id>-<env>-availability` |
@@ -47,10 +47,15 @@ Git-SHA des Commits, Image-Digest und Chart-Version bilden die Release-Referenz.
 | Baustein | Umsetzung im App-Stack | `app:`-Secrets |
 | --- | --- | --- |
 | `postgres-database` | Datenbank und Login `<app_id>` auf dem Foundation-Server, TLS, geschützt | `postgres-host`, `postgres-database`, `postgres-user`, `postgres-password`, `postgres-url` |
+| `mariadb` | Deployment `<app-id>-mariadb` mit `Recreate`, Service 3306 und geschütztem PVC `<app-id>-mariadb-data`, Standard 5Gi | `mariadb-host`, `mariadb-port`, `mariadb-database`, `mariadb-user`, `mariadb-password`, `mariadb-url` |
 | `redis` | Deployment `<app-id>-redis` mit fixiertem Image, ohne Persistenz | `redis-host`, `redis-password` |
 | `persistent-volume` | PVC `<app-id>-data`, StorageClass `managed-csi`, ReadWriteOnce, geschützt | keine |
 
-Ein neuer Baustein braucht Umsetzung in `platform/infra/app-runtime/` und eine neue Schema-Version.
+Additive Bausteine sind innerhalb v0.1 erlaubt; Umsetzung, Registrierung und Tests gehören zusammen.
+MariaDB liegt auf einem In-Cluster-Volume ohne Backup, ein Staging-Risiko.
+`sizes.databaseSize` ist optional, Standard `5Gi`, und unabhängig von `sizes.volumeSize`.
+Der TypeScript-Leser akzeptiert es bereits; die Ergänzung in `v0.1/desired-state.schema.json`
+steht noch aus. Ebenso fehlen dort die erweiterten Kubernetes-Quantity-Muster für Ressourcen.
 
 ### Secret-Referenzen
 
@@ -119,6 +124,34 @@ Beispiel: `examples/valid/catalog/whoami/app.yaml` mit passendem Sollzustand unt
 `examples/valid/environments/staging/whoami.yaml`. Image-Digest und Runbook-Commit
 sind dort ausdrücklich Platzhalter. Das gemeinsame Runbook liegt unter
 `platform/operations/apps/standard-runbook.md`.
+
+## Gerüst mit new-app
+
+`--data-blocks mariadb` setzt `DATABASE_URL`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`
+und `DB_PASSWORD` auf die entsprechenden `app:mariadb-*`-Referenzen.
+`postgres-database,mariadb` zusammen wird abgelehnt.
+
+`--generated-secret ENV_NAME` ist wiederholbar, etwa `--generated-secret APP_SECRET
+--generated-secret ADMINPASS`. Daraus werden `generatedSecrets: [app-secret, adminpass]`
+und Referenzen `APP_SECRET: app:app-secret`, `ADMINPASS: app:adminpass`.
+Erlaubt sind Namen gemäß `^[A-Z][A-Z0-9_]*$` mit höchstens 63 Zeichen.
+Duplikate, Überschneidungen mit `--env`, Baustein-Schlüsseln und deren Standardvariablen
+werden abgelehnt; bei SQL gilt das auch für `DB_*`.
+
+`--root-start` setzt `values.securityContext.relaxed: true`, weil Apache/PHP-Images
+als root starten und den Benutzer selbst wechseln. `runAsNonRoot` bleibt im Chart false.
+Das lässt die Vorgaben für Privilegieneskalation und Capabilities weg.
+
+`--memory-limit 1Gi --cpu-request 100m` überschreibt die Defaults `512Mi` und `50m`.
+Die Speicheranfrage bleibt bis einschließlich `512Mi` Limit bei `128Mi`;
+darüber gilt `min(Limit/2, 512Mi)`. Positive Kubernetes-Quantities wie `512Mi`, `1Gi`,
+`100m`, `0.5`, `2` und `1G` werden geprüft. CPU ist nur über die CLI konfigurierbar.
+
+Das Kimai-Beispiel unter `examples/valid/` nutzt MariaDB, ein separates App-Volume,
+generierte `APP_SECRET`/`ADMINPASS`, Root-Start, Port 8001 und 1Gi Speicherlimit.
+Image-Digest, Runbook-Commit, Admin-Mail und Domain vor Aufnahme ersetzen;
+der Beispiel-Digest gehört zum gewünschten Image `kimai/kimai2:apache` und ist ein Platzhalter.
+Der Login-Pfad `/en/login` ist noch nicht im Cluster geprüft.
 
 ## Smoke-Test-Vertrag
 

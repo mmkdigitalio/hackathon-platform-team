@@ -24,12 +24,12 @@ describe("betroffene Stacks", () => {
 
   it("Änderung am App-Programm betrifft im Plan alle Stacks", () => {
     const r = run("M\tplatform/infra/app-runtime/src/program.ts\n", "plan");
-    assert.equal(r.stacks.length, 3);
+    assert.deepEqual(r.stacks, ["affine", "kimai", "operations-agent", "whoami"].map((appId) => ({ appId, environment: "staging" })));
   });
 
   it("Änderung an einem Plattform-Chart betrifft im Plan nur die Apps, die es verwenden", () => {
     const r = run("M\tplatform/charts/web-app/templates/deployment.yaml\n", "plan");
-    assert.deepEqual(r.stacks, [{ appId: "whoami", environment: "staging" }]);
+    assert.deepEqual(r.stacks, [{ appId: "kimai", environment: "staging" }, { appId: "whoami", environment: "staging" }]);
     assert.deepEqual(run("M\tplatform/charts/web-app/values.yaml\n", "deploy").stacks, []);
   });
 

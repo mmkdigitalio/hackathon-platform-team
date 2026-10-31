@@ -44,6 +44,10 @@ on:
         description: PostgreSQL-Datenbank anlegen
         type: boolean
         default: false
+      mariadb:
+        description: MariaDB mit dauerhaftem Volume ohne Backup in Staging anlegen
+        type: boolean
+        default: false
       redis:
         description: Redis ohne dauerhafte Speicherung bereitstellen
         type: boolean
@@ -61,9 +65,22 @@ on:
         type: string
         default: /data
       env:
-        description: "Nicht geheime Variablen, eine Zeile je KEY=VALUE; Secrets über Datenbausteine"
+        description: "Nicht geheime Variablen, eine Zeile je KEY=VALUE"
         type: string
         required: false
+      generatedSecrets:
+        description: "Generierte Secrets, mehrzeilig: ein ENV_NAME pro Zeile, keine Werte"
+        type: string
+        default: ""
+        required: false
+      rootStart:
+        description: "Image startet als root und wechselt selbst den Benutzer, z. B. Apache/PHP-Images"
+        type: boolean
+        default: false
+      memoryLimit:
+        description: "Speicherlimit des App-Containers, z. B. 512Mi oder 1Gi"
+        type: string
+        default: 512Mi
 
 permissions:
   contents: read
@@ -212,11 +229,15 @@ jobs:
           PORT: ${{ inputs.port }}
           HEALTH_PATH: ${{ inputs.healthPath }}
           POSTGRES: ${{ inputs.postgres }}
+          MARIADB: ${{ inputs.mariadb }}
           REDIS: ${{ inputs.redis }}
           VOLUME: ${{ inputs.volume }}
           VOLUME_SIZE: ${{ inputs.volumeSize }}
           MOUNT_PATH: ${{ inputs.mountPath }}
           APP_ENV: ${{ inputs.env }}
+          GENERATED_SECRETS: ${{ inputs.generatedSecrets }}
+          ROOT_START: ${{ inputs.rootStart }}
+          MEMORY_LIMIT: ${{ inputs.memoryLimit }}
         run: |
           args=(--app-id "$APP_ID" --description "$DESCRIPTION" --port "$PORT")
           if [[ -n "$SOURCE_REPOSITORY" ]]; then
@@ -228,6 +249,7 @@ jobs:
           [[ -z "$HEALTH_PATH" ]] || args+=(--health-path "$HEALTH_PATH")
           blocks=()
           [[ "$POSTGRES" != true ]] || blocks+=(postgres-database)
+          [[ "$MARIADB" != true ]] || blocks+=(mariadb)
           [[ "$REDIS" != true ]] || blocks+=(redis)
           [[ "$VOLUME" != true ]] || blocks+=(persistent-volume)
           if [[ ${#blocks[@]} -gt 0 ]]; then
@@ -242,6 +264,12 @@ jobs:
             line="${line%$'\r'}"
             [[ -z "$line" ]] || args+=(--env "$line")
           done <<< "$APP_ENV"
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line%$'\r'}"
+            [[ -z "$line" ]] || args+=(--generated-secret "$line")
+          done <<< "$GENERATED_SECRETS"
+          [[ "$ROOT_START" != true ]] || args+=(--root-start)
+          args+=(--memory-limit "$MEMORY_LIMIT")
           npx tsx src/cli.ts new-app "${args[@]}"
       - name: Dateien validieren
         working-directory: platform/schemas/app-catalog

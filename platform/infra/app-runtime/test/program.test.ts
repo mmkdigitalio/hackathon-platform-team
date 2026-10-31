@@ -254,3 +254,39 @@ describe("App-Stack whoami mit lokalem Plattform-Chart", () => {
     assert.equal(patch.metadata.annotations["ops.mmk/release-chart-version"], "0.1.0");
   });
 });
+
+describe("App-Stack Kimai mit MariaDB und generierten Secrets", () => {
+  before(async () => {
+    foundation = FOUNDATION;
+    await run("kimai");
+  });
+
+  it("löst alle MariaDB- und generierten Referenzen im Plattform-Secret auf", () => {
+    const secret = ofType("core/v1:Secret").find((r) => r.name === "kimai-platform")!.inputs;
+    assert.equal(secret.metadata.name, "kimai-platform");
+    assert.equal(secret.metadata.namespace, "kimai-staging");
+    const data = secret.stringData;
+    assert.equal(data.DB_HOST, "kimai-mariadb.kimai-staging.svc.cluster.local");
+    assert.equal(data.DB_PORT, "3306");
+    assert.equal(data.DB_NAME, "kimai");
+    assert.equal(data.DB_USER, "kimai");
+    assert.equal(data.DB_PASSWORD, "generated-kimai-mariadb-password");
+    assert.match(data.DATABASE_URL, /^mysql:\/\/kimai:.+@kimai-mariadb\.kimai-staging\.svc\.cluster\.local:3306\/kimai\?charset=utf8mb4&serverVersion=11\.4\.13-MariaDB$/);
+    assert.equal(data.APP_SECRET, "generated-kimai-generated-app-secret");
+    assert.equal(data.ADMINPASS, "generated-kimai-generated-adminpass");
+    assert.ok(!Object.keys(data).some((key) => /root/i.test(key)));
+    const passwords = ofType("randomPassword:RandomPassword").filter((r) => /generated-/.test(r.name));
+    assert.equal(passwords.length, 2);
+    assert.ok(passwords.every((r) => r.inputs.length === 40 && r.inputs.special === false));
+    assert.equal(ofType("pulumi:providers:postgresql").length, 0);
+  });
+
+  it("hält App-Volume, Datenbank-Volume und Root-Start-Werte getrennt", () => {
+    assert.deepEqual(ofType("core/v1:PersistentVolumeClaim").map((r) => r.inputs.metadata.name).sort(), ["kimai-data", "kimai-mariadb-data"]);
+    const release = ofType("helm.sh/v3:Release")[0].inputs.values;
+    assert.equal(release.platform.persistentVolumeClaim, "kimai-data");
+    assert.equal(release.container.port, 8001);
+    assert.deepEqual(release.securityContext, { runAsNonRoot: false, relaxed: true });
+    assert.deepEqual(release.platform.resources, { requests: { cpu: "100m", memory: "512Mi" }, limits: { memory: "1Gi" } });
+  });
+});

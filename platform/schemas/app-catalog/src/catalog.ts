@@ -61,11 +61,50 @@ export interface DesiredState {
     replicas: number;
     resources?: Record<string, Record<string, string>>;
     volumeSize?: string;
+    databaseSize?: string;
   };
   values?: Record<string, unknown>;
 }
 
-export type DataBlockName = "postgres-database" | "redis" | "persistent-volume";
+export type DataBlockName = "postgres-database" | "mariadb" | "redis" | "persistent-volume";
+
+/** Standardvariablen des Gerüsts; zugleich reserviert für generierte Secrets. */
+export const DATA_BLOCK_ENV: Record<DataBlockName, Record<string, string>> = {
+  "postgres-database": {
+    DATABASE_URL: "app:postgres-url", PGHOST: "app:postgres-host", PGDATABASE: "app:postgres-database",
+    PGUSER: "app:postgres-user", PGPASSWORD: "app:postgres-password",
+  },
+  mariadb: {
+    DATABASE_URL: "app:mariadb-url", DB_HOST: "app:mariadb-host", DB_PORT: "app:mariadb-port",
+    DB_NAME: "app:mariadb-database", DB_USER: "app:mariadb-user", DB_PASSWORD: "app:mariadb-password",
+  },
+  redis: { REDIS_HOST: "app:redis-host", REDIS_PASSWORD: "app:redis-password" },
+  "persistent-volume": {},
+};
+
+export const QUANTITY_PATTERN = "^\\+?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:[eE][+-]?[0-9]+|[numkMGTPE]|[KMGTPE]i)?$";
+
+/** Positive Kubernetes-Quantity als Zahl für Größenvergleich und Speicheranfrage. */
+export function resourceQuantity(value: string): number {
+  if (typeof value !== "string" || !new RegExp(QUANTITY_PATTERN).test(value)) throw new Error("ungültige Kubernetes-Quantity");
+  const [, number, suffix] = /^(\+?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+))(.*)$/.exec(value)!;
+  const factors: Record<string, number> = { "": 1, n: 1e-9, u: 1e-6, m: 1e-3, k: 1e3, M: 1e6, G: 1e9, T: 1e12, P: 1e15, E: 1e18 };
+  const factor = suffix.endsWith("i") ? 1024 ** ("KMGTPE".indexOf(suffix[0]) + 1)
+    : /^[eE][+-]?[0-9]+$/.test(suffix) ? 10 ** Number(suffix.slice(1)) : factors[suffix];
+  const result = Number(number) * factor;
+  if (!Number.isFinite(result) || result <= 0) throw new Error("Kubernetes-Quantity muss positiv und endlich sein");
+  return result;
+}
+
+export function generatedSecretName(env: string): string {
+  return env.toLowerCase().replace(/_/g, "-");
+}
+
+export function reservedBlockSecret(name: string, selected: DataBlockName[], blocks: Record<DataBlockName, DataBlockSpec>): boolean {
+  return selected.some((block) => blocks[block]?.secrets.includes(name) ||
+    Object.keys(DATA_BLOCK_ENV[block] ?? {}).some((key) => generatedSecretName(key) === name)) ||
+    (selected.some((block) => block === "postgres-database" || block === "mariadb") && name.startsWith("db-"));
+}
 
 export interface DataBlockSpec {
   secrets: string[];
@@ -162,9 +201,18 @@ function validators(repoRoot: string): Validators {
   const dir = schemaDir(repoRoot);
   const appSchema = readJson<object>(path.join(dir, "app.schema.json"));
   ajv.addSchema(appSchema);
+  // Die Schemadatei ist hier noch enger. Additive Lesekompatibilität, bis der Vertrag nachgezogen ist.
+  const desiredSchema = readJson<{
+    properties: { sizes: { properties: Record<string, unknown> } };
+    $defs: { resourceList: { properties: Record<string, unknown> } };
+  }>(path.join(dir, "desired-state.schema.json"));
+  desiredSchema.properties.sizes.properties.databaseSize = { type: "string", pattern: "^[1-9][0-9]*(Mi|Gi)$" };
+  for (const name of ["cpu", "memory"]) {
+    desiredSchema.$defs.resourceList.properties[name] = { type: "string", pattern: QUANTITY_PATTERN };
+  }
   const result = {
     app: ajv.getSchema((appSchema as { $id: string }).$id)!,
-    desired: ajv.compile(readJson<object>(path.join(dir, "desired-state.schema.json"))),
+    desired: ajv.compile(desiredSchema),
   };
   validatorCache.set(repoRoot, result);
   return result;
@@ -271,14 +319,20 @@ export function validateCatalogEntry(
   }
 
   const blocks = loadDataBlocks(repoRoot);
+  if (entry.dataBlocks?.includes("postgres-database") && entry.dataBlocks.includes("mariadb")) {
+    errors.push({ file, path: "/dataBlocks", message: "nur eine SQL-Datenbank pro App: postgres-database oder mariadb" });
+  }
   const provided = new Map<string, string>();
   for (const block of entry.dataBlocks ?? []) {
     for (const s of blocks[block]?.secrets ?? []) provided.set(s, `Datenbaustein ${block}`);
   }
   for (const [i, name] of (entry.generatedSecrets ?? []).entries()) {
+    if (typeof name !== "string") continue; // Formfehler meldet das Schema.
     const owner = provided.get(name);
     if (owner) errors.push({ file, path: `/generatedSecrets/${i}`, message: `'${name}' kollidiert mit ${owner}` });
-    else provided.set(name, "generatedSecrets");
+    else if (reservedBlockSecret(name, entry.dataBlocks ?? [], blocks)) {
+      errors.push({ file, path: `/generatedSecrets/${i}`, message: `'${name}' kollidiert mit reservierten Datenbaustein-Variablen` });
+    } else provided.set(name, "generatedSecrets");
   }
 
   const checkRefs = (map: Record<string, string> | undefined, base: string) => {
@@ -305,6 +359,14 @@ export function validateCatalogEntry(
   };
   checkRefs(entry.secrets, "/secrets");
   checkRefs(entry.smokeTest?.secrets, "/smokeTest/secrets");
+  for (const [base, map] of [["/secrets", entry.secrets], ["/smokeTest/secrets", entry.smokeTest?.secrets]] as const) {
+    for (const [key, ref] of Object.entries(map ?? {})) {
+      if (entry.generatedSecrets?.some((name) => ref === `app:${name}`) &&
+          reservedBlockSecret(generatedSecretName(key), entry.dataBlocks ?? [], blocks)) {
+        errors.push({ file, path: `${base}/${key}`, message: `Schlüssel ${key} kollidiert mit Datenbaustein-Variablen` });
+      }
+    }
+  }
   // App- und Test-Secrets landen im selben Secret <app-id>-platform
   for (const [key, ref] of Object.entries(entry.smokeTest?.secrets ?? {})) {
     const appRef = entry.secrets?.[key];
@@ -331,6 +393,13 @@ export function validateDesiredState(
   const v = validators(repoRoot).desired;
   if (!v(doc)) errors.push(...(v.errors ?? []).map((e) => formatAjvError(file, e)));
   const desired = doc as DesiredState;
+  for (const [kind, resources] of Object.entries(desired.sizes?.resources ?? {})) {
+    for (const [name, quantity] of Object.entries(resources ?? {})) {
+      try { resourceQuantity(quantity); } catch {
+        errors.push({ file, path: `/sizes/resources/${kind}/${name}`, message: "positive Kubernetes-Quantity erwartet" });
+      }
+    }
+  }
   if (typeof entry?.chart?.platform?.name === "string") {
     const name = entry.chart.platform.name;
     const version = platformChartVersion(name, repoRoot, file, "/chart/version", errors);

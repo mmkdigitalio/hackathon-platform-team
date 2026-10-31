@@ -13,6 +13,31 @@ Ein Pulumi-Programm (TypeScript) für alle App-Stacks `organization/app-<app-id>
 
 Jeder Lauf übergibt die `operationId` als Chart-Wert `rolloutMarker`. Dadurch führt Helm bei jedem Lauf ein Upgrade mit Drei-Wege-Merge aus und setzt manuelle Abweichungen wie eine geänderte Replica-Zahl auf den Sollzustand zurück.
 
+## Datenbausteine
+
+| Baustein | Ressourcen | `app:`-Secrets |
+| --- | --- | --- |
+| `postgres-database` | Datenbank und Login auf Foundation-PostgreSQL, geschützt | `postgres-host`, `postgres-database`, `postgres-user`, `postgres-password`, `postgres-url` |
+| `mariadb` | Deployment `<app-id>-mariadb`, Strategie `Recreate`, Service auf 3306, geschütztes PVC `<app-id>-mariadb-data` | `mariadb-host`, `mariadb-port`, `mariadb-database`, `mariadb-user`, `mariadb-password`, `mariadb-url` |
+| `redis` | Deployment und Service `<app-id>-redis`, ohne Persistenz | `redis-host`, `redis-password` |
+| `persistent-volume` | Geschütztes PVC `<app-id>-data` für das App-Chart | keine |
+
+Pro App ist nur eine SQL-Datenbank erlaubt. MariaDB nutzt die konfigurierte StorageClass
+und `sizes.databaseSize`, standardmäßig `5Gi`. Das App-Volume bleibt davon unabhängig.
+In-Cluster-Volume ohne Backup = Staging-Risiko; für MariaDB gibt es keine automatische Sicherung.
+
+`src/blocks.ts` führt `MARIADB_IMAGE`, `MARIADB_IMAGE_DIGEST` und `MARIADB_VERSION`.
+MariaDB `11.4.13` ist per Multi-Arch-Index gepinnt, geprüft am 31.10.2026 anhand der
+[offiziellen Docker-Library-Metadaten](https://github.com/docker-library/repo-info/blob/master/repos/mariadb/remote/11.4.md).
+`docker buildx imagetools inspect mariadb:11.4` scheiterte lokal an DNS; ein Clusterlauf steht aus.
+Die URL lautet `mysql://<user>:<password>@<host>:3306/<db>?charset=utf8mb4&serverVersion=11.4.13-MariaDB`.
+DB-Name und Benutzer entsprechen der App-ID mit `_` statt `-`. Beide Passwörter sind
+alphanumerisch; das Root-Passwort bleibt im internen Secret `<app-id>-mariadb`.
+
+Der TypeScript-Leser akzeptiert `sizes.databaseSize` additiv und Ressourcen als positive
+Kubernetes-Quantities. Im unveränderten Vertrag `v0.1/desired-state.schema.json` fehlen
+noch `sizes.databaseSize` und die erweiterten Quantity-Muster für CPU und Speicher.
+
 ## Projekt je App
 
 Pulumi leitet den Projektnamen aus `Pulumi.yaml` ab. [`scripts/pulumi-stack.sh`](scripts/pulumi-stack.sh) erzeugt deshalb je App `.work/app-<app-id>/Pulumi.yaml` mit `main: ../../` und wählt den Stack `organization/app-<app-id>/<env>`. Das Programm liest App-ID und Umgebung aus Projekt- und Stack-Namen.
@@ -31,7 +56,7 @@ Konfiguration (`APP_RUNTIME_CONFIG_<key>=<wert>` an das Skript oder `pulumi conf
 | `gitSha`, `operationId` | `local`, `local-<zeit>` | Release-Referenz, Rollout-Markierung (`APP_RUNTIME_GIT_SHA`, `APP_RUNTIME_OPERATION_ID`) |
 | `foundationStack` | `organization/foundation/<env>` | Stack-Referenz |
 | `expectedContractVersion` | `1` | erwartete `contractVersion` der Foundation-Ausgaben |
-| `storageClass` | `managed-csi` | StorageClass für `persistent-volume` |
+| `storageClass` | `managed-csi` | StorageClass für `persistent-volume` und `mariadb` |
 | `ingressClassName`, `clusterIssuer`, `publicScheme` | Foundation-Ausgaben `ingressClassName`, `clusterIssuerName`, `publicScheme` | nur lokal übersteuern; `publicScheme: http` ist der HTTP-Fallback (E8) ohne Zertifikat |
 | `postgresSslMode` | `require` | lokal `disable` |
 | `postgresAdminHost`, `postgresAdminPort` | – | nur lokal: Adresse für den PostgreSQL-Provider, wenn Pods den Server unter `postgresHost` erreichen, Pulumi aber nicht |

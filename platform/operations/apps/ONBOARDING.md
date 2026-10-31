@@ -31,10 +31,26 @@ Diese Anleitung bringt deine App in etwa einer Stunde auf die MMK-Plattform, auc
 | Baustein im Formular | Umgebungsvariablen |
 | --- | --- |
 | PostgreSQL | `DATABASE_URL` (`postgresql://…?sslmode=require`), `PGHOST`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` |
+| MariaDB | `DATABASE_URL` (`mysql://…?charset=utf8mb4&serverVersion=11.4.13-MariaDB`), `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`; eigenes 5Gi-Volume ohne Backup in Staging |
 | Redis | `REDIS_HOST`, `REDIS_PASSWORD` (Port 6379, ohne Persistenz) |
 | Volume | ein beschreibbares Verzeichnis am angegebenen Pfad (Standard `/data`) |
 
 Eigene, nicht geheime Werte (z. B. `LOG_LEVEL=info`) trägst du im Formular ein.
+
+Im Feld `generatedSecrets` steht ein Env-Name pro Zeile, etwa `APP_SECRET` und
+`ADMINPASS`, ohne Werte. Die Plattform erzeugt stabile Zufallswerte und gibt sie
+als Umgebungsvariablen weiter. Erlaubt sind Großbuchstaben, Ziffern und `_`, beginnend
+mit einem Buchstaben, höchstens 63 Zeichen. Duplikate und Kollisionen mit gewählten
+Datenbausteinen oder `env` werden abgelehnt.
+
+Ein Admin mit Clusterzugriff liest einen Wert aus dem Secret `<app-id>-platform`:
+
+```bash
+kubectl get secret <app>-platform -n <app>-staging -o jsonpath='{.data.ENV_NAME}' | base64 -d
+```
+
+`<app>` durch die App-ID und `ENV_NAME` durch den Namen aus dem Formular ersetzen.
+Bei Kimai etwa `ADMINPASS`; `ADMINMAIL` kommt als nicht geheime Variable in `env`.
 
 ## Schritt 1: Formular „App aufnehmen“ ausfüllen
 
@@ -52,8 +68,12 @@ Eigene, nicht geheime Werte (z. B. `LOG_LEVEL=info`) trägst du im Formular ein.
 | `port` | `8080` | Port aus den Voraussetzungen. |
 | `healthPath` | `/health` | Prüfpfad, der ohne Anmeldung `200` liefert (Standard `/`). |
 | `postgres`, `redis`, `volume` | Haken setzen | Nur, was die App braucht. |
+| `mariadb` | Haken setzen | Alternative zu PostgreSQL, beide zusammen sind unzulässig. Eigenes dauerhaftes 5Gi-Volume ohne Backup, unabhängig vom App-Volume. |
 | `volumeSize` / `mountPath` | `5Gi` / `/data` | Nur mit Volume. |
 | `env` | `LOG_LEVEL=info` | Eine Zeile je Variable, nichts Geheimes. |
+| `generatedSecrets` | `APP_SECRET` und `ADMINPASS` auf getrennten Zeilen | Nur Namen angeben; die Plattform generiert die Werte. Standard leer. |
+| `rootStart` | Haken für Kimai setzen | Für Images, die als root starten und den Benutzer selbst wechseln, etwa Apache/PHP. Standard false. Lässt Vorgaben für Privilegieneskalation und Capabilities weg; `runAsNonRoot` bleibt false. |
+| `memoryLimit` | `1Gi` | Standard `512Mi`; Speicheranfrage `128Mi`, bei Limit über `512Mi` die Hälfte, höchstens `512Mi`. |
 
 3. Klicke **Run workflow**. Nach 2–10 Minuten (Build) ist der Lauf grün, und die Zusammenfassung verlinkt einen **Pull Request „App aufnehmen: <appId>“**.
 

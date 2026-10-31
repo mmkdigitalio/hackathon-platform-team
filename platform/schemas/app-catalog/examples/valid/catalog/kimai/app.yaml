@@ -1,0 +1,38 @@
+schemaVersion: "0.1"
+appId: kimai
+description: Zeiterfassung mit Kimai und MariaDB auf dem Standard-Chart
+source:
+  repository: kimai/kimai
+chart:
+  platform:
+    name: web-app
+ingress:
+  service: kimai
+  port: 80
+dataBlocks: [mariadb, persistent-volume]
+generatedSecrets: [app-secret, adminpass]
+secrets:
+  DATABASE_URL: app:mariadb-url
+  DB_HOST: app:mariadb-host
+  DB_PORT: app:mariadb-port
+  DB_NAME: app:mariadb-database
+  DB_USER: app:mariadb-user
+  DB_PASSWORD: app:mariadb-password
+  APP_SECRET: app:app-secret
+  ADMINPASS: app:adminpass
+availability:
+  path: /en/login
+smokeTest:
+  image: acr:platform/smoke-http@sha256:7b7a96a1eff6af52baa061fb4973a88d6a3c98ed7ae4ed15f4398280dcf9ebba
+  env:
+    CHECK_PATH: /en/login
+runbook:
+  repository: mmkdigitalio/hackathon-platform-team
+  path: platform/operations/apps/standard-runbook.md
+  # Beispiel-Commit; vor Aufnahme auf den Commit mit diesem Runbook setzen.
+  commit: 0123456789abcdef0123456789abcdef01234567
+allowedActions: [restart, redeploy]
+dataProcedures:
+  migration: Kimai migriert beim Start selbst; vor Updates prüfen
+  backup: MariaDB und App-Volume ohne Backup (Staging-Risiko)
+  restore: nur manuell

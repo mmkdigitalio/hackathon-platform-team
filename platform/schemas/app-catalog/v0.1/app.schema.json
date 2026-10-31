@@ -88,8 +88,8 @@
       "type": "array",
       "uniqueItems": true,
       "items": {
-        "enum": ["postgres-database", "redis", "persistent-volume"],
-        "x-error": "nicht unterstützter Datenbaustein; v0.1 kennt postgres-database, redis, persistent-volume"
+        "enum": ["postgres-database", "mariadb", "redis", "persistent-volume"],
+        "x-error": "nicht unterstützter Datenbaustein; v0.1 kennt postgres-database, mariadb, redis, persistent-volume"
       }
     },
     "generatedSecrets": {
