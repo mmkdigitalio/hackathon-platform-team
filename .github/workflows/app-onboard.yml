@@ -293,7 +293,7 @@ jobs:
           git config user.name "mmk-platform-automation"
           git config user.email "platform-automation@users.noreply.github.com"
           git switch -c "$branch"
-          git add "platform/catalog/$APP_ID/app.yaml" "platform/environments/staging/$APP_ID.yaml"
+          git add "platform/catalog/$APP_ID/app.yaml" "platform/environments/staging/$APP_ID.yaml" .github/ISSUE_TEMPLATE/support.yml
           git commit -m "$title"
           git push --force-with-lease origin "$branch"
           url="$(gh pr list --head "$branch" --json url -q '.[0].url')"

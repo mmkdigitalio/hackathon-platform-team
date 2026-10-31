@@ -6,7 +6,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { parse as parseYaml } from "yaml";
 import { loadApp, loadContracts } from "../src/catalog";
-import { scaffoldNewApp, type ScaffoldOptions } from "../src/scaffold";
+import { addIssueFormOption, scaffoldNewApp, type ScaffoldOptions } from "../src/scaffold";
 
 const repoRoot = path.resolve(__dirname, "../../../..");
 const cli = path.resolve(__dirname, "../src/cli.ts");
@@ -278,4 +278,15 @@ describe("Gerüst für neue Apps", () => {
     generate({ runbookCommit: undefined });
     assert.equal(read(catalog()).runbook.commit, expected);
   });
+});
+
+it("new-app trägt die App alphabetisch ins Support-Issue-Formular ein", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "issue-form-"));
+  const file = path.join(root, ".github/ISSUE_TEMPLATE/support.yml");
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, "body:\n  - type: dropdown\n    attributes:\n      label: App\n      options:\n        - affine\n        - platform-status\n  - type: dropdown\n    attributes:\n      label: Umgebung\n      options:\n        - staging\n");
+  assert.equal(addIssueFormOption(root, "kimai"), true);
+  assert.equal(addIssueFormOption(root, "kimai"), false, "kein Duplikat");
+  assert.match(fs.readFileSync(file, "utf8"), /- affine\n {8}- kimai\n {8}- platform-status\n/);
+  assert.match(fs.readFileSync(file, "utf8"), /label: Umgebung\n {6}options:\n {8}- staging/);
 });

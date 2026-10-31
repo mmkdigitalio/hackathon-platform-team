@@ -195,6 +195,7 @@ export function scaffoldNewApp(repoRoot: string, options: ScaffoldOptions, contr
         created.push(target);
       }
       warnings = validate(true);
+      addIssueFormOption(repoRoot, options.appId);
     } catch (error) {
       for (const file of created) fs.unlinkSync(file);
       throw error;
@@ -202,3 +203,28 @@ export function scaffoldNewApp(repoRoot: string, options: ScaffoldOptions, contr
   }
   return { files, warnings };
 }
+
+const ISSUE_FORM = ".github/ISSUE_TEMPLATE/support.yml";
+
+/**
+ * Trägt die App in das Dropdown "App" des Support-Issue-Formulars ein (alphabetisch, ohne Duplikat).
+ * Der Eingang prüft Meldungen gegen den Katalog; ein Test verlangt, dass jede Katalog-App wählbar ist.
+ */
+export function addIssueFormOption(repoRoot: string, appId: string): boolean {
+  const file = path.join(repoRoot, ISSUE_FORM);
+  if (!fs.existsSync(file)) return false;
+  const lines = fs.readFileSync(file, "utf8").split("\n");
+  const label = lines.findIndex((line) => /^\s+label: App\s*$/.test(line));
+  const start = lines.findIndex((line, i) => i > label && /^\s+options:\s*$/.test(line));
+  if (label < 0 || start < 0) return false;
+  let end = start + 1;
+  while (end < lines.length && /^\s+- /.test(lines[end])) end++;
+  const indent = (lines[start + 1] ?? "").match(/^\s+/)?.[0] ?? "        ";
+  const options = lines.slice(start + 1, end).map((line) => line.replace(/^\s+- /, "").trim());
+  if (options.includes(appId)) return false;
+  const sorted = [...options, appId].sort();
+  lines.splice(start + 1, end - start - 1, ...sorted.map((option) => `${indent}- ${option}`));
+  fs.writeFileSync(file, lines.join("\n"));
+  return true;
+}
+
