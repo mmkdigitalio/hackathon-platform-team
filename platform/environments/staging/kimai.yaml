@@ -1,0 +1,28 @@
+schemaVersion: "0.1"
+image: docker.io/kimai/kimai2@sha256:19b34043e7631b122c5e5aca27c3f3caa0bb37d2bce1478342c666bcdfe84f48
+chart:
+  version: 0.1.0
+sizes:
+  # Kleine Anfragen für Staging, Speicherlimit für Lastspitzen.
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+  volumeSize: 5Gi
+values:
+  # Container-Port und nicht geheime Konfiguration des Standard-Charts.
+  container:
+    port: 8001
+    env:
+      ADMINMAIL: admin@mmkdigital.io
+      TRUSTED_PROXIES: 10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+  probes:
+    path: /en/login
+  persistence:
+    mountPath: /opt/kimai/var/data
+  securityContext:
+    # Apache/PHP-Images starten als root und wechseln den Benutzer selbst; runAsNonRoot bleibt false.
+    relaxed: true
