@@ -1,0 +1,48 @@
+schemaVersion: "0.1"
+appId: kimai
+description: Kimai Zeiterfassung, unverändertes Upstream-Image
+source:
+  # Kein Quell-Repository angegeben; das Plattform-Repository verwaltet diesen Eintrag.
+  repository: mmkdigitalio/hackathon-platform-team
+chart:
+  # Standard-Chart aus dem Plattform-Repository.
+  platform:
+    name: web-app
+ingress:
+  # Der Service nutzt Port 80; der Container-Port steht im Sollzustand.
+  service: kimai
+  port: 80
+dataBlocks:
+  - mariadb
+  - persistent-volume
+generatedSecrets:
+  - adminpass
+secrets:
+  # Nur Referenzen; die Plattform stellt Datenbaustein-Werte und generierte Secrets bereit.
+  DATABASE_URL: app:mariadb-url
+  DB_HOST: app:mariadb-host
+  DB_PORT: app:mariadb-port
+  DB_NAME: app:mariadb-database
+  DB_USER: app:mariadb-user
+  DB_PASSWORD: app:mariadb-password
+  ADMINPASS: app:adminpass
+availability:
+  path: /en/login
+smokeTest:
+  # Prüft die Erreichbarkeit; einen fachlichen Smoke-Test als nächsten Schritt ergänzen.
+  image: acr:platform/smoke-http@sha256:7b7a96a1eff6af52baa061fb4973a88d6a3c98ed7ae4ed15f4398280dcf9ebba
+  env:
+    CHECK_PATH: /en/login
+runbook:
+  repository: mmkdigitalio/hackathon-platform-team
+  path: platform/operations/apps/standard-runbook.md
+  commit: c603e785039841865d922beff6f3cb7d6882d641
+allowedActions:
+  - restart
+  - redeploy
+dataProcedures:
+  # Vor dem ersten Release prüfen; Staging-Volumes haben keine Sicherung.
+  migration: Die App migriert beim Start selbst oder hat keine Datenbank
+  backup: MariaDB auf In-Cluster-Volume ohne Backup (Staging-Risiko); Volumes ohne
+    Backup (Staging-Risiko)
+  restore: nur manuell
