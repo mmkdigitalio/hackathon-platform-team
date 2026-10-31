@@ -28,7 +28,7 @@ Begriffe:
 
 B's `app-deploy.yml` ruft den Client ausschließlich über [`platform/infra/app-runtime/scripts/ops-lock.sh`](../../infra/app-runtime/scripts/ops-lock.sh) auf (Erwerb mit 15 Minuten Wartezeit, Erneuerung jede Minute, Besitzprüfung, eigene Aktion `act-deploy-<run>-<attempt>-<app>-<env>` mit `agentActionId` als Korrelation, Freigabe); C testet das Skript in `tests/state/test_deploy_wrapper.py`.
 
-Keine Azure-Anmeldung. Fehlt das Schema, bricht jeder Befehl mit Exit-Code 3 und Verweis auf `ops-migrate.yml` ab, ohne Zieländerung.
+Keine Azure-Anmeldung. Fehlt das Schema, bricht jeder Befehl mit Exit-Code 3 und Verweis auf `ops-migrate.yml` ab, ohne Zieländerung. Die Sperrbefehle verlangen nur die Mindest-Schemaversion für Sperre und Aktionsprotokoll (`LOCK_SCHEMA_VERSION` in `persistence/cli.py`), nicht die neueste: Bringt ein Agenten-Release eine neue Migration mit, erwirbt der Deploy-Workflow die Sperre noch auf dem alten Schema, und der Helm-Hook desselben Deployments spielt die Migration ein. API und Worker prüfen beim Start weiter die genaue Version (geändert 31.10.2026; war: genaue Version auch für Sperrbefehle, ein Deploy mit neuer Migration brach ohne vorheriges `ops-migrate.yml` ab).
 
 ## CLI
 

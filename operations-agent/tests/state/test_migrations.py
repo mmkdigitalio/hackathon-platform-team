@@ -64,6 +64,19 @@ def test_lock_client_without_schema_points_to_ops_migrate(empty_db_url, capsys):
         assert conn.execute("SELECT to_regclass('operation_locks') AS t").fetchone()["t"] is None
 
 
+def test_lock_client_accepts_older_schema_before_helm_hook(db_url, monkeypatch):
+    """Deploy mit neuer Migration: Der Sperrclient aus dem neuen Code arbeitet noch auf dem alten Schema."""
+    monkeypatch.setenv("OPS_DATABASE_URL", db_url)
+    with connect(db_url) as conn:
+        conn.execute("DELETE FROM schema_migrations WHERE version > 1")
+    args = ["--app", "affine", "--env", "staging", "--owner", "deploy-test"]
+    assert cli.main(["lock", "acquire", *args, "--wait-timeout", "0"]) == 0
+    with connect(db_url) as conn:
+        conn.execute("DELETE FROM schema_migrations")
+        conn.execute("INSERT INTO schema_migrations (version, name, checksum) VALUES (0, 'alt', 'x')")
+    assert cli.main(["lock", "acquire", "--app", "other", "--env", "staging", "--owner", "x", "--wait-timeout", "0"]) == 3
+
+
 @pytest.mark.parametrize("entrypoint", [api_main, worker_main], ids=["api", "worker"])
 def test_entrypoints_abort_on_old_schema(db_url, entrypoint, caplog):
     with connect(db_url) as conn:

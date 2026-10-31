@@ -72,10 +72,15 @@ def default_workflow_run() -> str | None:
     return None
 
 
+# Sperre, Aktionsprotokoll und Nachtrag brauchen nur die Tabellen aus Migration 1. Ändert eine
+# spätere Migration diese Tabellen, wird die Mindestversion hier angehoben.
+LOCK_SCHEMA_VERSION = 1
+
+
 def _connect_checked(args):
     conn = db.connect(args.database_url)
     try:
-        db.check_schema(conn)
+        db.check_schema(conn, minimum=LOCK_SCHEMA_VERSION)
     except Exception:
         conn.close()
         raise

@@ -56,16 +56,22 @@ def current_version(conn: psycopg.Connection) -> int | None:
     return _value(row, "v")
 
 
-def check_schema(conn: psycopg.Connection, *, include_sdk: bool = False) -> int:
+def check_schema(conn: psycopg.Connection, *, include_sdk: bool = False, minimum: int | None = None) -> int:
     """Prüft nur die Version; verändert das Schema nie.
 
     ``include_sdk`` prüft zusätzlich die Checkpoint-Tabellen von D (API und Worker).
+    ``minimum`` verlangt nur eine Mindestversion statt genau der eigenen: Der Sperrclient im
+    Deploy-Workflow kommt aus dem neuen Code, die neue Migration spielt aber erst der Helm-Hook
+    desselben Deployments ein.
     """
     version = current_version(conn)
     expected = expected_version()
     if version is None:
         raise SchemaMissing()
-    if version != expected:
+    if minimum is not None:
+        if version < minimum:
+            raise SchemaVersionMismatch(minimum, version)
+    elif version != expected:
         raise SchemaVersionMismatch(expected, version)
     if include_sdk:
         from agent.persistence import CheckpointSchemaMissing
