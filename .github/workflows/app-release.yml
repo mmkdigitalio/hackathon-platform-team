@@ -1,0 +1,173 @@
+# Baut die Quelle neu; der wiederverwendbare Workflow öffnet den Sollzustands-PR.
+name: App veröffentlichen
+
+on:
+  workflow_dispatch:
+    inputs:
+      appId:
+        description: App-ID aus platform/catalog/
+        type: string
+        required: true
+      sourceRef:
+        description: Branch, Tag oder Commit der Quelle
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-release-${{ inputs.appId }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Release bauen
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      image-digest: ${{ steps.build.outputs.digest }}
+      chart-version: ${{ steps.catalog.outputs.chart-version }}
+      source-sha: ${{ steps.source.outputs.sha }}
+    env:
+      APP_ID: ${{ inputs.appId }}
+      CI_APP_PRIVATE_KEY: ${{ secrets.OPS_GITHUB_APP_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Abhängigkeiten
+        working-directory: platform/schemas/app-catalog
+        run: npm ci
+      - name: Katalog und Sollzustand lesen
+        id: catalog
+        working-directory: platform/schemas/app-catalog
+        env:
+          SOURCE_REF: ${{ inputs.sourceRef }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const { parse } = require('yaml');
+          const requireValue = (ok, message) => { if (!ok) throw new Error(message); };
+          const app = process.env.APP_ID;
+          const rule = JSON.parse(fs.readFileSync('../conventions/conventions.json', 'utf8')).appId;
+          requireValue(new RegExp(rule.pattern).test(app) && new RegExp(rule.endPattern ?? '').test(app) && !(rule.reserved ?? []).includes(app),
+            'App-ID verletzt die Konvention; Beispiel: zeiterfassung');
+          const catalogFile = `../../catalog/${app}/app.yaml`;
+          const desiredFile = `../../environments/staging/${app}.yaml`;
+          requireValue(fs.existsSync(catalogFile), `Katalogeintrag fehlt: platform/catalog/${app}/app.yaml`);
+          requireValue(fs.existsSync(desiredFile), `Sollzustand fehlt: platform/environments/staging/${app}.yaml`);
+          const catalog = parse(fs.readFileSync(catalogFile, 'utf8'));
+          const desired = parse(fs.readFileSync(desiredFile, 'utf8'));
+          const repository = catalog.source?.repository;
+          requireValue(typeof repository === 'string' && /^[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/.test(repository), 'source.repository muss owner/name sein');
+          requireValue(typeof desired.image === 'string' && desired.image.startsWith(`acr:${app}@sha256:`) && /@sha256:[0-9a-f]{64}$/.test(desired.image),
+            `Release braucht ein Image acr:${app}@sha256:<digest> im Sollzustand`);
+          requireValue(typeof desired.chart?.version === 'string' && /^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.-]+)?$/.test(desired.chart.version),
+            'chart.version fehlt oder ist ungültig');
+          requireValue(Boolean(process.env.SOURCE_REF), 'sourceRef darf nicht leer sein');
+          const [owner, name] = repository.split('/');
+          // Die Chart-Version bleibt erhalten; dieser PR aktualisiert nur das Image.
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,
+            `repository=${repository}\nsource-owner=${owner}\nsource-name=${name}\nchart-version=${desired.chart.version}\n`);
+          JS
+      - name: Dateien validieren
+        working-directory: platform/schemas/app-catalog
+        run: npx tsx src/cli.ts validate
+      - name: Foundation-Ausgaben
+        id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          environment: staging
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      - name: Token der GitHub App
+        id: app-token
+        if: steps.foundation.outputs.githubAppPrivateKey != '' || env.CI_APP_PRIVATE_KEY != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          # GitHub App des Agenten, wie in staging.env und deploy/values.yaml
+          app-id: "5542094"
+          private-key: ${{ steps.foundation.outputs.githubAppPrivateKey || env.CI_APP_PRIVATE_KEY }}
+      - name: Schreibzugang festlegen
+        id: token
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          PAT: ${{ secrets.OPS_GITHUB_TOKEN }}
+        run: |
+          token="${APP_TOKEN:-$PAT}"
+          if [[ -z "$token" ]]; then
+            echo "::error::Kein Schreibzugang: App-Schlüssel aus Foundation/CI und OPS_GITHUB_TOKEN fehlen"
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+          git config --global url."https://x-access-token:${token}@github.com/".insteadOf "https://github.com/"
+      - name: Lesetoken für die Quelle
+        id: source-token
+        if: steps.foundation.outputs.githubAppPrivateKey != '' || env.CI_APP_PRIVATE_KEY != ''
+        # Öffentliche Quellen sind auch ohne App-Installation über GITHUB_TOKEN lesbar.
+        continue-on-error: true
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: "5542094"
+          private-key: ${{ steps.foundation.outputs.githubAppPrivateKey || env.CI_APP_PRIVATE_KEY }}
+          owner: ${{ steps.catalog.outputs.source-owner }}
+          repositories: ${{ steps.catalog.outputs.source-name }}
+          permission-contents: read
+      - name: Quelle auschecken
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ steps.catalog.outputs.repository }}
+          ref: ${{ inputs.sourceRef }}
+          token: ${{ steps.source-token.outputs.token || secrets.OPS_GITHUB_TOKEN || github.token }}
+          path: .app-source
+          persist-credentials: false
+      - name: Quell-Commit lesen
+        id: source
+        run: |
+          [[ -f .app-source/Dockerfile ]] || { echo "::error::Dockerfile fehlt im Wurzelverzeichnis der Quelle"; exit 1; }
+          echo "sha=$(git -C .app-source rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - name: An der ACR anmelden
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.foundation.outputs.acrLoginServer }}
+          username: ${{ steps.foundation.outputs.acrUsername }}
+          password: ${{ steps.foundation.outputs.acrPassword }}
+      - name: Image bauen und pushen
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .app-source
+          file: .app-source/Dockerfile
+          push: true
+          tags: ${{ steps.foundation.outputs.acrLoginServer }}/${{ inputs.appId }}:${{ steps.source.outputs.sha }}
+          labels: org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+      - name: Zusammenfassung
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          CHART_VERSION: ${{ steps.catalog.outputs.chart-version }}
+        run: |
+          {
+            echo "### App veröffentlichen: $APP_ID"
+            echo "Image: acr:$APP_ID@$DIGEST"
+            echo "Chart-Version bleibt $CHART_VERSION. Der nächste Job öffnet den Sollzustands-PR."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  desired-state:
+    name: Sollzustands-PR öffnen
+    needs: build
+    uses: ./.github/workflows/app-update-desired-state.yml
+    with:
+      appId: ${{ inputs.appId }}
+      environment: staging
+      imageDigest: ${{ needs.build.outputs.image-digest }}
+      chartVersion: ${{ needs.build.outputs.chart-version }}
+      sourceSha: ${{ needs.build.outputs.source-sha }}
+    secrets: inherit

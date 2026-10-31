@@ -1,0 +1,14 @@
+schemaVersion: "0.1"
+# Beispiel-Digest; vor Aufnahme durch einen geprüften Image-Digest ersetzen.
+image: docker.io/traefik/whoami@sha256:0000000000000000000000000000000000000000000000000000000000000000
+chart:
+  version: 0.2.0
+sizes:
+  replicas: 1
+values:
+  container:
+    port: 8080
+    env:
+      WHOAMI_PORT_NUMBER: "8080"
+  probes:
+    path: /health

@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": [
+    "image",
+    "container",
+    "platform",
+    "securityContext",
+    "probes",
+    "persistence"
+  ],
+  "properties": {
+    "image": {
+      "type": "object",
+      "required": [
+        "repository",
+        "digest"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^(|sha256:[a-f0-9]{64})$"
+        }
+      }
+    },
+    "secretName": {
+      "type": "string"
+    },
+    "imagePullSecretName": {
+      "type": "string"
+    },
+    "rolloutMarker": {
+      "type": "string"
+    },
+    "platform": {
+      "type": "object",
+      "required": [
+        "appId",
+        "replicas",
+        "resources",
+        "persistentVolumeClaim"
+      ],
+      "properties": {
+        "appId": {
+          "type": "string"
+        },
+        "environment": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "host": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "persistentVolumeClaim": {
+          "type": "string"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "resources": {
+          "type": "object"
+        },
+        "release": {
+          "type": "object",
+          "properties": {
+            "gitSha": {
+              "type": "string"
+            },
+            "imageDigest": {
+              "type": "string"
+            },
+            "chartVersion": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "container": {
+      "type": "object",
+      "required": [
+        "port"
+      ],
+      "properties": {
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "env": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "command": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^/"
+        }
+      }
+    },
+    "persistence": {
+      "type": "object",
+      "required": [
+        "mountPath"
+      ],
+      "properties": {
+        "mountPath": {
+          "type": "string"
+        }
+      }
+    },
+    "securityContext": {
+      "type": "object",
+      "required": [
+        "runAsNonRoot",
+        "relaxed"
+      ],
+      "properties": {
+        "runAsNonRoot": {
+          "type": "boolean"
+        },
+        "relaxed": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "platform": {
+            "properties": {
+              "persistentVolumeClaim": {
+                "minLength": 1
+              }
+            },
+            "required": [
+              "persistentVolumeClaim"
+            ]
+          }
+        },
+        "required": [
+          "platform"
+        ]
+      },
+      "then": {
+        "properties": {
+          "persistence": {
+            "properties": {
+              "mountPath": {
+                "type": "string",
+                "pattern": "^/",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "mountPath"
+            ]
+          }
+        },
+        "required": [
+          "persistence"
+        ]
+      }
+    }
+  ]
+}

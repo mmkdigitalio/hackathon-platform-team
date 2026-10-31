@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { parse as parseYaml } from "yaml";
 import type { TreeLayout } from "./catalog";
 
 export interface StackTarget {
@@ -15,7 +16,24 @@ export interface Affected {
 
 const ENV_FILE = /^platform\/environments\/([^/]+)\/([^/]+)\.ya?ml$/;
 const CATALOG_FILE = /^platform\/catalog\/([^/]+)\//;
+const PLATFORM_CHART = /^platform\/charts\/([^/]+)\//;
 const GLOBAL_PATHS = [/^platform\/schemas\/app-catalog\//, /^platform\/infra\/app-runtime\//];
+
+/** App-IDs, deren Katalogeintrag das Plattform-Chart <name> verwendet. */
+function appsUsingPlatformChart(layout: TreeLayout, name: string): Set<string> {
+  const apps = new Set<string>();
+  if (!fs.existsSync(layout.catalogDir)) return apps;
+  for (const appId of fs.readdirSync(layout.catalogDir)) {
+    const file = path.join(layout.catalogDir, appId, "app.yaml");
+    if (!fs.existsSync(file)) continue;
+    try {
+      if (parseYaml(fs.readFileSync(file, "utf8"))?.chart?.platform?.name === name) apps.add(appId);
+    } catch {
+      // Ungültige Katalogdateien meldet die Validierung; hier zählt nur die Zuordnung.
+    }
+  }
+  return apps;
+}
 
 function existingStacks(layout: TreeLayout): StackTarget[] {
   if (!fs.existsSync(layout.environmentsDir)) return [];
@@ -32,7 +50,7 @@ function existingStacks(layout: TreeLayout): StackTarget[] {
 }
 
 /**
- * plan: Sollzustände, Katalogeinträge, Schema und App-Programm wirken auf die zugehörigen Stacks.
+ * plan: Sollzustände, Katalogeinträge, Plattform-Charts, Schema und App-Programm wirken auf die zugehörigen Stacks.
  * deploy: nur Sollzustandsänderungen lösen ein Deployment aus (Design §5).
  */
 export function affectedStacks(nameStatus: string, mode: "plan" | "deploy", layout: TreeLayout, _repoRoot: string): Affected {
@@ -59,6 +77,12 @@ export function affectedStacks(nameStatus: string, mode: "plan" | "deploy", layo
       const cat = CATALOG_FILE.exec(p);
       if (cat) {
         all.filter((t) => t.appId === cat[1]).forEach(add);
+        continue;
+      }
+      const chart = PLATFORM_CHART.exec(p);
+      if (chart) {
+        const apps = appsUsingPlatformChart(layout, chart[1]);
+        all.filter((t) => apps.has(t.appId)).forEach(add);
         continue;
       }
       if (GLOBAL_PATHS.some((r) => r.test(p))) all.forEach(add);

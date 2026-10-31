@@ -1,0 +1,32 @@
+# Reservierte Werte füllt das App-Programm aus dem Sollzustand.
+image:
+  repository: ""
+  digest: ""
+secretName: ""
+imagePullSecretName: ""
+rolloutMarker: ""
+platform:
+  appId: ""
+  environment: ""
+  namespace: ""
+  host: ""
+  url: ""
+  persistentVolumeClaim: ""
+  replicas: 1
+  resources: {}
+  release:
+    gitSha: ""
+    imageDigest: ""
+    chartVersion: ""
+container:
+  port: 8080
+  env: {}
+  command: []
+  args: []
+probes:
+  path: /
+persistence:
+  mountPath: ""
+securityContext:
+  runAsNonRoot: false
+  relaxed: false

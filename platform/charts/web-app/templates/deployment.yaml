@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "web-app.name" . }}
+  labels: {{- include "web-app.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.platform.replicas }}
+  strategy:
+    type: {{ ternary "Recreate" "RollingUpdate" (not (empty .Values.platform.persistentVolumeClaim)) }}
+  selector:
+    matchLabels: {{- include "web-app.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "web-app.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecretName }}
+      imagePullSecrets:
+        - name: {{ . | quote }}
+      {{- end }}
+      containers:
+        - name: web
+          image: {{ printf "%s@%s" .Values.image.repository .Values.image.digest | quote }}
+          {{- with .Values.secretName }}
+          envFrom:
+            - secretRef:
+                name: {{ . | quote }}
+          {{- end }}
+          {{- with .Values.container.env }}
+          env:
+            {{- range $key, $value := . }}
+            - name: {{ $key | quote }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
+          {{- with .Values.container.command }}
+          command: {{ toJson . }}
+          {{- end }}
+          {{- with .Values.container.args }}
+          args: {{ toJson . }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.container.port }}
+          readinessProbe:
+            httpGet: { path: {{ .Values.probes.path | quote }}, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            httpGet: { path: {{ .Values.probes.path | quote }}, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          startupProbe:
+            httpGet: { path: {{ .Values.probes.path | quote }}, port: http }
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 60
+          resources: {{- toYaml .Values.platform.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+            {{- if not .Values.securityContext.relaxed }}
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            {{- end }}
+          {{- if .Values.platform.persistentVolumeClaim }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ required "persistence.mountPath fehlt bei persistentVolumeClaim" .Values.persistence.mountPath | quote }}
+          {{- end }}
+      {{- if .Values.platform.persistentVolumeClaim }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.platform.persistentVolumeClaim | quote }}
+      {{- end }}

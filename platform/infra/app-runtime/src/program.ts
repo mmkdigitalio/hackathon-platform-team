@@ -1,3 +1,4 @@
+import * as path from "node:path";
 import * as kubernetes from "@pulumi/kubernetes";
 import * as postgresql from "@pulumi/postgresql";
 import * as pulumi from "@pulumi/pulumi";
@@ -41,8 +42,10 @@ const RELEASE_ANNOTATION = "ops.mmk/release";
 
 function chartSource(
   chart: CatalogEntry["chart"],
+  repoRoot: string,
   acr: { server: pulumi.Output<string>; username: pulumi.Output<string>; password: pulumi.Output<string> },
 ): { chart: pulumi.Input<string>; repositoryOpts?: kubernetes.types.input.helm.v3.RepositoryOpts } {
+  if (chart.platform) return { chart: path.join(repoRoot, "platform/charts", chart.platform.name) };
   if (chart.acr) {
     return {
       chart: pulumi.interpolate`oci://${acr.server}/${chart.acr.repository}`,
@@ -191,7 +194,7 @@ export function appStack(opts: AppStackOptions) {
     },
   };
 
-  const source = chartSource(app.catalog.chart, acr);
+  const source = chartSource(app.catalog.chart, opts.repoRoot, acr);
   const helmRelease = new kubernetes.helm.v3.Release(
     appId,
     {

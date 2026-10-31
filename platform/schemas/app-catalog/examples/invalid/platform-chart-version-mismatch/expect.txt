@@ -1,0 +1,1 @@
+Chart-Version muss für Plattform-Chart 'web-app' 0.1.0 aus Chart.yaml sein

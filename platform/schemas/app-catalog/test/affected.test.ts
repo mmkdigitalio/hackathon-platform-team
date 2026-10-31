@@ -24,7 +24,13 @@ describe("betroffene Stacks", () => {
 
   it("Änderung am App-Programm betrifft im Plan alle Stacks", () => {
     const r = run("M\tplatform/infra/app-runtime/src/program.ts\n", "plan");
-    assert.equal(r.stacks.length, 2);
+    assert.equal(r.stacks.length, 3);
+  });
+
+  it("Änderung an einem Plattform-Chart betrifft im Plan nur die Apps, die es verwenden", () => {
+    const r = run("M\tplatform/charts/web-app/templates/deployment.yaml\n", "plan");
+    assert.deepEqual(r.stacks, [{ appId: "whoami", environment: "staging" }]);
+    assert.deepEqual(run("M\tplatform/charts/web-app/values.yaml\n", "deploy").stacks, []);
   });
 
   it("gelöschter Sollzustand führt zu keinem Stack, sondern zum Außerbetriebnahme-Hinweis", () => {

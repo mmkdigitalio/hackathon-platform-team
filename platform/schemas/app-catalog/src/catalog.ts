@@ -40,7 +40,7 @@ export interface CatalogEntry {
   appId: string;
   description?: string;
   source: { repository: string; upstream?: string };
-  chart: { acr?: { repository: string }; oci?: { url: string }; repository?: { url: string; name: string } };
+  chart: { platform?: { name: string }; acr?: { repository: string }; oci?: { url: string }; repository?: { url: string; name: string } };
   ingress: { service: string; port: number };
   dataBlocks: DataBlockName[];
   generatedSecrets?: string[];
@@ -222,6 +222,24 @@ function checkSchemaVersion(file: string, doc: unknown, errors: Issue[]): boolea
   return true;
 }
 
+/** Prüft nur lokale Chart-Namen; Pfadbestandteile sind nicht erlaubt. */
+function platformChartVersion(name: string, repoRoot: string, file: string, at: string, errors: Issue[]): string | undefined {
+  if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(name)) return undefined; // Formfehler meldet das Schema
+  const chartDir = path.join(repoRoot, "platform", "charts", name);
+  if (!fs.existsSync(chartDir) || !fs.statSync(chartDir).isDirectory()) {
+    errors.push({ file, path: at, message: `Plattform-Chart '${name}' fehlt: platform/charts/${name}` });
+    return undefined;
+  }
+  try {
+    const chart = parseYaml(fs.readFileSync(path.join(chartDir, "Chart.yaml"), "utf8"));
+    if (typeof chart?.version !== "string" || !chart.version) throw new Error("version fehlt");
+    return chart.version;
+  } catch {
+    errors.push({ file, path: at, message: `Plattform-Chart '${name}': Chart.yaml fehlt oder enthält keine gültige version` });
+    return undefined;
+  }
+}
+
 export function validateCatalogEntry(
   file: string,
   doc: unknown,
@@ -236,6 +254,9 @@ export function validateCatalogEntry(
   const v = validators(repoRoot).app;
   if (!v(doc)) errors.push(...(v.errors ?? []).map((e) => formatAjvError(file, e)));
   const entry = doc as CatalogEntry;
+  if (typeof entry.chart?.platform?.name === "string") {
+    platformChartVersion(entry.chart.platform.name, repoRoot, file, "/chart/platform/name", errors);
+  }
 
   if (!contracts.appIdPattern.test(expectedAppId)) {
     errors.push({ file, path: "/", message: `App-ID '${expectedAppId}' verletzt die Konvention ${contracts.appIdPattern}` });
@@ -310,6 +331,13 @@ export function validateDesiredState(
   const v = validators(repoRoot).desired;
   if (!v(doc)) errors.push(...(v.errors ?? []).map((e) => formatAjvError(file, e)));
   const desired = doc as DesiredState;
+  if (typeof entry?.chart?.platform?.name === "string") {
+    const name = entry.chart.platform.name;
+    const version = platformChartVersion(name, repoRoot, file, "/chart/version", errors);
+    if (version !== undefined && desired.chart?.version !== version) {
+      errors.push({ file, path: "/chart/version", message: `Chart-Version muss für Plattform-Chart '${name}' ${version} aus Chart.yaml sein` });
+    }
+  }
 
   if (entry && Array.isArray(entry.dataBlocks)) {
     const blocks = loadDataBlocks(repoRoot);

@@ -34,7 +34,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           git diff --name-status "$BASE_SHA...$HEAD_SHA" > "$RUNNER_TEMP/changes.txt"
-          if grep -qE $'\t(platform/(catalog|environments|schemas/app-catalog|infra/app-runtime)/)' "$RUNNER_TEMP/changes.txt"; then
+          if grep -qE $'\t(platform/(catalog|environments|charts|schemas/app-catalog|infra/app-runtime)/)' "$RUNNER_TEMP/changes.txt"; then
             echo "relevant=true" >> "$GITHUB_OUTPUT"
           else
             echo "relevant=false" >> "$GITHUB_OUTPUT"

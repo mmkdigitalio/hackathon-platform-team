@@ -10,7 +10,7 @@ Vertrag zwischen App-Lieferungen und dem App-Pfad. Strang B besitzt Schema, Vali
 | [`v0.1/smoke-test-output.schema.json`](v0.1/smoke-test-output.schema.json) | Ausgabe eines Smoke-Test-Images |
 | [`v0.1/verification-result.schema.json`](v0.1/verification-result.schema.json) | Verifikationsergebnis (Deploy-Workflow und D's Verifikationswerkzeug) |
 | [`v0.1/deployment-result.schema.json`](v0.1/deployment-result.schema.json) | Ergebnis eines `app-deploy.yml`-Laufs |
-| [`examples/`](examples/) | Gültige Bäume (AFFiNE-artig, `operations-agent`), ungültige Fälle mit erwarteter Meldung, Beispielergebnisse |
+| [`examples/`](examples/) | Gültige Bäume (AFFiNE-artig, `operations-agent`, `whoami`), ungültige Fälle mit erwarteter Meldung, Beispielergebnisse |
 
 ## Zwei Dateien je App
 
@@ -21,7 +21,7 @@ Vertrag zwischen App-Lieferungen und dem App-Pfad. Strang B besitzt Schema, Vali
 | `schemaVersion` | `"0.1"` |
 | `appId` | gleich dem Verzeichnisnamen, Konvention aus `platform/schemas/conventions/` |
 | `source.repository`, `source.upstream` | Herkunft (`owner/name`) |
-| `chart` | genau eine Quelle: `acr.repository` (OCI in der Foundation-ACR), `oci.url` (`oci://…`) oder `repository.{url,name}` (Helm-Repository) |
+| `chart` | genau eine Quelle: `acr.repository` (OCI in der Foundation-ACR), `oci.url` (`oci://…`), `repository.{url,name}` (Helm-Repository) oder `platform.name` (lokales Chart) |
 | `ingress.service`, `ingress.port` | Ziel der Ingress-Regel |
 | `dataBlocks` | Teilmenge von `postgres-database`, `redis`, `persistent-volume` |
 | `generatedSecrets` | Namen zufälliger, stabiler Werte, referenzierbar als `app:<name>` |
@@ -89,6 +89,36 @@ Pflichten des Charts:
 - `rolloutMarker` und `platform.release.gitSha` gehören nicht in Pod-Templates. Sie ändern sich bei jedem Lauf und erzwingen nur das Helm-Upgrade, das manuelle Abweichungen (etwa die Replica-Zahl) zurücksetzt.
 - Hooks (`pre-install,pre-upgrade`) sind erlaubt; das App-Programm rollt als echtes Helm-Release aus.
 - Ein `values.schema.json` darf zusätzliche Schlüssel wie `platform` nicht verbieten.
+
+## Lokale Plattform-Charts
+
+```yaml
+chart:
+  platform:
+    name: web-app
+```
+
+`platform.name` ist ein Chart-Verzeichnisname aus Kleinbuchstaben, Ziffern und
+Bindestrichen, ohne Pfadbestandteile. Die Validierung verlangt das Verzeichnis
+`platform/charts/<name>` mit lesbarer `Chart.yaml`. `chart.version` im Sollzustand
+muss exakt deren `version` entsprechen. Das App-Programm übergibt den absoluten
+lokalen Pfad ohne Repository-Zugangsdaten an Helm. Der vollständige Checkout
+von `app-deploy.yml` und `app-plan.yml` enthält die Charts.
+
+Das [Standard-Chart web-app](../../charts/web-app/README.md) erzeugt ein Deployment
+und einen Service auf Port 80. Unter `values` stehen `container.port` (Standard 8080),
+`container.env` (String-Werte), optional `container.command` und `container.args`,
+`probes.path` (Standard `/`) sowie bei PVC `persistence.mountPath` (absoluter Pflichtpfad).
+Der Prüfpfad soll `availability.path` entsprechen. Mit PVC gilt `Recreate`, sonst
+`RollingUpdate`. Secrets kommen ausschließlich über das Plattform-Secret.
+`securityContext.runAsNonRoot` ist standardmäßig false. `securityContext.relaxed`
+ist ebenfalls false; true lässt das Verbot von Privilegieneskalation und das
+Entfernen aller Capabilities weg. Einzelheiten und alle Defaults stehen im Chart-README.
+
+Beispiel: `examples/valid/catalog/whoami/app.yaml` mit passendem Sollzustand unter
+`examples/valid/environments/staging/whoami.yaml`. Image-Digest und Runbook-Commit
+sind dort ausdrücklich Platzhalter. Das gemeinsame Runbook liegt unter
+`platform/operations/apps/standard-runbook.md`.
 
 ## Smoke-Test-Vertrag
 

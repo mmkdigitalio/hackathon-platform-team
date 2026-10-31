@@ -38,8 +38,17 @@
       "additionalProperties": false,
       "minProperties": 1,
       "maxProperties": 1,
-      "x-error": "chart braucht genau eine Quelle: acr, oci oder repository",
+      "x-error": "chart braucht genau eine Quelle: acr, oci, repository oder platform",
       "properties": {
+        "platform": {
+          "description": "Lokales Chart aus platform/charts/<name>; Version muss Chart.yaml entsprechen.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name"],
+          "properties": {
+            "name": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" }
+          }
+        },
         "acr": {
           "description": "OCI-Chart in der ACR der Foundation; der Login-Server kommt aus den Foundation-Ausgaben.",
           "type": "object",

@@ -1,0 +1,29 @@
+schemaVersion: "0.1"
+appId: whoami
+description: HTTP-Beispiel auf dem Standard-Chart
+source:
+  repository: traefik/whoami
+chart:
+  platform:
+    name: unknown-chart
+ingress:
+  service: whoami
+  port: 80
+dataBlocks: []
+secrets: {}
+availability:
+  path: /health
+smokeTest:
+  image: acr:platform/smoke-http@sha256:7b7a96a1eff6af52baa061fb4973a88d6a3c98ed7ae4ed15f4398280dcf9ebba
+  env:
+    CHECK_PATH: /health
+runbook:
+  repository: mmkdigitalio/hackathon-platform-team
+  path: platform/operations/apps/standard-runbook.md
+  # Beispiel-Commit; vor Aufnahme auf den Commit mit diesem Runbook setzen.
+  commit: 0123456789abcdef0123456789abcdef01234567
+allowedActions: [restart, redeploy]
+dataProcedures:
+  migration: not-applicable
+  backup: not-applicable
+  restore: not-applicable

@@ -1,0 +1,285 @@
+# Erstellt einen Aufnahme-PR; app-plan prüft ihn vor dem Merge.
+name: App aufnehmen
+
+on:
+  workflow_dispatch:
+    inputs:
+      appId:
+        description: "App-ID, z. B. zeiterfassung: Kleinbuchstaben, Ziffern und Bindestriche"
+        type: string
+        required: true
+      description:
+        description: Wofür wird die App genutzt?
+        type: string
+        required: true
+      sourceRepository:
+        description: "Quell-Repository als owner/name; leer lassen bei einem fertigen Image"
+        type: string
+        required: false
+      sourceRef:
+        description: Branch, Tag oder Commit der Quelle
+        type: string
+        default: main
+      dockerfilePath:
+        description: Pfad zum Dockerfile im Quell-Repository
+        type: string
+        default: Dockerfile
+      buildContext:
+        description: Verzeichnis für den Build im Quell-Repository
+        type: string
+        default: .
+      image:
+        description: "Öffentliches Image mit @sha256-Digest; Alternative zum Quell-Repository"
+        type: string
+        required: false
+      port:
+        description: HTTP-Port des Containers
+        type: string
+        default: "8080"
+      healthPath:
+        description: HTTP-Pfad, der ohne Anmeldung Status 200 liefert
+        type: string
+        default: /
+      postgres:
+        description: PostgreSQL-Datenbank anlegen
+        type: boolean
+        default: false
+      redis:
+        description: Redis ohne dauerhafte Speicherung bereitstellen
+        type: boolean
+        default: false
+      volume:
+        description: Dauerhaftes Volume ohne Backup in Staging anlegen
+        type: boolean
+        default: false
+      volumeSize:
+        description: "Volume-Größe, nur mit Volume, z. B. 5Gi"
+        type: string
+        default: 5Gi
+      mountPath:
+        description: "Pfad im Container, nur mit Volume, z. B. /data"
+        type: string
+        default: /data
+      env:
+        description: "Nicht geheime Variablen, eine Zeile je KEY=VALUE; Secrets über Datenbausteine"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: app-onboard-${{ inputs.appId }}
+  cancel-in-progress: false
+
+jobs:
+  onboard:
+    name: Aufnahme vorbereiten
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_ID: ${{ inputs.appId }}
+      SOURCE_REPOSITORY: ${{ inputs.sourceRepository }}
+      SOURCE_REF: ${{ inputs.sourceRef }}
+      CI_APP_PRIVATE_KEY: ${{ secrets.OPS_GITHUB_APP_PRIVATE_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Eingaben prüfen
+        id: inputs
+        env:
+          IMAGE: ${{ inputs.image }}
+          DOCKERFILE_PATH: ${{ inputs.dockerfilePath }}
+          BUILD_CONTEXT: ${{ inputs.buildContext }}
+        run: |
+          python3 <<'PY'
+          import json, os, re
+          from pathlib import Path, PurePosixPath
+          def require(ok, message):
+              if not ok:
+                  raise SystemExit("::error::" + message)
+          app = os.environ["APP_ID"]
+          rule = json.loads(Path("platform/schemas/conventions/conventions.json").read_text())["appId"]
+          require(re.search(rule["pattern"], app) and re.search(rule.get("endPattern", ""), app) and app not in rule.get("reserved", []),
+                  "App-ID verletzt die Konvention; Beispiel: zeiterfassung")
+          source, image = os.environ["SOURCE_REPOSITORY"], os.environ["IMAGE"]
+          require(bool(source) != bool(image), "Genau eines von sourceRepository oder image angeben")
+          require(not Path(f"platform/catalog/{app}/app.yaml").exists() and not Path(f"platform/environments/staging/{app}.yaml").exists(),
+                  "Zieldateien existieren bereits; nichts überschrieben")
+          if source:
+              require(re.fullmatch(r"[A-Za-z0-9-]+/[A-Za-z0-9._-]+", source), "sourceRepository muss owner/name sein")
+              require(bool(os.environ["SOURCE_REF"]), "sourceRef darf nicht leer sein")
+              for key in ("DOCKERFILE_PATH", "BUILD_CONTEXT"):
+                  value = os.environ[key]
+                  require(value and not PurePosixPath(value).is_absolute() and ".." not in PurePosixPath(value).parts,
+                          "Build-Pfade müssen im Quell-Repository liegen")
+              owner, repository = source.split("/")
+              with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+                  output.write(f"source-owner={owner}\nsource-name={repository}\n")
+          else:
+              require(re.fullmatch(r"[a-z0-9.-]+(:[0-9]+)?/[a-z0-9]+([._/-][a-z0-9]+)*@sha256:[0-9a-f]{64}", image),
+                      "Öffentliches Image braucht eine Referenz mit @sha256-Digest und 64 Hex-Zeichen")
+          PY
+      - name: Foundation-Ausgaben
+        id: foundation
+        uses: ./.github/actions/foundation-outputs
+        with:
+          environment: staging
+          backend-account: ${{ secrets.PULUMI_BACKEND_ACCOUNT }}
+          backend-key: ${{ secrets.PULUMI_BACKEND_KEY }}
+          config-passphrase: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+      - name: Token der GitHub App
+        id: app-token
+        if: steps.foundation.outputs.githubAppPrivateKey != '' || env.CI_APP_PRIVATE_KEY != ''
+        uses: actions/create-github-app-token@v2
+        with:
+          # GitHub App des Agenten, wie in staging.env und deploy/values.yaml
+          app-id: "5542094"
+          private-key: ${{ steps.foundation.outputs.githubAppPrivateKey || env.CI_APP_PRIVATE_KEY }}
+      - name: Schreibzugang festlegen
+        id: token
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          PAT: ${{ secrets.OPS_GITHUB_TOKEN }}
+        run: |
+          token="${APP_TOKEN:-$PAT}"
+          if [[ -z "$token" ]]; then
+            echo "::error::Kein Schreibzugang: App-Schlüssel aus Foundation/CI und OPS_GITHUB_TOKEN fehlen"
+            exit 1
+          fi
+          echo "::add-mask::$token"
+          echo "token=$token" >> "$GITHUB_OUTPUT"
+          git config --global url."https://x-access-token:${token}@github.com/".insteadOf "https://github.com/"
+      # Das Schreibtoken gilt nur für das Plattform-Repository; die Quelle braucht ein eigenes Lesetoken.
+      - name: Lesetoken für die Quelle
+        id: source-token
+        if: inputs.sourceRepository != '' && (steps.foundation.outputs.githubAppPrivateKey != '' || env.CI_APP_PRIVATE_KEY != '')
+        # Öffentliche Quellen sind auch ohne App-Installation über GITHUB_TOKEN lesbar.
+        continue-on-error: true
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: "5542094"
+          private-key: ${{ steps.foundation.outputs.githubAppPrivateKey || env.CI_APP_PRIVATE_KEY }}
+          owner: ${{ steps.inputs.outputs.source-owner }}
+          repositories: ${{ steps.inputs.outputs.source-name }}
+          permission-contents: read
+      - name: Quelle auschecken
+        if: inputs.sourceRepository != ''
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ inputs.sourceRepository }}
+          ref: ${{ inputs.sourceRef }}
+          token: ${{ steps.source-token.outputs.token || secrets.OPS_GITHUB_TOKEN || github.token }}
+          path: .app-source
+          persist-credentials: false
+      - name: Quell-Commit lesen
+        id: source
+        if: inputs.sourceRepository != ''
+        run: echo "sha=$(git -C .app-source rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+        if: inputs.sourceRepository != ''
+      - name: An der ACR anmelden
+        if: inputs.sourceRepository != ''
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.foundation.outputs.acrLoginServer }}
+          username: ${{ steps.foundation.outputs.acrUsername }}
+          password: ${{ steps.foundation.outputs.acrPassword }}
+      - name: Image bauen und pushen
+        id: build
+        if: inputs.sourceRepository != ''
+        uses: docker/build-push-action@v6
+        with:
+          context: .app-source/${{ inputs.buildContext }}
+          file: .app-source/${{ inputs.dockerfilePath }}
+          push: true
+          tags: ${{ steps.foundation.outputs.acrLoginServer }}/${{ inputs.appId }}:${{ steps.source.outputs.sha }}
+          labels: org.opencontainers.image.revision=${{ steps.source.outputs.sha }}
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Abhängigkeiten
+        working-directory: platform/schemas/app-catalog
+        run: npm ci
+      - name: Katalogeintrag und Sollzustand erzeugen
+        working-directory: platform/schemas/app-catalog
+        env:
+          DESCRIPTION: ${{ inputs.description }}
+          IMAGE: ${{ inputs.image }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+          PORT: ${{ inputs.port }}
+          HEALTH_PATH: ${{ inputs.healthPath }}
+          POSTGRES: ${{ inputs.postgres }}
+          REDIS: ${{ inputs.redis }}
+          VOLUME: ${{ inputs.volume }}
+          VOLUME_SIZE: ${{ inputs.volumeSize }}
+          MOUNT_PATH: ${{ inputs.mountPath }}
+          APP_ENV: ${{ inputs.env }}
+        run: |
+          args=(--app-id "$APP_ID" --description "$DESCRIPTION" --port "$PORT")
+          if [[ -n "$SOURCE_REPOSITORY" ]]; then
+            [[ "$IMAGE_DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Build lieferte keinen gültigen Digest"; exit 1; }
+            args+=(--acr-image "$APP_ID@$IMAGE_DIGEST" --source-repository "$SOURCE_REPOSITORY")
+          else
+            args+=(--image "$IMAGE")
+          fi
+          [[ -z "$HEALTH_PATH" ]] || args+=(--health-path "$HEALTH_PATH")
+          blocks=()
+          [[ "$POSTGRES" != true ]] || blocks+=(postgres-database)
+          [[ "$REDIS" != true ]] || blocks+=(redis)
+          [[ "$VOLUME" != true ]] || blocks+=(persistent-volume)
+          if [[ ${#blocks[@]} -gt 0 ]]; then
+            joined=$(IFS=,; echo "${blocks[*]}")
+            args+=(--data-blocks "$joined")
+          fi
+          if [[ "$VOLUME" == true ]]; then
+            [[ -z "$VOLUME_SIZE" ]] || args+=(--volume-size "$VOLUME_SIZE")
+            [[ -z "$MOUNT_PATH" ]] || args+=(--mount-path "$MOUNT_PATH")
+          fi
+          while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line%$'\r'}"
+            [[ -z "$line" ]] || args+=(--env "$line")
+          done <<< "$APP_ENV"
+          npx tsx src/cli.ts new-app "${args[@]}"
+      - name: Dateien validieren
+        working-directory: platform/schemas/app-catalog
+        run: npx tsx src/cli.ts validate
+      - name: Commit und Pull Request
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          branch="onboard/$APP_ID"
+          title="App aufnehmen: $APP_ID"
+          body_file="$RUNNER_TEMP/aufnahme-pr.txt"
+          cat > "$body_file" <<'EOF'
+          - [ ] Image gebaut oder gefunden
+          - [ ] Dateien validiert
+          - [ ] app-plan grün abwarten
+          - [ ] Nach Merge app-deploy beobachten
+          - [ ] Statusseite prüfen
+          - [ ] Fachlichen Smoke-Test als nächsten Schritt durchführen
+          EOF
+          git config user.name "mmk-platform-automation"
+          git config user.email "platform-automation@users.noreply.github.com"
+          git switch -c "$branch"
+          git add "platform/catalog/$APP_ID/app.yaml" "platform/environments/staging/$APP_ID.yaml"
+          git commit -m "$title"
+          git push --force-with-lease origin "$branch"
+          url="$(gh pr list --head "$branch" --json url -q '.[0].url')"
+          if [[ -z "$url" ]]; then
+            url="$(gh pr create --base main --head "$branch" --title "$title" --body-file "$body_file")"
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Zusammenfassung
+        env:
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          {
+            echo "### App aufnehmen: $APP_ID"
+            echo "Pull Request: $PR_URL"
+            echo "Katalogeintrag und Sollzustand wurden validiert. Vor dem Merge app-plan prüfen."
+            echo "Nach dem Merge app-deploy beobachten, Statusseite prüfen und fachlichen Smoke-Test durchführen."
+          } >> "$GITHUB_STEP_SUMMARY"

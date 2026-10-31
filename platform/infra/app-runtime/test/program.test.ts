@@ -223,3 +223,34 @@ describe("HTTP-Fallback (publicScheme http)", () => {
     assert.equal(await value(outputs.url), "http://affine.20-0-0-1.sslip.io");
   });
 });
+
+
+describe("App-Stack whoami mit lokalem Plattform-Chart", () => {
+  let outputs: Awaited<ReturnType<typeof run>>;
+  before(async () => {
+    foundation = FOUNDATION;
+    outputs = await run("whoami");
+  });
+
+  it("löst den Chart-Pfad gegen repoRoot statt gegen den Beispielbaum auf", () => {
+    const release = ofType("helm.sh/v3:Release")[0].inputs;
+    assert.equal(release.chart, path.join(repoRoot, "platform/charts/web-app"));
+    assert.equal(release.repositoryOpts, undefined);
+    assert.equal(release.version, "0.1.0");
+    assert.equal(release.values.container.port, 8080);
+    assert.equal(release.values.probes.path, "/health");
+    assert.equal(release.values.platform.appId, "whoami");
+    assert.equal(release.values.platform.persistentVolumeClaim, "");
+    assert.equal(ofType("core/v1:PersistentVolumeClaim").length, 0);
+    assert.deepEqual(ofType("networking.k8s.io/v1:Ingress")[0].inputs.spec.rules[0].http.paths[0].backend.service,
+      { name: "whoami", port: { number: 80 } });
+  });
+
+  it("behält die gewünschte Chart-Version in Werten, Annotationen und Ausgaben", () => {
+    const release = ofType("helm.sh/v3:Release")[0].inputs;
+    assert.equal(release.values.platform.release.chartVersion, "0.1.0");
+    assert.equal(outputs.release.chartVersion, "0.1.0");
+    const patch = ofType("core/v1:NamespacePatch")[0].inputs;
+    assert.equal(patch.metadata.annotations["ops.mmk/release-chart-version"], "0.1.0");
+  });
+});

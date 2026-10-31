@@ -13,12 +13,18 @@ import {
   type TreeLayout,
 } from "./catalog";
 import { affectedStacks } from "./affected";
+import { scaffoldNewApp } from "./scaffold";
 import { buildDeploymentResult, buildVerificationResult } from "./verification";
 
 const USAGE = `Verwendung: app-catalog <befehl> [optionen]
 
   validate [--tree <dir>] [--conventions <f>] [--foundation-outputs <f>] [--json]
       Prüft alle Katalogeinträge und Sollzustände (Standard: platform/).
+  new-app --app-id <id> --description <text> (--image <ref@sha256:digest> | --acr-image <repo@sha256:digest>) --port <port>
+      [--source-repository <owner/name>] [--health-path /] [--data-blocks postgres-database,redis,persistent-volume]
+      [--volume-size 5Gi] [--mount-path /data] [--env KEY=VALUE] [--runbook-commit <sha>]
+      [--environment staging] [--dry-run]
+      Erzeugt Katalogeintrag und Sollzustand für staging; bestehende Dateien bleiben erhalten.
   show --app <id> --env <env>
       Gibt abgeleitete, nicht geheime Angaben einer App als JSON aus.
   set-desired --app <id> --env <env> --image <ref> --chart-version <v> [--upstream-release <r>]
@@ -54,7 +60,19 @@ function main(argv: string[]): number {
       "foundation-outputs": { type: "string" },
       json: { type: "boolean" },
       app: { type: "string" },
-      env: { type: "string" },
+      env: { type: "string", multiple: command === "new-app" },
+      "app-id": { type: "string" },
+      description: { type: "string" },
+      "acr-image": { type: "string" },
+      "source-repository": { type: "string" },
+      port: { type: "string" },
+      "health-path": { type: "string" },
+      "data-blocks": { type: "string" },
+      "volume-size": { type: "string" },
+      "mount-path": { type: "string" },
+      "runbook-commit": { type: "string" },
+      environment: { type: "string" },
+      "dry-run": { type: "boolean" },
       image: { type: "string" },
       "chart-version": { type: "string" },
       "upstream-release": { type: "string" },
@@ -85,6 +103,31 @@ function main(argv: string[]): number {
   };
 
   switch (command) {
+    case "new-app": {
+      const result = scaffoldNewApp(repoRoot, {
+        appId: need("app-id"),
+        description: need("description"),
+        image: values.image,
+        acrImage: values["acr-image"],
+        sourceRepository: values["source-repository"],
+        port: need("port"),
+        healthPath: values["health-path"],
+        dataBlocks: values["data-blocks"],
+        volumeSize: values["volume-size"],
+        mountPath: values["mount-path"],
+        env: values.env as string[] | undefined,
+        runbookCommit: values["runbook-commit"],
+        environment: values.environment,
+        dryRun: values["dry-run"],
+      }, contractsFrom(values, repoRoot));
+      for (const file of result.files) {
+        if (values["dry-run"]) console.log(`---\n# ${file.path}\n${file.content}`);
+        else console.log(`Erstellt: ${file.path}`);
+      }
+      if (result.warnings.length) console.warn(`Warnungen:\n${formatIssues(result.warnings)}`);
+      if (!values["dry-run"]) console.log("Nächste Schritte: Branch und Pull Request erstellen, app-plan abwarten. Nach dem Merge app-deploy und Statusseite prüfen; fachlichen Smoke-Test ergänzen.");
+      return 0;
+    }
     case "validate": {
       const layout: TreeLayout = values.tree
         ? { catalogDir: path.join(values.tree, "catalog"), environmentsDir: path.join(values.tree, "environments") }
@@ -207,6 +250,9 @@ function main(argv: string[]): number {
 try {
   process.exitCode = main(process.argv.slice(2));
 } catch (e) {
-  console.error((e as Error).message);
+  const error = e as NodeJS.ErrnoException;
+  console.error(process.argv[2] === "new-app" && error.code?.startsWith("ERR_PARSE_ARGS")
+    ? "Ungültige Optionen für new-app; Flags und ihre Werte prüfen. app-catalog ohne Befehl zeigt die Hilfe."
+    : error.message);
   process.exitCode = 1;
 }
