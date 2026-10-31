@@ -1,7 +1,7 @@
-# UI-Image mit Support-Chat aus agent-build 41180401457 (Commit afdc703); Status-Chart aus status-ui-package #2.
+# UI-Image mit Live-Katalog aus agent-build 41193370506 (Commit 93e6fde); Status-Chart aus status-ui-package #3.
 schemaVersion: "0.1"
-image: acr:operations-agent@sha256:bce088f2865b5ff6d94cbc52b5740c17167e084fd577a62e9c205aeba58812be
+image: acr:operations-agent@sha256:acaaa27f6019f84fea36dd08af44177612c8231879c5c28f868de7022f3e51a0
 chart:
-  version: 0.1.2
+  version: 0.1.3
 sizes:
   replicas: 1
