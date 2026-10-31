@@ -1,6 +1,6 @@
-# Geprüftes Admin-UI-Image aus agent-build 41124648862; Status-Chart aus status-ui-package #2.
+# UI-Image mit Support-Chat aus agent-build 41180401457 (Commit afdc703); Status-Chart aus status-ui-package #2.
 schemaVersion: "0.1"
-image: acr:operations-agent@sha256:0f0fea7efe8e921c7eff347e85490d7eab27720a28b2ce57f1fa68e1bd924b1a
+image: acr:operations-agent@sha256:bce088f2865b5ff6d94cbc52b5740c17167e084fd577a62e9c205aeba58812be
 chart:
   version: 0.1.2
 sizes:
