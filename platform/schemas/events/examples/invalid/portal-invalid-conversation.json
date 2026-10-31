@@ -1,0 +1,21 @@
+{
+  "expectedField": "externalRef",
+  "event": {
+    "schemaVersion": "0.1",
+    "source": "portal",
+    "deliveryId": "message-001",
+    "externalRef": "no-uuid",
+    "appId": "affine",
+    "environment": "staging",
+    "eventType": "chat-message",
+    "severity": "unknown",
+    "state": "reported",
+    "occurredAt": "2026-10-31T10:00:00Z",
+    "receivedAt": "2026-10-31T10:00:01Z",
+    "sourceRef": {
+      "type": "portal-message",
+      "reporter": "Anna",
+      "payloadSha256": "04c0287350344bb4746c24a12c2ace66a8998ca226bd9740864926b4de3f8c8b"
+    }
+  }
+}

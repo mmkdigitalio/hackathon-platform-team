@@ -79,6 +79,14 @@ class StatusCollector:
         self._expires = 0.0
         self._lock = asyncio.Lock()
 
+    def _portal(self) -> dict:
+        """Adresse der Chat-API; OPS_PORTAL_URL übersteuert die abgeleitete Adresse (lokal, Tests)."""
+        override = os.environ.get("OPS_PORTAL_URL", "").rstrip("/")
+        if override:
+            return {"url": override, "enabled": True}
+        configured = bool(DOMAIN.fullmatch(self.domain)) and self.scheme in ("http", "https")
+        return {"url": f"{self.scheme}://operations-agent.{self.domain}" if configured else None, "enabled": configured}
+
     def targets(self) -> tuple[list[dict], bool]:
         apps = []
         root = self.settings.platform_root
@@ -145,6 +153,7 @@ class StatusCollector:
                 "checkedAt": datetime.now(UTC).isoformat(), "refreshAfterSeconds": 30,
                 "environment": self.environment, "status": overall, "catalogAvailable": catalog_ok,
                 "services": list(results), "operations": operations, "admin": admin,
+                "portal": self._portal(),
             }
             self._expires = time.monotonic() + 10
             return self._cached

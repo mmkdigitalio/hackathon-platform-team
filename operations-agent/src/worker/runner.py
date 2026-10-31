@@ -21,6 +21,7 @@ from contracts import (
     AgentInvocation,
     AgentResult,
     ContextRefs,
+    ConversationRef,
     IssueRef,
     Ownership,
     OwnershipLost,
@@ -29,7 +30,7 @@ from contracts import (
 )
 from contracts.errors import LeaseLost, TransitionRejected
 from contracts.states import TERMINAL_STATES, JobState
-from persistence import actions, jobs, locks
+from persistence import actions, jobs, locks, portal
 from persistence.jobs import Claim
 
 from .services import LeaseGuard, build_services, to_record
@@ -266,10 +267,24 @@ class Worker:
             parts = [github[0]["payload"].get("issue", {}).get("body") or ""]
             parts += [(e["payload"].get("comment") or {}).get("body") or "" for e in github[1:]]
             text = "\n\n---\n\n".join(p for p in parts if p)
+        conversation = None
+        portal_events = [e for e in events if e["source"] == "portal"]
+        if portal_events:
+            conversation_id = portal_events[-1]["external_ref"]
+            with self.connect() as conn:
+                messages = portal.conversation_messages(conn, conversation_id)
+            reporter = next((m["author"] for m in reversed(messages) if m["role"] == "reporter"),
+                            portal_events[-1]["payload"].get("reporter"))
+            conversation = ConversationRef(id=conversation_id, reporter=reporter)
+            text = "\n".join(
+                f"[{m['created_at'].isoformat()}] {m['role']} ({m['author'] or m['role']}): {m['body']}"
+                for m in messages if m["role"] in ("reporter", "agent")
+            )[-4000:]
         return ContextRefs(
             git_ref=self.config.context_git_ref,
             alert_payload=alert,
             issue=issue,
+            conversation=conversation,
             issue_text=text,
             event_type=events[0]["event_type"] if events else None,
         )

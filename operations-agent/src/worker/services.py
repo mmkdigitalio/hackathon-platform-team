@@ -6,6 +6,7 @@ Sperrverlust erscheinen für D als ``OwnershipLost``.
 
 from collections.abc import Callable
 from functools import wraps
+from typing import Literal
 
 import psycopg
 
@@ -182,6 +183,52 @@ class TransitionService:
         return True
 
 
+class ConversationPostService:
+    """Schreibt Agentenantworten nur unter gültigem Besitz in Portal-Vorfälle."""
+
+    def __init__(self, connect: Connect, lease: JobLease):
+        self._connect, self.lease = connect, lease
+
+    def _job(self, conn, job_id: str) -> dict:
+        if job_id != self.lease.job_id:
+            raise OwnershipLost("Auftrag gehört nicht zu diesem Besitz")
+        job = self.lease.verify(conn)
+        incident = conn.execute("SELECT source FROM incidents WHERE id = %s", (job["incident_id"],)).fetchone()
+        if incident["source"] != "portal":
+            raise ValueError("Auftrag gehört nicht zum Portal")
+        return job
+
+    @_ownership
+    def post(self, job_id: str, text: str, kind: Literal["reply", "result"]) -> str:
+        if kind not in ("reply", "result") or not isinstance(text, str) or not text.strip():
+            raise ValueError("Antwort und Art müssen gültig sein")
+        note = "… [gekürzt]"
+        body = text if len(text) <= 4000 else text[:4000 - len(note)] + note
+        with self._connect() as conn, conn.transaction():
+            job = self._job(conn, job_id)
+            # Ergebnis auch bei Wiederaufnahme nur einmal speichern; Lease sperrt die Auftragszeile.
+            if kind == "result":
+                existing = conn.execute(
+                    "SELECT id FROM conversation_messages WHERE job_id = %s AND kind = 'result'", (job_id,),
+                ).fetchone()
+                if existing:
+                    return str(existing["id"])
+            row = conn.execute(
+                """INSERT INTO conversation_messages (incident_id, job_id, role, author, kind, body)
+                   VALUES (%s, %s, 'agent', 'Betriebsagent', %s, %s) RETURNING id""",
+                (job["incident_id"], job_id, kind, body),
+            ).fetchone()
+            return str(row["id"])
+
+    @_ownership
+    def has_result(self, job_id: str) -> bool:
+        with self._connect() as conn, conn.transaction():
+            self._job(conn, job_id)
+            return conn.execute(
+                "SELECT 1 FROM conversation_messages WHERE job_id = %s AND kind = 'result' LIMIT 1", (job_id,),
+            ).fetchone() is not None
+
+
 class CheckpointService:
     """LangGraph-Checkpointer auf eigener Verbindung; Tabellen legt ``ops migrate`` an."""
 
@@ -205,11 +252,14 @@ def build_services(connect: Connect, lease: JobLease, job: dict, *, lock_ttl_sec
     OperationsServices, CheckpointService
 ]:
     checkpoints = CheckpointService()
+    with connect() as conn:
+        incident = conn.execute("SELECT source FROM incidents WHERE id = %s", (job["incident_id"],)).fetchone()
     services = OperationsServices(
         actions=ActionLogService(connect, lease),
         lock=LockService(connect, lease, job, lock_ttl_seconds),
         state=TransitionService(connect, lease),
         ownership=LeaseGuard(connect, lease),
         checkpoints=checkpoints,
+        conversation=ConversationPostService(connect, lease) if incident["source"] == "portal" else None,
     )
     return services, checkpoints

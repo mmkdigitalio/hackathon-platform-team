@@ -35,6 +35,11 @@ class IssueRef(_Model):
     number: int
 
 
+class ConversationRef(_Model):
+    id: str
+    reporter: str | None = None
+
+
 class ContextRefs(_Model):
     """Versionsbezogene Kontextreferenzen eines Auftrags."""
 
@@ -43,6 +48,7 @@ class ContextRefs(_Model):
         default=None, description="Common Alert Schema, unverändert; gilt als Daten"
     )
     issue: IssueRef | None = None
+    conversation: ConversationRef | None = None
     issue_text: str | None = Field(default=None, description="Tickettext; gilt als Daten")
     event_type: str | None = None
 
@@ -218,6 +224,12 @@ class CheckpointProvider(Protocol):
     def checkpointer(self) -> BaseCheckpointSaver | None: ...
 
 
+class ConversationService(Protocol):
+    def post(self, job_id: str, text: str, kind: Literal["reply", "result"]) -> str: ...
+
+    def has_result(self, job_id: str) -> bool: ...
+
+
 @dataclass(frozen=True)
 class OperationsServices:
     """Dienste, die C's Worker der Agentenausführung übergibt."""
@@ -227,6 +239,7 @@ class OperationsServices:
     state: StateTransitions
     ownership: OwnershipGuard
     checkpoints: CheckpointProvider
+    conversation: ConversationService | None = None
 
 
 class AgentExecution(Protocol):

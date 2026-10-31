@@ -13,7 +13,7 @@ from worker.__main__ import main as worker_main
 
 def test_initial_migration_and_idempotent_rerun(empty_db_url, capsys):
     assert cli.main(["migrate"]) == 0
-    assert "eingespielt: [1]" in capsys.readouterr().out
+    assert f"eingespielt: {[m.version for m in migrate.load_migrations()]}" in capsys.readouterr().out
     with connect(empty_db_url) as conn:
         conn.execute("INSERT INTO incidents (source, incident_key) VALUES ('maintenance', 'keep-me')")
         tables_before = conn.execute("SELECT count(*) AS n FROM pg_tables WHERE schemaname='public'").fetchone()["n"]
@@ -45,7 +45,7 @@ def test_concurrent_migrations_serialize(empty_db_url):
     for t in threads:
         t.join()
     assert errors == []
-    assert sorted(len(r.applied) for r in reports) == [0, 1]
+    assert sorted(len(r.applied) for r in reports) == [0, len(migrate.load_migrations())]
 
 
 def test_changed_migration_is_rejected(empty_db_url):

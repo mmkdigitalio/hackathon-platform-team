@@ -22,6 +22,13 @@ class Settings:
     repo_allowlist: frozenset[str] = field(default_factory=lambda: frozenset({DEFAULT_ALLOWLIST}))
     platform_root: Path | None = None
     healthz_max_heartbeat_age_seconds: int = 600
+    base_domain: str = field(default_factory=lambda: os.environ.get("OPS_BASE_DOMAIN", "").lower())
+    public_scheme: str = field(default_factory=lambda: os.environ.get(
+        "OPS_PUBLIC_SCHEME", os.environ.get("OPS_HTTP_SCHEME", "https")))
+    portal_allowed_origins: tuple[str, ...] | None = field(default_factory=lambda: (
+        tuple(origin.strip() for origin in os.environ["OPS_PORTAL_ALLOWED_ORIGINS"].split(",") if origin.strip())
+        if "OPS_PORTAL_ALLOWED_ORIGINS" in os.environ else None
+    ))
 
     @classmethod
     def from_env(cls) -> "Settings":

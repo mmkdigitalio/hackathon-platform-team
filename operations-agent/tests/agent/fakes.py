@@ -320,6 +320,8 @@ class ScriptedModel(BaseChatModel):
 
     responder: Callable[[list[BaseMessage], int], AIMessage]
     _calls: int = PrivateAttr(default=0)
+    _tools: list[str] = PrivateAttr(default_factory=list)
+    _human: list[str] = PrivateAttr(default_factory=list)
 
     @property
     def _llm_type(self) -> str:
@@ -330,9 +332,19 @@ class ScriptedModel(BaseChatModel):
         return self._calls
 
     def bind_tools(self, tools: Any, **kwargs: Any) -> ScriptedModel:
+        self._tools = [t.get("name", "") if isinstance(t, dict) else getattr(t, "name", "") for t in tools]
         return self
 
+    def tool_names(self) -> list[str]:
+        """Zuletzt angebotene Werkzeuge (nach dem Filter der Middleware)."""
+        return self._tools
+
+    def first_human_text(self) -> str:
+        return self._human[0] if self._human else ""
+
     def _generate(self, messages: list[BaseMessage], stop: Any = None, run_manager: Any = None, **kwargs: Any) -> ChatResult:
+        if not self._human:
+            self._human = [m.content for m in messages if m.type == "human" and isinstance(m.content, str)]
         msg = self.responder(messages, self._calls)
         self._calls += 1
         return ChatResult(generations=[ChatGeneration(message=msg)])

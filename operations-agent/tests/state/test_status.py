@@ -8,12 +8,12 @@ import shutil
 import httpx
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
+from psycopg_pool import ConnectionPool
 
+import api.status as status_module
 from api.settings import Settings
 from api.status import StatusCollector, database_status, install_status
-import api.status as status_module
 
 
 def test_probe_tls_failure_is_not_reported_healthy_and_requests_are_cached(platform_root):

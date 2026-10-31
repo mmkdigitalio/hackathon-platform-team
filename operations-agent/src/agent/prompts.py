@@ -74,6 +74,7 @@ def task_message(inv: AgentInvocation, ctx: OperationalContext) -> str:
     drift, why = assess_drift(ctx)
     overview = {
         "auftrag": inv.job_id,
+        "kanal": "chat" if inv.context.conversation else "issue" if inv.context.issue else "alarm" if inv.context.alert_payload else "wartung",
         "operationId": inv.operation_id,
         "ziel": {"appId": ctx.target.app_id, "environment": ctx.target.environment, "namespace": ctx.target.namespace, "deployment": ctx.deployment},
         "erlaubteAktionen": sorted(ctx.allowed_actions),
@@ -93,5 +94,6 @@ def task_message(inv: AgentInvocation, ctx: OperationalContext) -> str:
     if ctx.alert:
         parts.append(_data("alarm-zusammenfassung", ctx.alert))
     if inv.context.issue_text:
-        parts.append(_data("ticket", inv.context.issue_text[:4000]))
+        source = "chat-verlauf" if inv.context.conversation else "ticket"
+        parts.append(_data(source, inv.context.issue_text[:4000]))
     return "\n\n".join(parts)

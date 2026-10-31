@@ -18,6 +18,7 @@ from persistence.db import conninfo
 from . import normalize
 from .catalog import Catalog
 from .normalize import Ignored, InvalidPayload
+from .portal import install_portal
 from .security import github_signature_valid, key_matches, mask_query
 from .settings import Settings
 from .status import install_status
@@ -54,6 +55,7 @@ def create_app(settings: Settings | None = None, pool: ConnectionPool | None = N
     app.state.pool = pool
     app.state.settings = settings
     install_status(app, settings, pool)
+    install_portal(app, settings, pool)
 
     @app.middleware("http")
     async def request_log(request: Request, call_next):

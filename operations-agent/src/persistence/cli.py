@@ -23,7 +23,7 @@ from contracts.errors import (
     UnresolvedActions,
 )
 
-from . import actions, db, locks, migrate, runs
+from . import actions, db, locks, migrate, portal, runs
 
 EXIT = {
     SchemaMissing: 3,
@@ -312,6 +312,21 @@ def cmd_runs_show(args) -> int:
     return 0
 
 
+def cmd_portal_code(args) -> int:
+    with _connect_checked(args) as conn:
+        if args.portal_command == "create":
+            code_id, code = portal.create_code(conn, args.label, args.expires_days)
+            print(json.dumps({"id": code_id, "code": code}, ensure_ascii=False))
+        elif args.portal_command == "list":
+            print(json.dumps(portal.list_codes(conn), default=str, ensure_ascii=False, indent=2))
+        elif not portal.revoke_code(conn, args.id):
+            _err("Zugangscode nicht gefunden")
+            return 1
+        else:
+            print(f"Zugangscode {args.id} widerrufen")
+    return 0
+
+
 def cmd_events_validate(args) -> int:
     from .event_schema import validate_files
 
@@ -349,6 +364,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("migrate", help="Schema anlegen/aktualisieren (idempotent)").set_defaults(fn=cmd_migrate)
     sub.add_parser("schema-version", help="erwartete und vorhandene Version").set_defaults(fn=cmd_schema_version)
+
+    codes = sub.add_parser("portal-code", help="Chat-Zugangscodes").add_subparsers(dest="portal_command", required=True)
+    p = codes.add_parser("create", help="Code einmalig ausgeben")
+    p.add_argument("--label", required=True)
+    p.add_argument("--expires-days", type=int)
+    p.set_defaults(fn=cmd_portal_code)
+    codes.add_parser("list", help="Codes ohne Geheimnisse auflisten").set_defaults(fn=cmd_portal_code)
+    p = codes.add_parser("revoke", help="Code widerrufen")
+    p.add_argument("id")
+    p.set_defaults(fn=cmd_portal_code)
 
     lock = sub.add_parser("lock", help="Operations-Sperre").add_subparsers(dest="lock_command", required=True)
     p = lock.add_parser("acquire", help="Sperre erwerben (Workflow-Konfliktregel)")

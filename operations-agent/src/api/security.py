@@ -7,7 +7,7 @@ import re
 
 MASK = "***"
 _QUERY_KEY = re.compile(r"([?&]key=)[^&\s]*", re.I)
-_SECRET_HEADERS = {"x-api-key", "x-hub-signature-256", "x-hub-signature", "authorization"}
+_SECRET_HEADERS = {"x-api-key", "x-portal-code", "x-hub-signature-256", "x-hub-signature", "authorization"}
 
 
 def key_matches(given: str | None, expected: str) -> bool:

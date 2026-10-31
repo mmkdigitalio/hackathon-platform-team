@@ -167,6 +167,8 @@ def execute(
     result = _result(invocation, scope, ctx, rec, budget, stop)
     if scope is not None and invocation.context.issue and settings.post_issue_comment:
         _comment_result(scope, result)
+    if invocation.context.conversation is not None and services.conversation is not None:
+        _chat_result(invocation, services, result)
     if workspace is not None:
         _close_workspace(workspace, stop, result)
     return result
@@ -395,13 +397,47 @@ def _result(
     )
 
 
-def _comment_result(s: RunScope, result: AgentResult) -> None:
+def _result_lines(result: AgentResult) -> list[str]:
     confirmed = [f.statement for f in result.findings if f.certainty == "confirmed"][:8]
     lines = [f"**Ergebnis:** `{result.proposal}` – {result.reason}"]
     if confirmed:
         lines += ["", "**Befunde:**", *[f"- {x}" for x in confirmed]]
     if result.required_change:
         lines += ["", f"**Nötige Änderung:** {result.required_change}"]
+    return lines
+
+
+CHAT_OUTCOME = {
+    "resolved": "Erledigt und geprüft",
+    "needs_attention": "Nicht automatisch gelöst, ein Mensch schaut sich das an",
+    "failed": "Die Bearbeitung ist fehlgeschlagen, ein Mensch schaut sich das an",
+}
+
+
+def _chat_result(inv: AgentInvocation, services: OperationsServices, result: AgentResult) -> None:
+    """Genau eine Ergebnisnachricht je Auftrag im Chat, auch nach Wiederaufnahme; in einfacher Sprache."""
+    chat = services.conversation
+    try:
+        if chat.has_result(inv.job_id):
+            return
+        confirmed = [f.statement for f in result.findings if f.certainty == "confirmed"][:5]
+        lines = [f"{CHAT_OUTCOME.get(result.proposal, result.proposal)}: {result.reason}"]
+        if confirmed:
+            lines += ["", "Was ich festgestellt habe:", *[f"- {x}" for x in confirmed]]
+        if result.required_change:
+            lines += ["", f"Nötige Änderung: {result.required_change}"]
+        if result.references.get("pullRequests"):
+            lines += ["", "Vorgeschlagene Änderung: " + ", ".join(pr["url"] for pr in result.references["pullRequests"] if pr.get("url"))]
+        result.references["chatResult"] = chat.post(inv.job_id, "\n".join(lines), "result")
+    except OwnershipLost:
+        result.references["chatResultError"] = "Besitz verloren"
+    except Exception as e:  # noqa: BLE001 - die Ergebnisnachricht darf das Laufergebnis nicht ändern
+        log.warning("Chat-Ergebnis nicht gespeichert: %s", type(e).__name__)
+        result.references["chatResultError"] = type(e).__name__
+
+
+def _comment_result(s: RunScope, result: AgentResult) -> None:
+    lines = _result_lines(result)
     # Nach einer Wiederaufnahme steht das Ergebnis eines früheren Laufs eventuell schon im Issue.
     posted = [
         a for a in s.ctx.previous_actions

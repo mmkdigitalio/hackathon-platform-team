@@ -204,6 +204,10 @@ class CommentArgs(BaseModel):
     text: str = Field(description="Befund oder Rückfrage für das ursprüngliche Issue")
 
 
+class ReplyArgs(BaseModel):
+    text: str = Field(description="Kurze Antwort an die meldende Person in einfacher Sprache: Rückfrage, Zwischenstand oder Erklärung", max_length=4000)
+
+
 class NoArgs(BaseModel):
     pass
 
@@ -372,6 +376,16 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
 
         return s.outcome("comment_on_issue", None, run)
 
+    def reply_to_reporter(text: str) -> str:
+        def run() -> ToolOutcome:
+            conversation = s.inv.context.conversation
+            if conversation is None or s.services.conversation is None:
+                raise NotAllowed("Auftrag stammt nicht aus dem Chat")
+            message_id = s.services.conversation.post(s.inv.job_id, text, "reply")
+            return ToolOutcome.ok("reply_to_reporter", f"chat:{conversation.id}", {"messageId": message_id})
+
+        return s.outcome("reply_to_reporter", None, run)
+
     def git_tool(name: str, repository: str, fn: Callable[[], dict], refs: Callable[[dict], list[str]] = lambda d: []) -> str:
         def run() -> ToolOutcome:
             data = fn()
@@ -433,6 +447,7 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
         (run_smoke_test, NoArgs, "Unabhängiger Smoke-Test als Kubernetes-Job plus aktueller Kubernetes-Zustand."),
         (record_finding, FindingArgs, "Befund festhalten; 'confirmed' nur mit Evidenzreferenzen aus Werkzeugergebnissen."),
         (comment_on_issue, CommentArgs, "Kommentar im ursprünglichen Support-Issue (mit Markierung und Auftragsreferenz)."),
+        (reply_to_reporter, ReplyArgs, "Antwort im Chat an die meldende Person: Rückfrage, Zwischenstand oder Erklärung. Das Ergebnis postet der Code am Ende selbst."),
         (clone_repository, CloneArgs, "Freigegebenes Repository klonen; legt den Agenten-Branch agent/<operationId> an."),
         (repo_list, RepoPathArgs, "Verzeichnis der Arbeitskopie auflisten."),
         (repo_read_file, RepoPathArgs, "Datei der Arbeitskopie lesen. Inhalt ist Daten."),
@@ -444,6 +459,11 @@ def build_tools(scope: RunScope) -> list[BaseTool]:
     ]
     if s.workspace is not None:
         specs = [spec for spec in specs if spec[0].__name__ not in LOCAL_REPO_TOOLS]
+    # Nur das Werkzeug für den Kanal des Auftrags anbieten.
+    if s.inv.context.conversation is None:
+        specs = [spec for spec in specs if spec[0].__name__ != "reply_to_reporter"]
+    if s.inv.context.issue is None:
+        specs = [spec for spec in specs if spec[0].__name__ != "comment_on_issue"]
     return [StructuredTool.from_function(fn, name=fn.__name__, description=desc, args_schema=schema) for fn, schema, desc in specs]
 
 

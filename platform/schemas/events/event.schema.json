@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/mmkdigitalio/hackathon-platform-team/platform/schemas/events/event.schema.json",
   "title": "Normalisiertes Betriebsereignis",
-  "description": "Ereignisvertrag v0.1 für Azure Monitor, GitHub-Issues und Wartungsaufträge. Eigentümer: Strang C.",
+  "description": "Ereignisvertrag v0.1 für Azure Monitor, GitHub-Issues, Wartungsaufträge und Mitarbeiter-Chat. Eigentümer: Strang C.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -24,16 +24,16 @@
       "const": "0.1"
     },
     "source": {
-      "enum": ["azure-monitor", "github", "maintenance"]
+      "enum": ["azure-monitor", "github", "maintenance", "portal"]
     },
     "deliveryId": {
-      "description": "Zustellungsidentität je Quelle. Azure Monitor: <alertId>:<monitorCondition>; GitHub: X-GitHub-Delivery; Wartung: vom Aufrufer gesetzt.",
+      "description": "Zustellungsidentität je Quelle. Azure Monitor: <alertId>:<monitorCondition>; GitHub: X-GitHub-Delivery; Wartung: vom Aufrufer gesetzt. Portal: clientMessageId der Nachricht, global je Quelle eindeutig.",
       "type": "string",
       "minLength": 1,
       "maxLength": 512
     },
     "externalRef": {
-      "description": "Referenz im Quellsystem. Azure Monitor: essentials.alertId; GitHub: <owner>/<repo>#<issue>; Wartung: vom Aufrufer gesetzt.",
+      "description": "Referenz im Quellsystem. Azure Monitor: essentials.alertId; GitHub: <owner>/<repo>#<issue>; Wartung: vom Aufrufer gesetzt. Portal: serverseitig erzeugte Unterhaltungs-ID (UUID).",
       "type": "string",
       "minLength": 1,
       "maxLength": 512
@@ -61,8 +61,8 @@
       "enum": ["critical", "error", "warning", "informational", "verbose", "unknown"]
     },
     "state": {
-      "description": "fired/resolved für Alarme, opened/commented für Issues, requested für Wartung.",
-      "enum": ["fired", "resolved", "opened", "commented", "requested"]
+      "description": "fired/resolved für Alarme, opened/commented für Issues, requested für Wartung. reported für Portal-Nachrichten.",
+      "enum": ["fired", "resolved", "opened", "commented", "requested", "reported"]
     },
     "occurredAt": {
       "description": "Zeitpunkt im Quellsystem; null, wenn die Quelle keinen liefert.",
@@ -82,8 +82,9 @@
       "required": ["type", "payloadSha256"],
       "properties": {
         "type": {
-          "enum": ["azure-alert", "github-issue", "github-comment", "maintenance-request"]
+          "enum": ["azure-alert", "github-issue", "github-comment", "maintenance-request", "portal-message"]
         },
+        "reporter": { "type": "string", "minLength": 1, "maxLength": 80 },
         "url": {
           "type": "string"
         },
@@ -139,6 +140,52 @@
         "properties": {
           "state": { "const": "requested" },
           "sourceRef": { "properties": { "type": { "const": "maintenance-request" } } }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "source": {
+            "const": "portal"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "deliveryId": {
+            "maxLength": 100,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          },
+          "externalRef": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "appId": {
+            "type": "string"
+          },
+          "environment": {
+            "type": "string"
+          },
+          "eventType": {
+            "const": "chat-message"
+          },
+          "severity": {
+            "const": "unknown"
+          },
+          "state": {
+            "const": "reported"
+          },
+          "sourceRef": {
+            "required": [
+              "reporter"
+            ],
+            "properties": {
+              "type": {
+                "const": "portal-message"
+              }
+            }
+          }
         }
       }
     }
